@@ -54,7 +54,7 @@ class Corpus:
 
 
 #: The index columns that are the document's identity rather than a property of it.
-INDEX_FIELDS = ("id", "title", "file", "case", "characters")
+INDEX_FIELDS = ("id", "title", "file", "case", "characters", "synthetic")
 
 
 def load_corpus(run: Path) -> Corpus:

@@ -34,6 +34,8 @@ code { font-size: .85em; background: var(--wash); padding: 0 .25em; border-radiu
 .asked b { color: var(--ink); font-weight: 600; margin-right: .3rem; }
 .asked summary { cursor: pointer; }
 .asked p { margin: .4rem 0 0; }
+.synthetic { margin: 0; padding: .6rem .8rem; border: 1px solid var(--red); border-radius: 6px; font-size: .92rem; }
+.synthetic b { color: var(--red); }
 .lead p { font-family: var(--serif); font-size: 1.3rem; line-height: 1.45; margin: 0; }
 .lead strong { font-weight: 500; color: var(--red); }
 .meta { font-size: .85rem; color: var(--quiet); margin: 0; font-variant-numeric: tabular-nums; }

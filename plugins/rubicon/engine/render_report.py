@@ -17,6 +17,9 @@ In answer.md, a line holding only {{figure <table id>}} draws that table as a ch
 import csv, datetime, html, json, re, sys, zipfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
+from rubicon_open.corpus import INDEX_FIELDS
+
 CONTEXT = 420  # characters of the document shown either side of a quotation
 
 
@@ -70,8 +73,7 @@ def load(run):
 
 
 def group_column(index):
-    skip = {"id", "title", "file", "case", "characters"}
-    cols = [c for c in index[0].keys() if c not in skip] if index else []
+    cols = [c for c in index[0].keys() if c not in INDEX_FIELDS] if index else []
     return cols[0] if cols else None
 
 
@@ -213,6 +215,16 @@ def asked(R, static=False):
     rest = first[1] if len(first) > 1 else ""
     return (f'<details class="asked"><summary><b>Question</b> {esc(first[0])}</summary>'
             f'<p>{esc(rest)}</p></details>' if rest else f'<p class="asked"><b>Question</b> {esc(q)}</p>')
+
+
+def synthetic(R):
+    """A notice that the report rests on made-up documents, wherever the index marks any as synthetic."""
+    n = sum(1 for d in R["index"] if (d.get("synthetic") or "").strip().lower() == "yes")
+    if not n:
+        return ""
+    of = "All" if n == len(R["index"]) else f"{n} of the {len(R['index'])}"
+    return (f'<p class="synthetic"><b>Practice material.</b> {of} documents were written by Claude to try the method. '
+            'They are not records of real people, and nothing in this report is evidence about anyone.</p>')
 
 
 def answer_html(R, D, static=False):
@@ -396,6 +408,7 @@ def page(R, fragment=False):
   <p class="eyebrow">Rubicon report</p>
   <h1>{esc(heading(R, title))}</h1>
   {asked(R)}
+  {synthetic(R)}
   <div class="lead">{lead}</div>
   <p class="meta">{len(R["index"])} interviews in {len(groups)} groups · {nrows} passages coded · {esc(R.get("date",""))}</p>
   <ul class="checks">
@@ -445,7 +458,7 @@ def word(R):
             'h1,h2,h3{font-family:Cambria,Georgia,serif;font-weight:normal;color:#8c1912}h1{font-size:20pt}h2{font-size:14pt}'
             'p.note{font-size:9pt}td,th{border:1px solid #e4dcd0;padding:3pt 5pt;font-size:9pt;vertical-align:top}table{border-collapse:collapse}</style></head><body>'
             f'<p style="color:#8b7f72;font-size:9pt">RUBICON REPORT</p><h1>{esc(heading(R, title))}</h1>'
-            f'{asked(R, static=True)}{lead}{body}<h2>How this was made</h2>{annex(R, D)}<h2>Passages cited</h2>{notes}'
+            f'{asked(R, static=True)}{synthetic(R)}{lead}{body}<h2>How this was made</h2>{annex(R, D)}<h2>Passages cited</h2>{notes}'
             f'<h2>What next</h2>{further(R)}</body></html>')
 
 

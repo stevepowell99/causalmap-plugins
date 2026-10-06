@@ -1,7 +1,7 @@
 {
   "name": "rubicon",
   "displayName": "Rubicon",
-  "version": "0.1.0+88fd80653c2c",
+  "version": "0.1.0+8f45376f65b6",
   "description": "Answers an evaluation question from a folder of documents, with every count made by code and every quotation checked against its document.",
   "author": {
     "name": "Causal Map",
