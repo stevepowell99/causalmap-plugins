@@ -223,7 +223,7 @@ def synthetic(R):
     if not n:
         return ""
     of = "All" if n == len(R["index"]) else f"{n} of the {len(R['index'])}"
-    return (f'<p class="synthetic"><b>Practice material.</b> {of} documents were written by Claude to try the method. '
+    return (f'<p class="synthetic"><b>Synthetic documents.</b> {of} documents were written by Claude to test the method. '
             'They are not records of real people, and nothing in this report is evidence about anyone.</p>')
 
 

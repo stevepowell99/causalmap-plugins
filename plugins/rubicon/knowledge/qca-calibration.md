@@ -1,6 +1,6 @@
 # QCA: calibration
 
-Calibration in QCA turns raw material into set membership; this page covers what a membership score means, crisp and fuzzy sets, the direct and indirect methods, calibration as rubric work, and how it goes wrong. Calibration is where a QCA result is made. It is also the step reports say least about, which is why it is the one place Rubicon has something to offer.
+Calibration in QCA turns raw material into set membership; this page covers what a membership score means, crisp and fuzzy sets, the direct and indirect methods, calibration as rubric work, and how it goes wrong. Calibration is where a QCA result is made. It is also the step reports say least about, and the one where writing the anchors down before scoring, and citing the passages behind each score, does most for a reader.
 
 Back to [QCA](qca.md).
 
@@ -36,7 +36,7 @@ A rubric can be written before the cases are scored, with a version history show
 
 A rubric can be argued with. An anchor stated as a number in a spreadsheet column is unarguable, because there is nothing to disagree with. An anchor stated as "the case is in this set when the responsible minister has publicly committed to the programme and officials at director level attend its meetings" is a claim somebody can dispute. That dispute is the useful part.
 
-A rubric can cite. Where each case's level points at the passages behind it, a reader can check the calibration rather than taking it on trust. That is exactly what [a Rubicon cell](qca-in-rubicon.md) does, and it is the argument for calibrating there rather than in a spreadsheet.
+A rubric can cite. Where each case's level points at the passages behind it, a reader can check the calibration rather than taking it on trust. That is what [a coded row citing its passages](qca-in-rubicon.md) does, and it is the argument for calibrating that way rather than in a spreadsheet.
 
 ### A worked anchor set
 

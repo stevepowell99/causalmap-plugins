@@ -2,7 +2,7 @@
 
 Causal mapping records who said what causes what, one causal claim per link with its quote and its source, and answers questions by selecting, tracing and counting those claims: it maps the evidence people give about causes, not the causes themselves.
 
-Subsidiary page: [causal mapping in Rubicon](causal-mapping-in-rubicon.md), which says what Rubicon can and cannot do today. Written from the Causal Map garden (garden.causalmap.app), where each point below is argued at length; the page names are given so a person can follow them up.
+Subsidiary page: [causal mapping in Rubicon](causal-mapping-in-rubicon.md), which says how a workflow codes, counts and traces causal claims, and what it leaves out. Written from the Causal Map garden (garden.causalmap.app), where each point below is argued at length; the page names are given so a person can follow them up.
 
 ## What it establishes
 

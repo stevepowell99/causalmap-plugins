@@ -69,7 +69,7 @@ The evaluator defines the population, selects the conditions, sets the calibrati
 
 The software minimises the truth table and computes parameters of fit. That part is deterministic and uninteresting.
 
-The commissioner should agree the scope condition and the definition of the outcome, and ideally the calibration anchors, before the cases are scored. Agreeing a Rubicon plan before any reading exists for exactly that ordering, and QCA is the method where it pays most, because calibration set after somebody has seen how the cases fall is unfalsifiable.
+The commissioner should agree the scope condition and the definition of the outcome, and ideally the calibration anchors, before the cases are scored. Agreeing a workflow before any reading exists for exactly that ordering, and QCA is the method where it pays most, because calibration set after somebody has seen how the cases fall is unfalsifiable.
 
 ## Traps
 

@@ -2,7 +2,7 @@
 
 How much of a corpus, and which parts of it, a plan has to read before a coding decision, a proportion or an absence can carry the weight a report will put on it.
 
-Ask for this page before choosing how a plan reaches its passages for a question about a causal link, before reporting any share or any absence, and whenever one of the two things linked is much rarer in the corpus than the other. What a count states is under "Counts" in Rubicon's design principles, and what to say about the text that went unread is under "Say what you did not read". The skill `rare-targets` gives the screen, and `long-documents` the splitting of a long document between readers. This page is how to put those together into a sampling and denominator strategy for a live question.
+Ask for this page before choosing how a plan reaches its passages for a question about a causal link, before reporting any share or any absence, and whenever one of the two things linked is much rarer in the corpus than the other. This page is how to put what a count states, what is said about the text that went unread, the screen for a rare target and the splitting of a long document between readers together into a sampling and denominator strategy for a live question.
 
 ## What is being found is a declared link
 
@@ -14,7 +14,7 @@ So reading enough means reading so that every declaration of the link had a fair
 
 A claim that the programme improved family wellbeing has at least three possible bases, and each answers a different question.
 
-- **Accounts of the outcome.** Every passage where wellbeing got better or worse, including the near relations and the opposites, with what the speaker credits for it: the programme, a rival, or nothing. This is the contribution question. On this base every cause competes on the same ground. Screen on the outcome to build it, never on the programme (skill `rare-targets`).
+- **Accounts of the outcome.** Every passage where wellbeing got better or worse, including the near relations and the opposites, with what the speaker credits for it: the programme, a rival, or nothing. This is the contribution question. On this base every cause competes on the same ground. Screen on the outcome to build it, never on the programme.
 - **Accounts of the programme.** Every passage about the programme, with what the speaker says it led to. This is the reach question: of what people say about the programme, how much of it ends in the outcome and how much in something else.
 - **Accounts of the rivals.** Every passage about another explanation for the same outcome, searched with the same effort as the programme's own account, which is what [contribution analysis](contribution-analysis.md) turns on.
 
@@ -67,7 +67,7 @@ Two faults make a link look absent when it is in the text. Neither shows in the 
 
 ### Four moves
 
-In rising order of cost. The skill `long-documents` briefs the first, third and fourth whenever a document is split, and `rare-targets` the second.
+In rising order of cost. The first, third and fourth apply whenever a document is split, the second whenever one side of the link is rare.
 
 - **Overlap the sections.** Each section shares a tail with the one before, a few turns or a page, long enough to hold a whole declaration. A passage in an overlap may be recorded by both readers, which a count of cases absorbs and a count of mentions does not.
 - **Search the rare side first, then read around the co-occurrences.** This needs knowing which side is rare before the search, which a screen of a few documents measures before the plan is settled. Keeping only the passages where both concepts were found narrows on the combination, so it suits "what did the programme lead to" and never "the programme compared with the rivals". Where both questions are wanted, narrow twice and say which number came from which.
@@ -76,11 +76,11 @@ In rising order of cost. The skill `long-documents` briefs the first, third and 
 
 ## As a plan
 
-The practices on this page decide a workflow's reading strategy, and the choice between the two routes from open labels to counts is itself part of that decision, because it decides what an absence is allowed to mean. The closed route, sample a subset and code it openly, group the free labels into a codebook, then code every document closed against that codebook and tabulate, means a document's silence on an item came from reading it whole against a declared list, which is what lets the tabulate step's cell of nought at that item and document stand as a finding rather than a gap in the search. The open route, code every document once with a free-text column, group with `assign` to label every row, then tabulate by `item`, is cheaper and undercounts for the reason this page gives throughout: an open code step reads for whatever is there and stops, so its silence on an item is the weaker of the two kinds this page distinguishes, and an answer built on it should say so.
+The practices on this page decide a workflow's reading strategy, and the choice between the two routes from open labels to counts is itself part of that decision, because it decides what an absence is allowed to mean. The closed route, sample a subset and code it openly, group the free labels into a codebook, then code every document closed against that codebook and tabulate, means a document's silence on an item came from reading it whole against a declared list, which is what lets the tabulate step's cell of nought at that item and document stand as a finding rather than a gap in the search. The open route, code every document once with a free-text column, group the labels and record each row's kind as a nominal column, then tabulate by that column, is cheaper and undercounts for the reason this page gives throughout: an open code step reads for whatever is there and stops, so its silence on an item is the weaker of the two kinds this page distinguishes, and an answer built on it should say so.
 
 Say which side of a link is rare, and how that is known, in the workflow's `reasons` for its steps, measured on a few documents read first or stated as an assumption. Running the workflow on a handful of documents before the rest, read as cheap evidence in those reasons, is a way of running the workflow on fewer documents rather than a step of its own, and it is what decides whether the design reads every document, samples and builds a codebook, or narrows further. Read everything, or sample and close the codebook, wherever either is affordable, since neither the rare side nor the common one can be found by the other's route, and narrow only where both are too dear.
 
-Every tabulate cell states its base in the same sentence a write step reads it with, documents or rows, and a tabulate step's own `.of` count says how many were read for nothing. An absence is reported with its search: a code step's prompt says what was looked for and which side it was anchored on, and the step's own record of the documents it actually read says whether the material could have carried it; a document a sample never drew is not a document found empty, and no tabulate base ever includes it.
+Every tabulate cell states its base in the same sentence a write step reads it with, documents or rows, and a tabulate step's own `.of` count says how many were read for nothing. An absence is reported with its search: a code step's prompt says what was looked for and which side it was anchored on, and the documents the code step actually read, which the recount lists, say whether the material could have carried it; a document a sample never drew is not a document found empty, and no tabulate base ever includes it.
 
 The worked strategy for a contribution question: a code step reading every document for the outcome, with a column for what each passage credits, and a tabulate step over that column giving the cases crediting the programme, the cases naming a rival, and the cases that yielded nothing, each stated out of the documents actually read.
 

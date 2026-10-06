@@ -6,34 +6,49 @@ Back to [generic evaluation questions](generic-evaluation.md), for what the crit
 
 ## Scope, and the contrast inside the corpus
 
-Sustainability asks whether the net benefits, institutional capabilities and changes to systems that an intervention produced will persist after external financial support ends [1]. Terms of reference divide it into four pillars [1].
+The 2019 definition asks "Will the benefits last?": "The extent to which the net benefits of the intervention continue, or are likely to continue". Its note says this "Includes an examination of the financial, economic, social, environmental, and institutional capacities of the systems needed to sustain net benefits over time", involves "analyses of resilience, risks and potential trade-offs", and, depending on when the evaluation happens, may mean "analysing the actual flow of net benefits or estimating the likelihood of net benefits continuing over the medium and long-term" (OECD DAC 2019, p. 12). The 2021 guidance sets out the challenges of evaluating it (OECD 2021, pp. 71 to 76, Table 4.6 on p. 74). For a programme closing, terms of reference usually turn this into four pillars.
 
-- **Institutional ownership and integration.** Project practices, routines and technical protocols built into local government mandates or permanent organisational structures [1].
-- **Recurrent financial and fiscal viability.** Domestic budget allocations, local cost recovery or other funding from outside the donor, secured to cover operating and maintenance costs after the project [1].
-- **Technical and human resource capacity.** Trained local staff who stay, and supply chains they can reach, able to troubleshoot, maintain and update systems without external technical help [3].
-- **Phased exit.** A planned, gradual withdrawal that hands over operational control step by step, rather than an abrupt end [9].
+- **Institutional ownership and integration.** Project practices, routines and technical protocols built into local government mandates or permanent organisational structures.
+- **Recurrent financial and fiscal viability.** Domestic budget allocations, local cost recovery or other funding from outside the donor, secured to cover operating and maintenance costs after the project.
+- **Technical and human resource capacity.** Trained local staff who stay, and supply chains they can reach, able to troubleshoot, maintain and update systems without external technical help.
+- **Phased exit.** A planned, gradual withdrawal that hands over operational control step by step, rather than an abrupt end.
 
-The critical error in a qualitative sustainability appraisal is mistaking political commitment for operational capacity [9]. Officials often voice enthusiastic support for continuation in exit interviews [9]. Without domestic budget allocations and trained technical staff, such commitments do not keep anything running [9]. The plan contrasts what the implementer's handover reports say with what local authorities say in interview, on the column giving each document's kind, and counts financing passages by the speaker's role, to test whether claims of ownership are matched by domestic resources [4].
+The critical error in a qualitative sustainability appraisal is mistaking political commitment for operational capacity. Officials often voice support for continuation in exit interviews; without domestic budget allocations and trained technical staff, such commitments do not keep anything running. The plan contrasts what the implementer's handover reports say with what local authorities say in interview, on the attribute giving each document's kind, and counts financing passages by the speaker's role, to test whether claims of ownership are matched by domestic resources.
 
 ## As a plan
 
-A code step reads the implementer's handover reports against what local authorities themselves say about recurrent budget allocation, by pillar, with a column describing operations secured on domestic funding or a stop foreseen for lack of it, each defined to keep the two kinds of statement, a funding commitment and a funding decision already taken, distinct rather than treating a stated intention as financing in place. A tabulate step gives passages by pillar and by whether they describe secured funding or a foreseen stop, against the documents read for each pillar.
+**Sample.** Every document; where the corpus is too large to read whole, stratify by document kind, so handover reports and local authority interviews are both read.
 
-The failure this criterion guards against, political support for a programme mistaken for the recurrent financing that would keep it running, is guarded by writing the column's values so that only a budget line or an allocation decision counts as secured, never a statement of support, since only the former is evidence of financing rather than of goodwill. Sustainability is a rule, worst-first: a judge step holds the whole reading down wherever more than a handful of passages in any pillar foresee an unfinanced stop, whatever the other pillars show, because ownership cannot run a system nobody has agreed to pay for, applied by code rather than averaged away against the pillars that look secure.
+**Code.** A nominal column for the pillar a passage concerns, and a nominal column for what it says about continuation, with values that keep a decision apart from an intention: `secured` (a budget line, an allocation decision, staff on a permanent payroll), `committed` (a stated intention or expression of support, with no decision behind it), `stop_foreseen` (the passage expects an activity to stop or lapse for lack of funding, staff or supplies) and `no_view`. Only a budget line or an allocation decision counts as secured, never a statement of support, since only the former is evidence of financing rather than of goodwill. Where documents mix voices, add a column for whose account a passage gives. Define the values tightly enough that another coder would place the same passage the same way; where a passage sits between committed and secured, the answer says the call was close.
 
-The code step's `check` setting (off by default, and under test) has a second model reread every coded passage in its context against the coding instructions, keeping, recoding or dropping it with a reason. For it to catch funding coded as secured on a statement of intent or support, which is the commonest way this criterion is coded too generously, the coding instructions must say that only an allocation or a budget line counts. The write step's instructions should separate the pillars by name rather than reporting one aggregate sustainability verdict, since a programme can be financed in one pillar and cut off in another and the aggregate would hide it.
+**Tabulate.** Count documents by pillar and continuation value, and by continuation value and the speaker's role or document kind, so the `.within.` cells show, of the documents discussing each pillar, how many describe funding secured and how many foresee a stop.
 
-A trial carries out the workflow on one pillar's handover report and budget material before the full corpus runs, to settle what counts as an actual allocation before the coding runs wide.
+**Judge.** Only with the evaluator's standard. A typical one is a `rule`, read worst-first: the overall verdict is held down wherever more than a stated number of documents in any pillar foresee an unfinanced stop, whatever the other pillars show, because ownership cannot run a system nobody has agreed to pay for. Without a standard, leave the judge out and offer standards in their terms without numbers.
+
+**Write.** Each pillar by name with its counts and bases, rather than one aggregate verdict, since a programme can be financed in one pillar and cut off in another and the aggregate would hide it; commitments reported as commitments, never as financing.
+
+**What the workflow must say it cannot answer** (its `cannot_answer`).
+
+- **Whether benefits actually continued**, unless the corpus includes material written after the project closed.
+- **Budget lines held only in a finance system**, which the evaluator brings in when the report is written.
+
+Try the continuation values on one pillar's handover report and budget material before coding the rest, to settle what counts as an actual allocation.
 
 ## What it guards against
 
-Sustainability is open to what might be called the interdependent chain trap: institutional enthusiasm cannot keep infrastructure working if the domestic budget for running costs is nothing [5]. Reading worst-first treats institutional ownership and fiscal viability as conditions that depend on each other [4]. Where nothing funds the running costs after closure, the overall reading is unsustainable, so strong political ownership cannot hide a financial collapse [4].
+Sustainability is open to what might be called the interdependent chain trap: institutional enthusiasm cannot keep infrastructure working if the domestic budget for running costs is nothing. Reading worst-first treats institutional ownership and fiscal viability as conditions that depend on each other (Davidson 2005 on synthesis that does not let one strength hide another's failure). Where nothing funds the running costs after closure, the overall reading is unsustainable, so strong political ownership cannot hide a financial collapse.
 
 ## Where Rubicon falls short
 
-- **Sustainability is a forecast, and the material is too.** A coded row records what a passage says about continuation, which is a speaker's or a report's expectation at the time of writing. The plan counts those expectations; it cannot observe what persisted, unless the corpus includes material written after the project closed.
-- **An approved budget line is often in a finance system rather than a document.** A budget line somebody mentions in an interview or a handover report is in scope. One that exists only in the municipality's accounts is not, and is brought in when the report is written [4].
+- **Sustainability is a forecast, and the material is too.** A coded row records what a passage says about continuation, which is a speaker's or a report's expectation at the time of writing. The plan counts those expectations; it cannot observe what persisted, unless the corpus includes material written after the project closed. The 2019 note allows for exactly this split between an actual flow of benefits and an estimate of its likelihood (OECD DAC 2019, p. 12).
+- **An approved budget line is often in a finance system rather than a document.** A budget line somebody mentions in an interview or a handover report is in scope. One that exists only in the municipality's accounts is not, and is brought in when the report is written.
 
 ## Sources
 
-The numbers in square brackets refer to the works cited on [generic evaluation questions](generic-evaluation.md#works-cited).
+The works cited for all the criterion pages are on [generic evaluation questions](generic-evaluation.md#works-cited). This page cites two OECD documents by page and Davidson as a whole work. The 2019 definition, its note and their page were checked against the copy the New Zealand Ministry of Foreign Affairs and Trade hosts, and the quotations are from that copy; the 2021 section and table pages were checked against that report's printed table of contents.
+
+OECD DAC Network on Development Evaluation (2019). *Better Criteria for Better Evaluation: Revised Evaluation Criteria Definitions and Principles for Use*. OECD. The definition of sustainability, its note and Box 7 are on p. 12. Listed as [1] in the works cited.
+
+OECD (2021). *Applying Evaluation Criteria Thoughtfully*. OECD Publishing, Paris. [doi.org/10.1787/543e84ed-en](https://doi.org/10.1787/543e84ed-en). The sustainability section runs from p. 71 to p. 76, with its table of challenges (Table 4.6) on p. 74. Listed as [2] in the works cited.
+
+Davidson, E. J. (2005). *Evaluation Methodology Basics*. Listed as [6] in the works cited.

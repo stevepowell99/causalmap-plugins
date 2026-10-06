@@ -55,7 +55,7 @@ Three practical rules.
 
 **Report the search at the same detail as the finding.** A found piece of evidence gets a quotation and a citation. An absence should get the equivalent: the sources read, the terms searched, the coverage.
 
-**Distinguish never-searched from searched-and-absent.** These are different results. A register that collapses them is worthless for every test depending on absence. Coding the prediction as a column over the sample's documents keeps the two apart: a document outside the sample carries no row, while one inside it that the coder found wanting is coded absent and counted among those read, so the two cannot be confused; a code step's record says which part of a document it read, so a result read from only part of it says so.
+**Distinguish never-searched from searched-and-absent.** These are different results. A register that collapses them is worthless for every test depending on absence. Coding the prediction as a column over the sample's documents keeps the two apart: a document outside the sample carries no row, while one inside it that the coder found wanting is coded absent and counted among those read, so the two cannot be confused. Where only part of a document was read, or a section could not be read, the absent result says so, since it rests only on what was read.
 
 ## Reporting the update
 

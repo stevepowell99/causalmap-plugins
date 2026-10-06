@@ -1,12 +1,12 @@
 # Probative value: which findings deserve a stronger check
 
-A finding is worth checking in proportion to how easily a few misread cells or a missed passage would change what it says, so a count of 45 of 50 can stand as read while a "none of the ten" needs a second look.
+A finding is worth checking in proportion to how easily a few misread placements or a missed passage would change what it says, so a count of 45 of 50 can stand as read while a "none of the ten" needs a second look.
 
 Ask for this page when planning where a run should look hardest, when deciding which findings need a stronger check, and when saying how sure a finding is. The four evidence tests and the ratio behind them are on the [evidence tests page](process-tracing-evidence-tests.md), and how much has to be read before an absence or a share can be relied on is on [reading enough](reading-enough.md). This page takes the same logic to counts, groups and zeros, which is where most Rubicon findings live.
 
 ## What probative value is
 
-A piece of evidence is worth as much as it discriminates. Two probabilities decide that: how likely the evidence is if the claim is true, and how likely it is if the claim is false. Befani and colleagues call the first the sensitivity and the second the type I error, borrowing the terms from diagnostic testing (CECAN note; Befani and Stedman-Bryce 2017). Their ratio, the likelihood ratio, is the probative value. Bennett puts it plainly: "It is the relative likelihood of the evidence under the alternative explanations, or the 'likelihood ratio,' that matters, not the absolute likelihood" (Bennett 2022). Fairfield and Charman take its logarithm, following Good, and call that the weight of evidence, which "describes the probative value of the evidence—how strongly it discriminates between two rival hypotheses" (Fairfield and Charman 2017).
+A piece of evidence is worth as much as it discriminates. Two probabilities decide that: how likely the evidence is if the claim is true, and how likely it is if the claim is false. Befani and colleagues call the first the sensitivity and the second the type I error, borrowing the terms from diagnostic testing (CECAN note; Befani and Stedman-Bryce 2017). Their ratio, the likelihood ratio, is the probative value. Bennett puts it plainly: "It is the relative likelihood of the evidence under the alternative explanations, or the 'likelihood ratio,' that matters, not the absolute likelihood" (Bennett 2022). Fairfield and Charman take its logarithm, following Good, and call that the weight of evidence, which "describes the probative value of the evidence", that is, "how strongly it discriminates between two rival hypotheses" (Fairfield and Charman 2017).
 
 Three consequences hold even where nobody writes a number down.
 
@@ -16,25 +16,25 @@ Three consequences hold even where nobody writes a number down.
 
 ## A count is evidence too, and its words are the hypotheses
 
-A Rubicon finding is usually a count put into words: "most of the trainees", "none of the managers", "more often in the north". Each word is a claim, and the count is the evidence for it. The question to ask of a count is this: could a plausible handful of wrongly read cells, or a passage the reading missed, change the word?
+A Rubicon finding is usually a count put into words: "most of the trainees", "none of the managers", "more often in the north". Each word is a claim, and the count is the evidence for it. The question to ask of a count is this: could a plausible handful of wrongly placed documents, or a passage the reading missed, change the word?
 
-**45 of 50 said yes.** "Most" fails only if the count falls to 25, so 20 of the 50 cells would have to be wrong in the same direction. A reading that gets 96% of cells right, which is about what model coding of long interviews has achieved in Rubicon's own tests, puts the expected number of wrong cells in 50 at about two. No plausible error turns 45 into 25, and it does not matter whether the true figure is 39 or 48. The word is robust, and a second check would cost money without any prospect of changing it.
+**45 of 50 said yes.** "Most" fails only if the count falls to 25, so 20 of the 50 placements would have to be wrong in the same direction. A reading that places 96% of documents right, which is about what model coding of long interviews has achieved in Rubicon's own tests, puts the expected number of wrong placements in 50 at about two. No plausible error turns 45 into 25, and it does not matter whether the true figure is 39 or 48. The word is robust, and a second check would cost money without any prospect of changing it.
 
-**0 of 10 said yes.** "None" fails if one cell is wrong. Two things make a zero weaker evidence than it looks.
+**0 of 10 said yes.** "None" fails if one placement is wrong. Two things make a zero weaker evidence than it looks.
 
 - **Sampling.** If the true share among people like these were one in ten, a group of ten would still show nobody about a third of the time (0.9 to the tenth power is 0.35). A zero from ten cannot rule out a share of about a quarter: 0.74 to the tenth power is 0.049. This is the "rule of three" from medical statistics, where no event in n cases leaves the true rate at up to about 3 in n (Hanley and Lippman-Hand 1983), which is a rough guide at n = 10 rather than an exact bound.
 - **The reading.** If the reader finds a real account 80% of the time, one real case goes unseen one time in five. So the likelihood ratio of a zero, for "nobody" against "exactly one person", is 1 to 0.2, or 5. That is a straw in the wind, not a hoop.
 
 So "none of the ten" is the finding most worth checking, and the check that helps is one with high sensitivity for the missing case: a fresh reading of each document for that item, not a second opinion on the quotes the first reading kept, since a zero does not come with any quotes to reread.
 
-**The general rule.** Call the smallest number of cells whose change would alter the finding's wording its margin. A finding is fragile where the margin is no larger than the number of wrong cells the reading can be expected to produce in its base. Medical trials have the same idea as the fragility index, the number of patients whose outcome would have to change to reverse a significant result (Walsh et al. 2014). Four kinds of finding usually have a margin of one or two.
+**The general rule.** Call the smallest number of placements whose change would alter the finding's wording its margin. A finding is fragile where the margin is no larger than the number of wrong placements the reading can be expected to produce in its base. Medical trials have the same idea as the fragility index, the number of patients whose outcome would have to change to reverse a significant result (Walsh et al. 2014). Four kinds of finding usually have a margin of one or two.
 
 - **A zero or a "none of"**: one missed case overturns it.
-- **A small group**, three documents or fewer in Rubicon's convention, where one cell is a third of the group.
-- **A count near a threshold** that the wording or a rubric's standard depends on: 27 of 50 is "most" by two cells.
-- **A comparison between groups** whose difference is a few cells: swap two and the gap closes.
+- **A small group**, three documents or fewer in Rubicon's convention, where one document is a third of the group.
+- **A count near a threshold** that the wording or a rubric's standard depends on: 27 of 50 is "most" by two placements.
+- **A comparison between groups** whose difference is a few placements: swap two and the gap closes.
 
-A count of all of a group, "every one of the twelve", is fragile in the same way as a zero, since one wrongly counted cell turns "all" into "all but one".
+A count of all of a group, "every one of the twelve", is fragile in the same way as a zero, since one wrongly counted document turns "all" into "all but one".
 
 ## As a plan
 
@@ -42,7 +42,7 @@ What follows is what the designer writes into the workflow before any code step 
 
 Before any document is read, the workflow gives the account being tested and each rival its own column, each stating what would be found and where; anything both would produce is dropped, since it discriminates between nothing. Both are coded in the same pass, at the same depth: one code step, or matched code steps, over the same sample, rather than one column asked of every document with its rival left to a thinner search, which is the symmetric-effort principle stated everywhere else in this knowledge base.
 
-The designer decides in advance which findings will be fragile, said in the workflow's reasons: a question asked of a small group, a likely answer of "nobody", or a comparison of two small counts, so the stronger check for those, such as a second coder, an adjudicator or a trial first, is chosen before the numbers arrive rather than after. An absence counts as evidence only where a document was actually read for it: a tabulate step's base is the documents its sample drew, so a zero in a cell is stated against that base rather than left out, while a document never drawn into the sample carries no row and sits outside the base, so the two kinds of absence are not confused in a count that states what it is out of.
+The designer decides in advance which findings will be fragile, said in the workflow's reasons: a question asked of a small group, a likely answer of "nobody", or a comparison of two small counts, so the stronger check for those, such as a fresh reading of every document in the group for the item, or a trial on a few documents first, is chosen before the numbers arrive rather than after. An absence counts as evidence only where a document was actually read for it: a tabulate step's base is the documents its sample drew, so a zero in a cell is stated against that base rather than left out, while a document never drawn into the sample carries no row and sits outside the base, so the two kinds of absence are not confused in a count that states what it is out of.
 
 Recording the side of each passage is a coder's ordinary brief rather than a separate code step: where a thing has two sides the question keeps apart, the column has one value for each, so a tabulate step gives both the count supporting and the count cutting against from the one coding, with the documents nobody read for it left out of both rather than silently swelling the base on one side.
 
@@ -50,26 +50,28 @@ Recording the side of each passage is a coder's ordinary brief rather than a sep
 
 - **State strength in words tied to the margin, not as a probability.** Befani's rubric maps posterior confidence to phrases, from "more confident than not" (0.50 to 0.70) to "practical certainty" (above 0.99) (IIED 2017, table 1), and the CECAN note recommends the IPCC's likelihood scale for eliciting such judgements. Both assume somebody has set priors and likelihoods. Rubicon sets neither, so a posterior it printed would be a guess dressed as a measurement. What a run can say is the count, its base, and how far the words sit from changing: "raised by 45 of the 50; no plausible misreading changes that most did", or "none of the 10 managers, a finding that turns on each of them".
 - **Leave a robust count alone.** A report that hedges 45 of 50 as much as 0 of 10 teaches the reader to ignore the hedges.
-- **Say which cells a fragile finding turns on.** For a zero or a small group, name the documents, so a reader can open them. For a count near a threshold, give the count and the threshold together.
-- **Decline a finding the evidence cannot carry**, in a line: "Not reported: only 2 of the 30 documents bore on this, too few to say" (skill `counting-things`).
+- **Say which documents a fragile finding turns on.** For a zero or a small group, name the documents, so a reader can open them. For a count near a threshold, give the count and the threshold together.
+- **Decline a finding the evidence cannot carry**, in a line: "Not reported: only 2 of the 30 documents bore on this, too few to say".
 - **Give the strongest evidence against the finding**, and what would have changed it. These are the two sentences the [evidence tests page](process-tracing-evidence-tests.md#reporting-the-update) asks for, and they are how a reader sees that the search could have come out the other way.
 - **Do not report a posterior, a likelihood ratio or decibels as a result.** Where an evaluator wants the explicit Bayesian version, the numbers are the evaluator's own judgement, written into the answer with what was assumed; the count tool does not multiply ratios (see [process tracing in Rubicon](process-tracing-in-rubicon.md)).
 
-## What is built and what is planned
+## What the record does, and what is left to the coder
 
-Built today:
+What the open format does:
 
 - A tabulation names the documents it counted and the documents it did not, for the whole base and for each group of a column it is split by, so a zero on a small group comes with the documents behind it.
-- A tabulation states a value that occurs in no document as a stated zero rather than a dropped row, out of the documents the sample read, so a zero is never made of documents nobody read.
-- On a step whose column has fixed values, a second coder of another model family reads every document as well; a value only one of them places goes to an adjudicator who rules it from the whole document and the quoted passages; a ruling that fails stands as the first coder had it, counted as unruled rather than upheld.
-- A document the second coder could not read in full is coded once, with the step's record listing it, so a failed second reading never shows as a disagreement.
+- A tabulation states a value that occurs in no document as a zero rather than a dropped row (unless it is set `sparse`), out of the documents the coding read, so a zero is never made of documents nobody read.
+- The recount checks every count in the answer against its tabulation and every quotation against its document.
 
-Not built:
+What a careful coder does:
 
-- **A computed margin.** Nothing works out a finding's margin and compares it with the expected number of wrong rows; the designer judges which findings are fragile from the kinds above, said in the workflow's reasons. Do not promise it.
-- **An undecided value** for a column whose evidence is too thin.
+- Defines each value with what counts and the near misses that go elsewhere, tightly enough that another coder would place the same passage the same way, since a fragile finding is only as sound as the boundary it turns on.
+- For a finding the reasons mark as fragile, rereads each document in its base for the item, which is the high-sensitivity check a zero needs, and says in the answer that this was done.
+- Gives a column a value of its own for evidence too thin to place, defined as tightly as the others, rather than forcing a close passage to one side; and where a placement is close, says so in the row, and in the answer where the finding's wording turns on it.
 
-Measured and not adopted: in Rubicon's tests, a second model checking every counted cell added about two thirds to the price and, against an independent reviewer, broke more cells than it fixed. A check has a sensitivity and a type I error of its own, and one whose errors are as common as the reader's carries little probative value, wherever it is pointed.
+What nothing does: **compute a margin.** Nothing works out a finding's margin and compares it with the expected number of wrong placements; the designer judges which findings are fragile from the kinds above, said in the workflow's reasons. Do not promise it.
+
+A check has a sensitivity and a type I error of its own. A second reading whose errors are as common as the first's carries little probative value wherever it is pointed, so aim the extra reading at the fragile findings rather than at every row.
 
 ## The limits
 
@@ -77,7 +79,7 @@ Measured and not adopted: in Rubicon's tests, a second model checking every coun
 - **Precise numbers can be false precision.** Fairfield and Charman: "quantification may simply disguise that ambiguity with false precision" (Fairfield and Charman 2017). The CECAN note lists the biases expert estimates carry, anchoring and a preference for a good story among them, and names probability estimation as the method's main weakness in both its case studies.
 - **Independence usually fails.** Likelihood ratios multiply only across independent evidence, and interviews from one office, or passages from one talkative respondent, are not independent. Befani treats this under evidence packages, which she calls one of the most troublesome practical issues (Befani 2020).
 - **The practice has run ahead of the principle.** Zaks examines the claims made for Bayesian process tracing, that it enables inference from iterative research and guards against confirmation bias, and finds gaps between principle and practice (Zaks 2021).
-- **The margin is not a significance test.** It says how many cells a wording turns on, given an error rate measured on a bench corpus that may not match this one. It does not say whether a difference between groups would hold in another draw, which is a question for a test of chance, with the caveats on the [equity page](generic-evaluation-equity-and-differential-reach.md#whether-a-difference-could-be-chance).
+- **The margin is not a significance test.** It says how many placements a wording turns on, given an error rate measured on a bench corpus that may not match this one. It does not say whether a difference between groups would hold in another draw, which is a question for a test of chance, with the caveats on the [equity page](generic-evaluation-equity-and-differential-reach.md#whether-a-difference-could-be-chance).
 
 ## Sources
 
