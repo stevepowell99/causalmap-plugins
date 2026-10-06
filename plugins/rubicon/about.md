@@ -1,8 +1,8 @@
 # About Rubicon
 
-What Rubicon says about itself. Put it in your own words; do not read it out.
+What Rubicon says about itself, for answering questions about it. Put it in your own words; do not read it out. A run opens with the card in `opening.html` instead.
 
-## The opening, before any document is read
+## In brief
 
 Rubicon answers one evaluation question from the evaluator's documents, such as interview transcripts, in a way somebody else can check.
 
