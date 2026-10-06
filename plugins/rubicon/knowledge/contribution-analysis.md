@@ -85,6 +85,8 @@ Whether an account is first-hand or prompted varies from passage to passage, so 
 
 The commonest misreading is a passage taken as supporting a link when it in fact supports the rival. Guard against it in the definitions: give each link and each rival what counts and the near misses that go to the other, tightly enough that another careful coder would place the same passage the same way, and where a passage could be read either way, say so in its row and, where a link's standing turns on it, in the answer. Where a workflow uses the given chain, the write step takes both the links' tabulation and the rival's as inputs, so the rival's support is read with the same attention as the programme's own. Running the workflow on two or three documents against one or two links before the rest is where a link written so broadly that no passage could fail it gets caught cheaply.
 
+None of the three readings does the method's participatory steps. A workflow cannot develop the theory of change and its rivals with stakeholders (step two), go back to people for additional evidence (step five) or revise the story with those who will use it (step six); it reads a theory of change agreed elsewhere where that is among the documents, and otherwise drafts candidate links, rivals and definitions, an open map traced included, for people to agree. A Rubicon run can stop at agreed points for people to take part, once the links and rivals are written as definitions and a few documents coded so stakeholders can agree what each one means before everything is counted, and once the answer is drafted, and its annotated theory of change is a draft to make sense of with them before it is final.
+
 ## Sources
 
 Mayne, J. (2012). 'Making causal claims'. ILAC Brief 26.

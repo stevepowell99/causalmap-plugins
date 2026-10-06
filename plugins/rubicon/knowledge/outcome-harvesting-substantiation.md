@@ -140,7 +140,7 @@ Substantiation depends on other people replying, so it cannot be compressed by w
 
 ## As a plan
 
-Substantiation itself happens outside the six pieces. No piece sends anything, waits for a reply, or reads an informant's answer as it arrives. A reply becomes usable once it is among the documents; from that point a code step reads it like any other document, with columns for whether it confirms, corrects or disputes the statement, and for what else it names as a cause.
+Substantiation itself happens outside the six pieces. No piece sends anything, waits for a reply, or reads an informant's answer as it arrives. A reply becomes usable once it is among the documents; from that point a code step reads it like any other document, with columns for whether it confirms, corrects or disputes the statement, and for what else it names as a cause. Before replies are in, what a workflow can do is draft the statements and tables a substantiation sample is chosen from, and any answer it writes then is a draft that says nothing has been substantiated, to be revised once the substantiators have replied.
 
 That new row sits beside the original rather than replacing it, because a code step produces fresh rows in its own table and amends nothing. So a correction, a disputed contribution and a denial each turn up as rows in a second table rather than as edits to the first, and an answer that reports a substantiated statement cites both, saying plainly which row is the original draft and which is the substantiator's reply.
 

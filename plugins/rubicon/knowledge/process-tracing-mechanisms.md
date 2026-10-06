@@ -16,7 +16,7 @@ Two disciplines while decomposing.
 
 **Each part must be capable of failing on its own.** If part three cannot be false while parts two and four are true, it is not a separate part, it is a restatement.
 
-**Stop at the level where evidence exists.** Decomposition can go on indefinitely, with no natural floor. The floor in practice is the level at which a part would have left a trace somebody could find. Going finer produces predictions nothing could test.
+**Stop at the level where evidence exists.** Decomposition is done with the programme, usually in a workshop, and a workflow cannot stand in for it: it can draft candidate parts from what the documents say, which the programme then corrects. Decomposition can go on indefinitely, with no natural floor. The floor in practice is the level at which a part would have left a trace somebody could find. Going finer produces predictions nothing could test.
 
 ## Predictions, which are the product
 

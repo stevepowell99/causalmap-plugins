@@ -86,4 +86,4 @@ The stopping rule, a defined document set fully read, a defined informant list f
 
 Knowing whether the search was any good stays outside the workflow. The sample and code steps say what was read; nothing records who was invited and never replied, because no piece does outreach. The evaluator supplies the coverage paragraph's account of who was asked, and the answer never infers it from a document nobody flagged as missing.
 
-Working with programme staff as harvesters sits entirely before any workflow runs, since drafting with staff is a facilitated human process; a workflow reads whatever that process has produced, as documents like any others.
+Working with programme staff as harvesters sits entirely before any workflow runs, since drafting with staff is a facilitated human process; a workflow reads whatever that process has produced, as documents like any others. Where a run drafts candidate statements itself, it can stop once a few documents are coded so staff can correct the candidates before the rest are read, and its coverage paragraph is a draft until the evaluator has added who was asked.

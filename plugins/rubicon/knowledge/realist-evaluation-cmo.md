@@ -24,7 +24,7 @@ Three tests for a candidate mechanism.
 
 **Does it name a response rather than a provision?** "Supervisors gained confidence to challenge senior clinicians" is a response. "Supervisors received coaching" is a provision.
 
-**Would a participant recognise it as a description of their own reasoning?** If the sentence would puzzle the person it describes, it is probably the evaluator's theory about them rather than an account of what they did.
+**Would a participant recognise it as a description of their own reasoning?** If the sentence would puzzle the person it describes, it is probably the evaluator's theory about them rather than an account of what they did. The real test is asking them; a reading of what they said, which is all a workflow over documents can do, leaves a mechanism a candidate until participants have been asked.
 
 Mechanisms are also usually invisible. They are inferred from what can be seen rather than observed directly. That is what makes [retroduction](#retroduction) the method's characteristic inferential move, and what makes access to participants' own accounts so important.
 

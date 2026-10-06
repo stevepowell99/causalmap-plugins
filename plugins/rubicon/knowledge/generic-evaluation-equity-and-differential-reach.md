@@ -32,6 +32,7 @@ The critical failure in a qualitative equity assessment is what might be called 
 
 - **Access in proportion to need**, which needs the size of each cohort and the number served, usually held in monitoring data.
 - **Whether a difference between cohorts could be chance**, beyond what the section below allows.
+- **Whether the cohorts concerned recognise the reading.** A human rights and gender-responsive evaluation asks for the groups concerned to take part (UNEG 2014), which a workflow over documents cannot stand in for; it reads what they said where it is recorded, and its findings by cohort are a draft to take back to them before they are final.
 
 Try the barrier and mitigation definitions on a handful of documents from each cohort before coding the rest, to catch a definition too broad to fail.
 

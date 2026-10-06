@@ -40,6 +40,8 @@ The commonest mismatch is between the method named and the shape of the corpus. 
 - **MSC asked to pick the best stories.** Selection is the participants' act. Offer secondary analysis of the stories and their selections.
 - **"Impact" meaning a measured effect.** No method on documents estimates one. Offer contribution analysis and say what a quantitative design would need.
 
+Several of these methods have steps done with people: substantiation in outcome harvesting, selection in MSC, the realist teacher-learner cycle, agreeing a rubric or a theory of change. A workflow over documents cannot stand in for those; it drafts candidates and reads what earlier participation left in the documents, and a Rubicon run can stop at agreed points for people to take part, once the definitions are written and a few documents coded and once the answer is drafted. Say which steps fall to people when proposing the method.
+
 ## When the question names no method
 
 Prefer the simplest method that answers the claim asked for, and say why in a sentence. A plain question about what people say needs framework analysis or a coding and a table, not process tracing. A question about difference made needs contribution analysis or QuIP-style attribution before anything more elaborate. Name the method in the settled question, so the analysis reads the same pages and a reader of the report knows what standard of evidence it was held to.

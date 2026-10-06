@@ -32,7 +32,7 @@ The dominant failure in relevance evaluation is what might be called the static 
 
 **What the workflow must say it cannot answer** (its `cannot_answer`).
 
-- **What beneficiaries needed, beyond what the documents record them saying.**
+- **What beneficiaries needed, beyond what the documents record them saying.** Affected people deciding what is most important is their act, not the coder's; the workflow reads what they said where it is recorded, and its reading of fit is a draft to check with them before it is final.
 - **How fast a response was**, where no passage says how long it took; comparing dates across two reports is the evaluator's reading, not a count.
 
 Try the definitions on the needs assessment and one later report before coding the rest.

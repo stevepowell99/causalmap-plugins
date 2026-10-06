@@ -57,7 +57,7 @@ Existing theory and literature, because the middle-range theory being tested sho
 9. Abstract towards middle-range theory: what does this say beyond this programme?
 10. Report the configurations that survived, the ones that did not, and the route between.
 
-Step 7 is the one this method is built around and the one most reports omit. A realist evaluation presenting its final configurations without the ones they replaced has hidden its own evidence.
+Steps 1, 4, 5 and 8 are done with people (implementers, participants, a held-back site), and a workflow over documents cannot take them: it drafts candidate configurations from the documents and reads what earlier interviews produced where they are in the corpus, and a Rubicon run can stop once the configurations are written and a few documents coded, for implementers to correct them, and again once the answer is drafted. Step 7 is the one this method is built around and the one most reports omit. A realist evaluation presenting its final configurations without the ones they replaced has hidden its own evidence.
 
 ## Who does what
 

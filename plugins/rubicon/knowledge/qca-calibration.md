@@ -34,7 +34,7 @@ A fuzzy set with six values and a description of each is a rubric with six level
 
 A rubric can be written before the cases are scored, with a version history showing that it was. Calibration set after somebody has seen how the cases fall is the deepest problem in QCA practice, because the anchors can be moved until the solution comes out interpretable and nobody reading the report can tell.
 
-A rubric can be argued with. An anchor stated as a number in a spreadsheet column is unarguable, because there is nothing to disagree with. An anchor stated as "the case is in this set when the responsible minister has publicly committed to the programme and officials at director level attend its meetings" is a claim somebody can dispute. That dispute is the useful part.
+A rubric can be argued with. An anchor stated as a number in a spreadsheet column is unarguable, because there is nothing to disagree with. An anchor stated as "the case is in this set when the responsible minister has publicly committed to the programme and officials at director level attend its meetings" is a claim somebody can dispute. That dispute is the useful part, and it is held among people, the commissioner and those who know the cases, which a workflow can feed with drafted descriptors and the passages behind each placement but cannot settle for them.
 
 A rubric can cite. Where each case's level points at the passages behind it, a reader can check the calibration rather than taking it on trust. That is what [a coded row citing its passages](qca-in-rubicon.md) does, and it is the argument for calibrating that way rather than in a spreadsheet.
 

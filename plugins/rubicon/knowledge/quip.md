@@ -66,6 +66,8 @@ QuIP analysis is causal coding with one extra column, so most of [causal mapping
 
 **Write.** The answer leads with whether and how respondents credit the programme for the outcomes it aimed at, beside what else they credit; then the unexpected and the negative; then the theory of change link by link. Counts are of respondents in the sample. Explicit and implicit attribution are reported separately.
 
+**What stays with people.** Designing the study, agreeing the domains and the sample, the blindfolded fieldwork and the discussion of findings with the commissioner (steps one to three and six) happen outside any workflow, which reads only the transcripts and programme documents they produced. A Rubicon run can stop once the attribution definitions are written and a few transcripts coded, so the commissioner and the programme can agree where implicit ends and other begins before everything is counted, and once the answer is drafted, which is a draft for the step six discussion rather than its outcome.
+
 **What the workflow must say it cannot answer.** The size of the programme's effect; how common any experience is beyond the sample; whether blinding held, which only the fieldwork record shows; and changes respondents could not perceive.
 
 ## Sources

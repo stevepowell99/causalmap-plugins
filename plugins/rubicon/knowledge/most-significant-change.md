@@ -62,6 +62,8 @@ The report describes how the stories were collected and selected, says the analy
 
 **Write.** What kinds of change were told, by whom, and what they credit; how this differs between groups; what was chosen against what was told, and the values the reasons show; what is absent, read against the prompt. Counts are of stories, never of people affected.
 
+**What stays with people.** The analysis cannot stand in for the panels' selection, for feeding results back to the tellers, or for the programme's discussion of what it values; it reads their records where these are among the documents, and its kinds of change and of value are candidates for the people involved to correct. A Rubicon run can stop once those kinds are defined and a few stories coded, so the programme can agree what each kind means before everything is counted, and once the answer is drafted, which is a draft to discuss with them, and with the tellers where feedback is part of the round, before it is final.
+
 **What the workflow must say it cannot answer.** Which stories are most significant, which is the panels' judgement; how common any change is; whether the programme caused it; and whether a story is accurate, unless verification (the guide's step 7) is in the documents.
 
 ## Sources

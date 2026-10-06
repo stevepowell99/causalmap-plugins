@@ -61,7 +61,7 @@ Steps 2 to 6 are most of the intellectual work and all of the method's claim to 
 
 The evaluator articulates the mechanism, writes the predictions, judges certainty and uniqueness, and decides what the evidence did to confidence. None of that is mechanical. None of it can be delegated to a procedure.
 
-The programme or the commissioner supplies the theory of change and should agree the mechanism and the predictions before the search. Their agreement is what stops the mechanism being redrawn later to fit whatever turned up.
+The programme or the commissioner supplies the theory of change and should agree the mechanism and the predictions before the search. Their agreement is what stops the mechanism being redrawn later to fit whatever turned up. A workflow over documents cannot give that agreement or run the decomposition workshop: it can draft the mechanism and predictions from the programme's own documents for them to argue with, and a Rubicon run can stop once the definitions are written and a few documents coded so they agree the register before anything is counted.
 
 ## Traps
 

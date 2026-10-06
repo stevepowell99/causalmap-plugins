@@ -72,6 +72,8 @@ Nothing in a tabulation tests whether a difference between groups could be chanc
 
 **Without the evaluator's standard, there is no judge step.** The workflow stops at the tables and says under `cannot_answer` that the verdict waits on the evaluator's standard, offering two or three standards in their terms without numbers.
 
+**Agreeing the standard, and making sense of the verdict, are done with people.** What good looks like on each criterion, how much each objective matters and what a verdict means for the programme are normally settled with the commissioner, programme staff and, where possible, the people the programme serves; a workflow over documents cannot stand in for that, so it proposes candidate criteria, levels and definitions, and reads what an earlier agreement left in the documents where it is there. A Rubicon run can stop at agreed points for people to take part, once the definitions are written and a few documents coded so that stakeholders can agree what each category means before everything is counted, and once the answer is drafted, and its report is a draft to make sense of with the people it concerns before it is final.
+
 These hold across all the criterion pages and are stated here once rather than on each.
 
 ## Across five of the criteria
