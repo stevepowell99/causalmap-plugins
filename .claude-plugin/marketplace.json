@@ -1,0 +1,15 @@
+{
+  "name": "causalmap",
+  "description": "Causal Map's plugins for evaluators.",
+  "owner": {
+    "name": "Causal Map",
+    "url": "https://causalmap.app"
+  },
+  "plugins": [
+    {
+      "name": "rubicon",
+      "source": "./plugins/rubicon",
+      "description": "Answers an evaluation question from a folder of documents, with every count made by code and every quotation checked against its document."
+    }
+  ]
+}

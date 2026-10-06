@@ -1,0 +1,11 @@
+{
+  "name": "rubicon",
+  "displayName": "Rubicon",
+  "version": "0.1.0+6c9ad0049c46",
+  "description": "Answers an evaluation question from a folder of documents, with every count made by code and every quotation checked against its document.",
+  "author": {
+    "name": "Causal Map",
+    "url": "https://causalmap.app"
+  },
+  "homepage": "https://rubicon.causalmap.app/"
+}
