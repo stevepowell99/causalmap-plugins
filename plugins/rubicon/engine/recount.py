@@ -108,10 +108,10 @@ counts = S.counts_of(run, [sid for sid, rec in run.out.items() if rec["kind"] in
 
 if a.answer:
     text = Path(a.answer).read_text(encoding="utf-8")
-    resolved, used, unknown, bare = S.put_counts(text, counts, run.corpus.documents)
+    whole = "\n".join(corpus.text(d) for d in corpus.documents)
+    resolved, used, unknown, bare = S.put_counts(text, counts, run.corpus.documents, whole)
     rows = {r["row"]: r for rec in run.out.values() if rec["kind"] == "code" for r in rec["rows"]}
     cited = [c for c in S.citation_ids(text) if re.fullmatch(r"[\w-]+\.[\w.-]+", c) and c not in corpus.documents]
-    whole = "\n".join(corpus.text(d) for d in corpus.documents)
     report["answer"] = {
         "counts_written_by_id": len(used), "ids_naming_no_count": sorted(set(unknown)), "numbers_written_bare": bare,
         "citations_to_no_row": sorted({c for c in cited if c not in rows and c not in counts}),

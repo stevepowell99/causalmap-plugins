@@ -477,10 +477,11 @@ def counts_of(run: Run, inputs: list[str]) -> dict[str, int | str]:
     return out
 
 
-def put_counts(answer: str, counts: dict[str, int | str], names=()) -> tuple[str, list[str], list[str], list[str]]:
+def put_counts(answer: str, counts: dict[str, int | str], names=(), source: str = "") -> tuple[str, list[str], list[str], list[str]]:
     """The answer with each {count id} replaced by its count; the ids used, those that name no count, and the numerals
     written bare in the prose (outside quotations, citations and the documents' `names`), which no count stands behind. Numerals only: a number
-    written in words is in some language, and a list of one language's number words is no check on another's."""
+    written in words is in some language, and a list of one language's number words is no check on another's. A numeral
+    that, with the word before it, is a phrase of the documents' own text (`source`), such as "Organisation 2" (or the 2 of "Organisation 1/2"), is a name."""
     used, unknown = [], []
 
     def one(m):
@@ -495,8 +496,10 @@ def put_counts(answer: str, counts: dict[str, int | str], names=()) -> tuple[str
         prose = prose.replace(q, " ")
     for n in sorted(names, key=len, reverse=True):  # a document called MNX-1 is a name, not a count of one
         prose = re.sub(rf"(?<![\w-]){re.escape(n)}(?![\w-])", " ", prose)
-    bare = re.findall(r"(?<![\w.])\d+(?:\.\d+)?%?(?![\w.]*\d)", prose)
-    return text, used, unknown, [b for b in bare if not re.fullmatch(r"(19|20)\d\d", b)]
+    bare = [m for m in re.finditer(r"(?<![\w.])\d+(?:\.\d+)?%?(?![\w.]*\d)", prose)
+            if not (source and (w := re.search(r"([A-Za-z]\w*)\s+(?:\d+\s*(?:/|,|and|or)\s*)*$", prose[:m.start()]))
+                    and re.search(rf"(?<!\w){re.escape(w.group(1))}\s+{re.escape(m.group())}(?![\w.]*\d)", source))]
+    return text, used, unknown, [b.group() for b in bare if not re.fullmatch(r"(19|20)\d\d", b.group())]
 
 
 def quoted_elsewhere(run: Run, text: str, row_documents: dict[str, str]) -> list[str]:
