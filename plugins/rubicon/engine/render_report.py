@@ -1,11 +1,14 @@
 """Draw a Rubicon run folder as a report to read and click through, the same report for Word, and the run as a zip.
 
     python render_report.py <run folder> [--date "6 October 2026"] [--fragment] [--page <url of rubicon.html>]
+    python render_report.py <run .zip>   [the same options]
 
 The three files share one name, made from the question and the day: `<question>-<yyyy-mm-dd>.html`, `.doc` and
 `.zip`. The zip is the recounted run in the open format (`recount/`: `workflow.json`, `run.json`, `steps/*.json`,
 `corpus/` and `background/`), which the Rubicon page's "Open a downloaded run (.zip)" reads in the browser and
-never saves. It holds the documents, because the page needs them to show each quotation in its place.
+never saves. It holds the documents, because the page needs them to show each quotation in its place, and
+`answer.md`, `counts.json` and `report.json`, so that given the zip in place of a folder this draws the report again
+from the zip alone, into a folder beside it named after it (`unpack`).
 
 Reads only what the run already holds (answer.md with its cell ids, recount/steps/*.json, recount/report.json,
 corpus/index.csv and the corpus text for context around each quotation). Makes no model call, so it costs nothing
@@ -19,7 +22,7 @@ The report carries its zip, and its "Open in Causal Map" button hands the run to
 browser (`webapp/rubicon/js/receive.js` says how), so nobody downloads or uploads anything. --page points the button
 at another copy of the page, such as a local one for testing.
 """
-import base64, csv, datetime, html, json, re, sys, zipfile
+import base64, csv, datetime, html, json, re, shutil, sys, zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
@@ -49,8 +52,10 @@ def bundle(run, out):
     """The recounted run as one zip, as the Rubicon page opens it."""
     rec = run / "recount"
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
-        for name in ("workflow.json", "run.json"):
+        for name in ("workflow.json", "run.json", "counts.json", "report.json"):
             z.write(rec / name, name)
+        # The answer as written, cell ids and figure lines and all, so the zip alone rebuilds the report (`unpack`)
+        z.write(run / "answer.md", "answer.md")
         for sub in ("steps", "corpus", "background"):
             for p in sorted((rec / sub).rglob("*")) if (rec / sub).is_dir() else []:
                 if p.is_file():
@@ -60,6 +65,28 @@ def bundle(run, out):
                 + sorted((run / "recode" / "coded").glob("*.json")):
             if p.is_file():
                 z.write(p, "check/" + p.relative_to(run).as_posix().removeprefix("recode/"))
+
+
+def unpack(zipped, run):
+    """A run's zip laid out again as the run folder it was made from, so the report can be drawn from the zip alone:
+    the recount at `recount/`, the answer, the check and the second coder's rows where they were, and the workflow and
+    documents at the top as `load` reads them."""
+    if run.exists():
+        sys.exit(f"{run} already exists; move it, or draw the report from that folder instead")
+    with zipfile.ZipFile(zipped) as z:
+        for n in z.namelist():
+            if n.endswith("/"):
+                continue
+            to = (run / n if n == "answer.md" else run / n.removeprefix("check/") if n == "check/check.md"
+                  else run / "recode" / n.removeprefix("check/") if n.startswith("check/") else run / "recount" / n)
+            to.parent.mkdir(parents=True, exist_ok=True)
+            to.write_bytes(z.read(n))
+    if not (run / "answer.md").exists():
+        shutil.rmtree(run)
+        sys.exit(f"{zipped.name} was made before a run's zip carried its answer, so the report cannot be drawn from it "
+                 "alone; draw it from the run's folder instead")
+    shutil.copy2(run / "recount" / "workflow.json", run / "workflow.json")
+    shutil.copytree(run / "recount" / "corpus", run / "corpus")
 
 
 def esc(s):
@@ -528,6 +555,9 @@ def word(R):
 
 if __name__ == "__main__":
     run = Path(sys.argv[1])
+    if run.suffix.lower() == ".zip":  # a run's zip opens as the folder beside it, named after it
+        unpack(run, run.with_suffix(""))
+        run = run.with_suffix("")
     R = load(run)
     name = name_of(R)
     R["zip"] = f"{name}.zip"

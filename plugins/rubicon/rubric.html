@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Rubicon</title>
+<title>Rubicon · rubric</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap">
 <style>
@@ -36,21 +36,24 @@ h2 { font-family: var(--serif); font-weight: 500; font-size: 1.15rem; margin: 0;
 .choices { margin: 0; padding-left: 1.3rem; display: grid; gap: .3rem; font-size: .95rem; }
 </style>
 <article class="card">
-  <p class="eyebrow">Rubicon · qualitative analysis with an audit trail</p>
+  <p class="eyebrow">Rubicon · a draft rubric for you to change</p>
   <h1>{{question}}</h1>
-  <dl class="facts">
-    <dt>Material</dt><dd>{{material}}</dd>
-    <dt>Model</dt><dd>{{model}}</dd>
-  </dl>
-  <p class="approach">The analysis follows the usual discipline of qualitative evaluation: the question agreed before the evidence is read, a codebook fixed before anything is counted, and an audit trail another analyst could follow. Where the question calls for a recognised method, such as contribution analysis, process tracing or your own rubric, it follows that method's published practice.</p>
-  <ol>
-    <li><b>Settle the question</b> with you, and what the answer will feed.</li>
-    <li><b>Code the passages</b> that bear on it, against definitions written down first.</li>
-    <li><b>Count by code.</b> Every number is recomputed by a program from the coded passages, and every quotation is matched word for word against its document.</li>
-    <li><b>Read it again.</b> A second coder recodes the documents without seeing the first coding, and a fresh reader checks every claim and quotation against them.</li>
-    <li><b>Report</b> in which every figure and quotation opens its evidence, with a Word copy and the whole run in one file.</li>
+  <p class="claims">Drafted from your question before any document is read. Change anything; once you agree it, it is your standard and the answer applies it as written.</p>
+  <section class="criterion">
+    <h2>{{criterion}}</h2>
+    <p class="small">{{reading}}</p>
+    <dl class="levels">
+      <dt>{{level}}</dt><dd>{{descriptor}}</dd>
+    </dl>
+  </section>
+  <section class="criterion">
+    <h2>How the criteria combine</h2>
+    <p>{{combine}}</p>
+  </section>
+  <ol class="choices ask">
+    <li>Use this rubric</li>
+    <li>Change something (say what)</li>
+    <li>Use the standard in my terms of reference</li>
+    <li>No rubric: stop at the table a verdict would read</li>
   </ol>
-  <p class="claims"><b>What it claims.</b> Counts of what respondents said, such as "9 of 14 described a change in sales". Not estimates of effect, and no wider than the sample allows.</p>
-  <p class="small">Your documents go to Anthropic under your own Claude plan, and nowhere else. For client data, switch off "Help improve Claude" in Settings › Privacy.</p>
-  <p class="ask">{{ask}}</p>
 </article>

@@ -16,7 +16,7 @@ A harvest from documents is a drafting step, a grouping step, counts and a writt
 
 **Judge.** Only where the evaluator gives a standard for "to what extent". Without one, leave the judge out and offer standards in the evaluator's terms.
 
-**Write.** The answer follows the main page's reporting rules and the [analysis page](outcome-harvesting-analysis.md). Coverage first (what was read, what yielded outcomes, that nothing has been substantiated by an independent source if nothing has), then the kinds of change with quotations naming the actor, then the negative and unplanned outcomes in full, with contribution reported as a claim attached to whoever made it. A wholly positive set is reported as a finding about the search, not passed over.
+**Write.** The answer follows the main page's reporting rules and the [analysis page](outcome-harvesting-analysis.md). The kinds of change first, with quotations naming the actor, then the negative and unplanned outcomes in full, with contribution reported as a claim attached to whoever made it. A wholly positive set is reported as a finding about the search, not passed over. Coverage comes at the end, with the limits: what was read, what yielded outcomes, and that nothing has been substantiated by an independent source if nothing has.
 
 **A trial.** A sample step drawing a handful of documents gives a first run the evaluator reads before the whole corpus is coded; it is the cheap place to catch a prompt that codes activities as outcomes, or change and attribution together.
 

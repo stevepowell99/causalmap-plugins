@@ -48,7 +48,7 @@ Every story, each with who told it and who recorded it, its domain and round whe
 
 ## What good looks like
 
-The report describes how the stories were collected and selected, says the analysis covers the whole corpus, and states its counts as stories. Kinds of change are defined. Differences between groups of tellers come with their bases. What was told and what was chosen are compared where the records allow, with the panels' reasons. Absences are named, and nothing is claimed about prevalence or attribution beyond what the stories themselves say.
+The report opens with what the stories show: the kinds of change told, each defined, with counts stated as stories; differences between groups of tellers with their bases; what was told against what was chosen, where the records allow, with the panels' reasons; and the absences. Nothing is claimed about prevalence or attribution beyond what the stories themselves say. How the stories were collected and selected, and that the analysis covers the whole corpus, are stated after the findings, with the limits.
 
 ## As a plan
 
