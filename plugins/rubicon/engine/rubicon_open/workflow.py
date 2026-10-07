@@ -83,7 +83,7 @@ def has_values(column: dict) -> bool:
 #: provider's own effort, the first coder's section size and the first coder's prompt unchanged; for either coder's
 #: prompt note, nothing added.
 OFF_BY_NULL = ("second_coder", "check", "stratify_by", "documents", "where", "n", "second_thinking", "second_section_chars",
-               "second_retry_thinking", "prompt_note", "second_prompt_note", "rows_per_cell", "picker_model")
+               "second_retry_thinking", "prompt_note", "second_prompt_note", "rows_per_cell", "picker_model", "links")
 
 
 def resolve_step(s: dict, kind: str | None = None) -> dict:
@@ -102,7 +102,8 @@ def resolve_step(s: dict, kind: str | None = None) -> dict:
     if k == "code":
         cols = s.get("columns") or []
         out = fill({"model": C.CODER, "second_coder": C.SECOND_CODER if cols and all(map(has_values, cols)) else None,
-                    "check": False, "section_chars": SECTION_CHARS, "prompt_note": None, "per_document": False}, s)
+                    "check": False, "section_chars": SECTION_CHARS, "prompt_note": None, "per_document": False,
+                    "links": None}, s)  # links: {"from": column, "to": column}, the two columns that are a link's ends
         if isinstance(out["second_coder"], bool):  # true asks for the default second coder, false for none
             out["second_coder"] = C.SECOND_CODER if out["second_coder"] else None
         if out["second_coder"]:  # second_thinking null: the provider's own effort; second_section_chars null: the first's;
@@ -124,8 +125,9 @@ def resolve_step(s: dict, kind: str | None = None) -> dict:
         return fill({"assign_model": C.ASSIGNER}, out) if out["assign"] else out
     if k == "tabulate":
         # sparse: only the combinations that occur are cells, as an edge list (from, to, count) rather than a grid;
-        # paths: the first two `by` columns are a link's two ends, and a cell is a path traced in one document's links
-        return fill({"by": [], "count": "documents", "sparse": False, "paths": False}, s)
+        # paths: the first two `by` columns are a link's two ends, and a cell is a path traced in one document's links;
+        # filters: Causal Map's link filters, in order, applied to the links its input coded before anything is counted
+        return fill({"by": [], "count": "documents", "sparse": False, "paths": False, "filters": []}, s)
     if k == "judge":
         return fill({"model": C.JUDGE, "combine": "weakest"}, s)
     if k == "write":
@@ -227,8 +229,13 @@ def _shape_faults(sid, kind: str, s: dict) -> list[str]:
         for c in s["columns"]:
             if c.get("values") is not None and not isinstance(c["values"], (list, str)):
                 out.append(f"{sid}: column {c.get('name')!r} has values that are neither a list nor a codebook")
+    if kind == "code" and s.get("links") is not None and not (
+            isinstance(s["links"], dict) and all(isinstance(s["links"].get(k), str) for k in ("from", "to"))):
+        out.append(f"{sid}: links is not {{\"from\": column, \"to\": column}}")
     if kind == "tabulate":
         list_of("by", str, "column names")
+        if list_of("filters", dict, "filters") and not all(isinstance(f.get("type"), str) for f in s["filters"]):
+            out.append(f"{sid}: a filter does not say its type")
     if kind == "judge":
         list_of("verdicts", dict, "verdicts")
         list_of("criteria", dict, "criteria")
@@ -345,7 +352,7 @@ def table_sizes(wf: dict, attributes, n_documents: int | None = None,
             else:
                 table = made[ins[0]].get("table", ins[0]) if ins and ins[0] in made else None
                 out[sid] = cells(table, by, base[sid])
-            if (s.get("sparse") or s.get("paths")) and out[sid] and base[sid]:
+            if (s.get("sparse") or s.get("paths") or s.get("filters")) and out[sid] and base[sid]:
                 out[sid] = min(out[sid], base[sid] * SPARSE_CELLS_PER_DOCUMENT)
             made[sid] = {"kind": kind}
         else:
@@ -460,7 +467,11 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
                 cols[c.get("name")] = t
             if not cols:
                 faults.append(f"{sid}: no columns")
-            made[sid] = {"kind": kind, "columns": cols,
+            links = s.get("links")
+            if links:
+                faults += [f"{sid}: links names {links[k]!r} as a link's {k} end, which is not one of its columns"
+                           for k in ("from", "to") if links[k] not in cols]
+            made[sid] = {"kind": kind, "columns": cols, "links": links,
                          "values": {str(c.get("name")).lower(): column_values(c) for c in s.get("columns") or [] if isinstance(c, dict)}}
         elif kind == "group":
             made[sid] = {"kind": kind, "max_items": resolve_step(s, "group")["max_items"]}
@@ -502,6 +513,8 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
                            for c in by[2:] if c != "document" and (c.lower() not in attrs or c in ends)]
                 if s.get("count", "documents") != "documents":
                     faults.append(f"{sid}: traces paths, which are counted by the documents whose links make them")
+            if s.get("filters") and not (len(src) == 1 and src[0]["kind"] == "code" and src[0].get("links")):
+                faults.append(f"{sid}: filters links, so its input must be a code step that names its links' two ends")
             own = src[0].get("values", {}) if len(src) == 1 and src[0] else {}  # a row's own value first, as the counting takes it
             made[sid] = {"kind": kind, "by": s.get("by") or [], "cells": table_cells.get(sid),
                          "values": {str(c).lower(): own[str(c).lower()] if str(c).lower() in own else coded.get(str(c).lower())

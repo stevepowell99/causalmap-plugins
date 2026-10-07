@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import locator
+from . import locator, node
 from .corpus import Corpus
 from .judge import level_counts
 from .workflow import canonical, codebook_of, column_values, resolve_step, value_key
@@ -268,12 +268,15 @@ def tabulate(run: Run, s: dict) -> dict:
         rows = run.table(src)
         rec = run.out[src]  # "of" is the documents the coding read, including those that gave no row
         read = rec.get("documents") or run.out.get(rec.get("input"), {}).get("documents") or {r["document"] for r in rows}
+    filtered = None
+    if s["filters"]:
+        rows, filtered = filter_links(run, src, rows, s["filters"])
     by, count = s["by"], s["count"]
     cells = _paths(run, rows, by) if s["paths"] else _combinations(run, rows, by)
     # every combination the columns allow is a cell, so a count of none is stated as 0 rather than left out; a sparse
     # table, such as causal links from one factor list crossed with itself, lists only the combinations that occur
     in_rows = {k for r in rows for k in r}
-    sparse = s["sparse"] or s["paths"]
+    sparse = s["sparse"] or s["paths"] or bool(s["filters"])  # a filter can rename a factor, so no codebook lists its values
     if not sparse:
         domains = [_domain(run, src, c, read, c in in_rows) or sorted({k[i] for k in cells} - {"(blank)"}) for i, c in enumerate(by)]
         for cmb in itertools.product(*domains):
@@ -304,7 +307,27 @@ def tabulate(run: Run, s: dict) -> dict:
     out.sort(key=lambda c: (-c["n"], list(c["values"].values())))
     for k, c in enumerate(out, 1):  # an id per count, which the answer writes in place of the number
         c["id"] = f"{s['id']}.c{k}"
-    return {"input": src, "by": by, "count": count, "of": len(read), "sparse": sparse, "paths": s["paths"], "cells": out}
+    return {"input": src, "by": by, "count": count, "of": len(read), "sparse": sparse, "paths": s["paths"],
+            **({"filters": s["filters"], "filtered": filtered} if filtered else {}), "cells": out}
+
+
+FILTER_SHIM = Path(__file__).resolve().parent / "filter_links.mjs"
+
+
+def filter_links(run: Run, src: str, rows: list[dict], filters: list[dict]) -> tuple[list[dict], dict]:
+    """A code step's rows as Causal Map links, put through Causal Map's own filters in order (`cm/`, run under Node),
+    and back as rows with the two ends as the filters left them. The conversion is `link-rows.js`, which the Rubicon
+    page refilters a map with too: each row gives a link for every pair of its two link-end values (the code step's
+    `links`), with its document as the link's source and the document's facts on the source, so a filter reads
+    `s_<fact>` for one. Returns the rows and what the filtering did."""
+    ends = next(st.get("links") for st in run.steps if st.get("id") == src)
+    docs = sorted({r["document"] for r in rows})
+    attributes = {d: dict(run.corpus.documents.get(d, {}).get("columns") or {}) for d in docs}
+    got = node.call(FILTER_SHIM, {"rows": rows, "ends": ends, "filters": filters, "attributes": attributes},
+                    "link filters")
+    if got["unsupported"]:
+        raise ValueError(f"{', '.join(got['unsupported'])}: not a filter Causal Map's filter engine applies")
+    return got["rows"], got["filtered"]
 
 
 def _combinations(run: Run, rows: list[dict], by: list[str]) -> dict[tuple, dict]:

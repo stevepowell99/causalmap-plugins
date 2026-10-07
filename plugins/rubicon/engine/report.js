@@ -39,10 +39,31 @@
     open(`<h3>${ids.length} passages</h3>` + ids.map(rowShort).join(''));
   }
 
+  // Hand the run to the Rubicon page in this browser: the page says it is ready, and this answers
+  // with the zip (webapp/rubicon/js/receive.js). Nothing goes to a server.
+  function openInCausalMap() {
+    const said = document.getElementById('open-in-cm-said');
+    const page = window.open(RUN_ZIP.page + '?receive=1', '_blank');
+    if (!page) {
+      said.hidden = false;
+      said.textContent = 'This viewer cannot open the page. Open this report in your web browser and click again.';
+      return;
+    }
+    const origin = new URL(RUN_ZIP.page, location.href).origin;
+    addEventListener('message', e => {
+      if (e.source === page && e.data && e.data.type === 'rubicon-ready') {
+        page.postMessage({ type: 'rubicon-run', name: RUN_ZIP.name, folder: RUN_ZIP.folder, zip: RUN_ZIP.zip }, origin);
+      }
+    });
+  }
+
   document.addEventListener('click', e => {
+    const edge = e.target.closest('.map g.edge');
+    if (edge) return showCell(edge.id);
     const b = e.target.closest('button');
     if (!b) return;
     if (b.id === 'panel-close') { panel.hidden = true; return; }
+    if (b.id === 'open-in-cm') return openInCausalMap();
     if (b.dataset.cell) return showCell(b.dataset.cell);
     if (b.dataset.row) return open(rowInPlace(b.dataset.row));
     if (b.dataset.rows) return showRows(b.dataset.rows.split(','));

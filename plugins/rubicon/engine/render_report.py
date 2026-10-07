@@ -1,6 +1,6 @@
 """Draw a Rubicon run folder as a report to read and click through, the same report for Word, and the run as a zip.
 
-    python render_report.py <run folder> [--date "6 October 2026"] [--fragment]
+    python render_report.py <run folder> [--date "6 October 2026"] [--fragment] [--page <url of rubicon.html>]
 
 The three files share one name, made from the question and the day: `<question>-<yyyy-mm-dd>.html`, `.doc` and
 `.zip`. The zip is the recounted run in the open format (`recount/`: `workflow.json`, `run.json`, `steps/*.json`,
@@ -9,17 +9,29 @@ never saves. It holds the documents, because the page needs them to show each qu
 
 Reads only what the run already holds (answer.md with its cell ids, recount/steps/*.json, recount/report.json,
 corpus/index.csv and the corpus text for context around each quotation). Makes no model call, so it costs nothing
-and draws the same report every time. Standard library only.
+and draws the same report every time. Standard library and Node only.
 
-In answer.md, a line holding only {{figure <table id>}} draws that table as a chart at that point.
+In answer.md, a line holding only {{figure <table id>}} draws that table as a chart at that point. A table by the two
+ends of a code step's causal links draws as a causal map, with Graphviz under Node (rubicon_open/draw_map.mjs).
 --fragment writes the page without <html>/<head>/<body>, for publishing as an Artifact.
+
+The report carries its zip, and its "Open in Causal Map" button hands the run to the Rubicon page in the reader's own
+browser (`webapp/rubicon/js/receive.js` says how), so nobody downloads or uploads anything. --page points the button
+at another copy of the page, such as a local one for testing.
 """
-import csv, datetime, html, json, re, sys, zipfile
+import base64, csv, datetime, html, json, re, sys, zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
+from rubicon_open import node
 from rubicon_open.corpus import INDEX_FIELDS
 
+DRAW_MAP = Path(__file__).resolve().parent / "rubicon_open" / "draw_map.mjs"
+PAGE = "https://app.causalmap.app/rubicon.html"
+#: Whether a report offers to open its run on the Rubicon page (PAGE). Off until the live site, which serves `main`,
+#: has the page that receives a run; `--page <url>` turns it on for one report, such as against the dev site.
+#: `rubicon/plugin/build.py` reads this line, and leaves the skill's hand-over bullet out while it is off.
+HANDOFF = False
 CONTEXT = 420  # characters of the document shown either side of a quotation
 
 
@@ -43,6 +55,11 @@ def bundle(run, out):
             for p in sorted((rec / sub).rglob("*")) if (rec / sub).is_dir() else []:
                 if p.is_file():
                     z.write(p, p.relative_to(rec).as_posix())
+        # The second reading: the check's record and the second coder's own rows, beside the run they checked
+        for p in [run / "check.md"] + [run / "recode" / f for f in ("disagreements.md", "unclear.md")] \
+                + sorted((run / "recode" / "coded").glob("*.json")):
+            if p.is_file():
+                z.write(p, "check/" + p.relative_to(run).as_posix().removeprefix("recode/"))
 
 
 def esc(s):
@@ -69,6 +86,7 @@ def load(run):
         "answer": (run / "answer.md").read_text(encoding="utf-8"),
         "index": index,
         "texts": texts,
+        "check": (run / "check.md").read_text(encoding="utf-8") if (run / "check.md").exists() else "",
     }
 
 
@@ -149,6 +167,8 @@ def figure(tid, R, D):
         R.setdefault("wide_figures", []).append(tid)
         return ""
     cells = [c for c in s["cells"]]
+    if len(by) == 2 and by == link_ends(s, R):
+        return causal_map(s, cells)
     if len(by) == 1:
         rows = sorted(cells, key=lambda c: -c["n"])
         mx = max([c.get("base") or s["of"] for c in rows] + [1])
@@ -191,6 +211,22 @@ def figure(tid, R, D):
                     if c and n else '<td class="zero">0</td>')
         body += f"<tr><th>{esc(label(v))}</th>{tds}</tr>"
     return f'<figure class="fig"><div class="scroll"><table class="grid"><thead><tr><th></th>{head}</tr></thead><tbody>{body}</tbody></table></div><figcaption>Interviewees in each group. Click a count for its passages.</figcaption></figure>'
+
+
+def link_ends(s, R):
+    """The two ends of the causal links a tabulation counts, when its input is a code step that names them."""
+    src = next((w for w in R["workflow"].get("steps", []) if w.get("id") == s.get("input")), {})
+    links = src.get("links") or {}
+    return [links["from"], links["to"]] if links else None
+
+
+def causal_map(s, cells):
+    a, b = s["by"]
+    edges = [{"id": c["id"], "from": c["values"][a], "to": c["values"][b], "n": c["n"]} for c in cells if c["n"]]
+    svg = node.call(DRAW_MAP, {"edges": edges}, "map drawing")["svg"]
+    svg = svg[svg.index("<svg"):]
+    return (f'<figure class="fig map">{svg}<figcaption>Each arrow is a causal link, numbered by the documents that '
+            f'mention it. Click an arrow for its passages.</figcaption></figure>')
 
 
 def heading(R, title):
@@ -356,6 +392,13 @@ def annex(R, D):
                f"<li>{nrows - notfound} of {nrows} quotations found word for word in their document.</li>"
                f"<li>{a.get('counts_written_by_id',0)} numbers in the answer, every one counted by code; {len(a.get('numbers_written_bare',[]))} written by hand.</li>"
                f"<li>{len(a.get('citations_to_no_row',[]))} citations to passages that do not exist; {len(a.get('quotations_not_in_what_they_cite',[]))} quotations not in the passage they cite.</li></ul>")
+    if R.get("check"):
+        counts = next((b.strip() for b in R["check"].split("\n\n") if b.strip() and not b.lstrip().startswith("#")), "")
+        out.append("<h3>The second reading</h3><p>A second coder coded the documents afresh to the same definitions "
+                   "without seeing the first coding. A fresh reader then ruled on every place the two differed, and "
+                   "checked every sentence and quotation of the answer against the documents, correcting the coding and "
+                   "the answer where they were wrong. Its record is <code>check.md</code>, in the run's zip with the "
+                   "second coder's rows.</p>" + (f'<p class="small">{esc(counts)}</p>' if counts else ""))
     return "\n".join(out)
 
 
@@ -382,9 +425,30 @@ def further(R):
             f'<p><b>{esc(R["zip"])}</b>, saved beside this report, holds the whole run: the documents, the coded '
             'passages and the workflow that recounts every number. Keep it, or pass it on to people allowed to read '
             'the documents.</p>'
-            '<p>Causal mapping of the same documents is coming soon. Causal Map also runs workshops and consultancy on '
+            + (handoff(R) if R.get("page") else '') +
+            '<p>Causal Map also runs workshops and consultancy on '
             'analysing qualitative evidence for evaluation: '
             '<a href="https://causalmap.app/?utm_source=rubicon-plugin&amp;utm_medium=report">causalmap.app</a>.</p>')
+
+
+def run_zip(R):
+    """The run itself, for the button to hand over (report.js), only where the report offers it."""
+    if not R.get("page"):
+        return ""
+    folder = json.dumps(R.get("folder", "")).replace("</", "<\\/")
+    return (f' const RUN_ZIP = {{name: {json.dumps(R["zip"])}, folder: {folder}, page: {json.dumps(R["page"])}, '
+            f'zip: "{R.get("zip_b64", "")}"}};')
+
+
+def handoff(R):
+    """The button that opens the run on the Rubicon page, and what the report records so it can."""
+    return ('<p><button class="open-cm" id="open-in-cm">Open in Causal Map</button> to explore the run in your browser, '
+            'with every document in full and the workflow drawn. It needs a free Causal Map account. The run goes '
+            'straight from this report to the page and is not saved to Causal Map.</p>'
+            '<p class="small">This report also records where the run sits on this computer, '
+            f'<code>{esc(R.get("folder", ""))}</code>, so that the page can offer to ask Claude about it. Anyone you '
+            'send the report to can read that path, which may include your user name.</p>'
+            '<p id="open-in-cm-said" class="small" hidden></p>')
 
 
 def page(R, fragment=False):
@@ -436,7 +500,7 @@ def page(R, fragment=False):
 </main>
 <aside class="panel" id="panel" hidden><button class="close" id="panel-close" aria-label="Close">×</button><div id="panel-body"></div></aside>
 </div>
-<script>const RUN = {data};</script>
+<script>const RUN = {data};{run_zip(R)}</script>
 <script>{js}</script>
 """
     if fragment:
@@ -469,10 +533,14 @@ if __name__ == "__main__":
     R["zip"] = f"{name}.zip"
     R["date"] = sys.argv[sys.argv.index("--date") + 1] if "--date" in sys.argv else ""
     frag = "--fragment" in sys.argv
+    R["page"] = sys.argv[sys.argv.index("--page") + 1] if "--page" in sys.argv else PAGE if HANDOFF else None
     out = run / f"{name}{'.fragment' if frag else ''}.html"
+    bundle(run, run / R["zip"])
+    if R["page"]:
+        R["folder"] = str(run.resolve())
+        R["zip_b64"] = base64.b64encode((run / R["zip"]).read_bytes()).decode("ascii")
     out.write_text(page(R, frag), encoding="utf-8")
     (run / f"{name}.doc").write_text(word(R), encoding="utf-8")
-    bundle(run, run / R["zip"])
     print(f"wrote {out.name}, {name}.doc and {R['zip']} in {run}")
     if R.get("missing_figures"):
         print("figure lines naming no table, left out: " + ", ".join(sorted(set(R["missing_figures"]))))

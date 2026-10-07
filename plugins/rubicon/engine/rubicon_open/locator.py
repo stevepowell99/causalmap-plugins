@@ -24,10 +24,10 @@ threw away instead of reporting a clean pass over a silent loss.
 """
 from __future__ import annotations
 
-import json
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+
+from . import node
 
 SHIM = Path(__file__).resolve().parent / "locate_quotes.mjs"
 
@@ -50,20 +50,10 @@ def locate_all(source_text: str, quotes: list[str], wide_gap: bool = False) -> l
     """Locate every quote against the FULL source text. None means no match."""
     if not quotes:
         return []
-    payload = json.dumps({"sourceText": source_text, "quotes": quotes, "wideGap": bool(wide_gap)})
-    proc = subprocess.run(
-        ["node", str(SHIM)],
-        input=payload,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        cwd=str(SHIM.parent),
-    )
-    if proc.returncode != 0:
-        # A broken matcher must never look like "nothing matched", or a whole run of
-        # dropped quotes reads as a conservative model.
-        raise RuntimeError(f"quote locator failed: {proc.stderr[:300]}")
-    results = json.loads(proc.stdout)["results"]
+    # A broken matcher must never look like "nothing matched", or a whole run of dropped quotes reads as a
+    # conservative model; `node.call` raises rather than returning nothing.
+    results = node.call(SHIM, {"sourceText": source_text, "quotes": quotes, "wideGap": bool(wide_gap)},
+                        "quote locator")["results"]
 
     out: list[Located | None] = []
     for quote, hit in zip(quotes, results):
