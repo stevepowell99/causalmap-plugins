@@ -23,7 +23,9 @@ Never write from the workflow's definitions, codebook or the rubric's wording. D
 
 ## Plan both corpora
 
-Before writing any document, write `test-key/test-key.md`: the verdict each corpus is written to reach under the agreed rubric, and for each document an id, what it should show, and a brief of two or three sentences. Six documents a corpus unless the evaluator wants otherwise, since each corpus costs a run. Decide too the facts about each document that the question's comparisons use, such as site or role, and keep them the same across A and B so that the corpora differ in what happened, not in who was asked.
+Before writing any document, write `test-key/test-key.md`: the verdict each corpus is written to reach under the agreed rubric, and for each document an id, what it should show, and a brief of two or three sentences. Six documents a corpus unless the evaluator wants otherwise, since each corpus costs a run. Write each corpus so that its verdict holds with any one document read the other way, so that a single misreading cannot flip the result. Decide too the facts about each document that the question's comparisons use, such as site or role, and keep them the same across A and B so that the corpora differ in what happened, not in who was asked.
+
+Every brief must fall clearly on one side of each criterion, under the rubric as worded. For each brief, write in the key which side it falls on for each criterion and the fact that puts it there, then test that fact against the rubric's wording: could a careful reader rule it the other way? Where a fact could go either way, the brief is a boundary case: take the fact out, or settle with the evaluator how the rubric treats it and write that into the rubric before any document is written, then test every brief in both corpora against the amended wording. A boundary case left in by accident makes the test measure the key rather than the workflow, and it can sit in any brief of either corpus.
 
 Each corpus needs decoys, so that it tests whether the workflow reads evidence or tone:
 
@@ -55,4 +57,8 @@ Nobody should ever mistake these for evidence.
 
 Run the settled question on A, which writes the workflow. Run the same workflow on B with its definitions unchanged: code B against the same columns and meanings, recount, and draft the answer the same way. Then compare each verdict with the key, and each decoy with what it was written to show, and tell the evaluator plainly: whether the workflow reached pass on A and fail on B, and which decoys it read for their substance and which took it in.
 
-If it failed, revise the definitions with the evaluator and run both corpora again before going further. When it passes, save the workflow and both results in `test-key/` with the date, then run that workflow unchanged on the real documents, and say in the real report's method section that the workflow was tested first on two synthetic corpora and what it got right.
+Where a document lands on the other side from its brief, find which of three things went wrong before changing anything, and tell the evaluator which:
+
+- The document does not show what its brief says. Rewrite that document and rerun its corpus.
+- The brief was a boundary case under the rubric. The key is at fault, not the workflow: settle the rubric's reading with the evaluator, write it into the rubric and the workflow's definitions, test every brief in both corpora against it as above, and rerun both.
+- The document is clear under the rubric and the workflow misread it. Only this counts against the workflow: revise the definitions with the evaluator and run both corpora again before going further. When it passes, save the workflow and both results in `test-key/` with the date, then run that workflow unchanged on the real documents, and say in the real report's method section that the workflow was tested first on two synthetic corpora and what it got right.

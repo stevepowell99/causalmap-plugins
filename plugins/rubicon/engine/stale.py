@@ -3,7 +3,8 @@
     python stale.py <old recount folder> <new recount folder> <answer.md>
 
 A revision that changes a definition, a step or a coded row is recounted into a new `recount/` folder. This compares
-the two folders' `counts.json` and `rows.md`, lists every count and row that changed, appeared or went, and names each
+the two folders' `counts.json` and `rows.md`, lists every count and row that changed, appeared or went, and every
+count id that now names a different cell of its table, and names each
 paragraph of the answer that cites one of them by its {count id} or [row id]. A paragraph whose claim builds on a
 finding stated in another section says so with [§ That heading], and it is stale when anything in that section is,
 followed through as many sections as the chain runs. Stale paragraphs are read again against the new figures. The
@@ -46,6 +47,29 @@ def moved(old: dict, new: dict) -> dict[str, str]:
     return out
 
 
+def cells(folder: Path) -> dict[str, dict]:
+    """What each tabulation cell id stands for: the values that define the cell. An id is a cell's place in its table,
+    ordered by count, so the same id can come to name a different cell when counts shift."""
+    out = {}
+    for f in sorted((folder / "steps").glob("*.json")):
+        rec = json.loads(f.read_text(encoding="utf-8"))
+        for c in rec.get("cells") or [] if rec.get("kind") == "tabulate" else []:
+            if "id" in c:
+                out[c["id"]] = c.get("values")
+    return out
+
+
+def renamed(old: Path, new: Path, ids) -> dict[str, str]:
+    """Each count id, of those given, whose cell now stands for different values, even where its count is the same."""
+    was, now = cells(old), cells(new)
+    out = {}
+    for k in ids:
+        cell = next((c for c in was if k == c or k.startswith(c + ".")), None)
+        if cell and was.get(cell) != now.get(cell):
+            out[k] = f"now counts {now.get(cell)}, was {was[cell]}"
+    return out
+
+
 def paragraphs(text: str) -> list[tuple[str, str]]:
     """Each paragraph with the heading of the section it sits in ("" before the first)."""
     out, section = [], ""
@@ -67,6 +91,7 @@ def stale(old: Path, new: Path, answer: str) -> tuple[dict[str, str], list[tuple
     A paragraph is stale when it cites a count or row that moved, or refers with [§ Heading] to a section holding a
     stale paragraph, however many sections deep the chain runs; the opening conclusion is stale whenever anything is."""
     changes = {**moved(counts(old), counts(new)), **moved(rows(old), rows(new))}
+    changes = {**renamed(old, new, counts(old).keys() | counts(new).keys()), **changes}
     paras = [(sec, p) for sec, p in paragraphs(answer) if not p.startswith("# ")]
     sections = {sec for sec, _ in paras if sec} | {ln[3:].strip() for ln in answer.splitlines() if ln.startswith("## ")}
     why: dict[int, list[str]] = {}

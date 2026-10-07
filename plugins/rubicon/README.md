@@ -4,7 +4,7 @@ Rubicon answers an evaluator's question from a folder of documents, such as inte
 
 ## Install
 
-In the Claude app: Customize > Plugins > Add > Add marketplace, enter `stevepowell99/causalmap-plugins`, then install Rubicon from it, and turn on Sync automatically on that marketplace to get new versions. In a terminal: `/plugin marketplace add stevepowell99/causalmap-plugins`, then `/plugin install rubicon@causalmap`.
+In the Claude app: Customize > Plugins > Add > Add marketplace, enter `stevepowell99/causalmap-plugins`, then install Rubicon from it, and to get new versions choose Manage marketplaces, open the ⋮ menu beside causalmap-plugins and turn on Sync automatically (Check for updates in the same menu fetches the latest at once; Remove there takes the marketplace and its plugins away). In a terminal: `/plugin marketplace add stevepowell99/causalmap-plugins`, then `/plugin install rubicon@causalmap`.
 
 It needs Python 3.9 or later and Node.js. If any is missing, `/rubicon` says so and offers to install it.
 

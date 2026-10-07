@@ -47,3 +47,4 @@ One line per page: its name, its title and its first sentence.
 - `realist-evaluation-in-rubicon`: Realist evaluation in Rubicon. Where the method maps onto a workflow of the six pieces (sample, code, group, tabulate, judge, write), where it does not, and what the workflow must say it cannot answer.
 - `realist-evaluation-testing`: Realist evaluation: testing and refining. The cycle the method actually is, the interview technique it depends on, and what counts as a configuration surviving.
 - `realist-evaluation`: Realist evaluation. Realist evaluation asks what works, for whom, in what circumstances, in what respects, and how.
+- `testing-a-workflow-on-synthetic-documents`: Testing a workflow on synthetic documents. How to design an analysis and show that it can tell success from failure having seen little or nothing of the real documents, by running it on two small made-up corpora whose right answers are known; read it when a verdict has real conseque

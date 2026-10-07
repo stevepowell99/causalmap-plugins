@@ -18,7 +18,7 @@ Each run answers one question; it is not a summary of everything in your documen
 
 ## Install
 
-In the Claude app: Customize > Plugins > Add marketplace, and enter `stevepowell99/causalmap-plugins`. Then install Rubicon from it. To get new versions as they are released, turn on Sync automatically on the causalmap marketplace.
+In the Claude app: Customize > Plugins > Add marketplace, and enter `stevepowell99/causalmap-plugins`. Then install Rubicon from it. To get new versions as they are released, choose Manage marketplaces, open the ⋮ menu beside causalmap-plugins and turn on Sync automatically; Check for updates in that menu fetches the latest at once.
 
 In Claude Code:
 

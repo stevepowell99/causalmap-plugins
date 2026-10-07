@@ -79,7 +79,13 @@ for s in wf.get("steps", []):
             report.setdefault("documents_not_in_the_corpus", {})[sid] = unknown
         rec = S.code_given(run, s, given[sid])
     elif kind in ("sample", "tabulate", "judge"):
-        rec = {"sample": S.sample, "tabulate": S.tabulate, "judge": judge}[kind](run, W.resolve_step(s, kind) if kind != "judge" else s)
+        try:
+            rec = {"sample": S.sample, "tabulate": S.tabulate, "judge": judge}[kind](run, W.resolve_step(s, kind) if kind != "judge" else s)
+        except KeyError as e:  # a step resting on one with no rows to count from: said, rather than a crash
+            if e.args and e.args[0] in missing_coding + [x.split(" ")[0] for x in skipped]:
+                skipped.append(f"{sid} ({kind}, rests on {e.args[0]}, which was not recounted)")
+                continue
+            raise
     else:
         skipped.append(f"{sid} ({kind})")
         continue
@@ -136,4 +142,8 @@ if a.answer:
 (out / "run.json").write_text(json.dumps({"question": wf.get("question_as_agreed") or "", "recounted_from": "free+w"},
                                          indent=1, ensure_ascii=False), encoding="utf-8")
 print(json.dumps(report, indent=1, ensure_ascii=False))
+if missing_coding:
+    print(f"\nNot recounted: {', '.join(f'coded/{m}.json' for m in missing_coding)} missing. A recount counts from the rows "
+          "each code step was coded with; a run's zip made before 7 October 2026 holds them only as the rows in "
+          "steps/<id>.json: copy each step's \"rows\" from there into coded/<id>.json and recount again.")
 print(f"\nwritten: {out / 'tables.md'}, {out / 'rows.md'}, {out / 'counts.json'}" + (f", {out / 'answer.resolved.md'}" if a.answer else ""))

@@ -60,6 +60,9 @@ def bundle(run, out):
         z.write(run / "answer.md", "answer.md")
         if (run / "revisions.md").is_file():
             z.write(run / "revisions.md", "revisions.md")
+        # The rows each code step was coded with, which is what the recount counts from, so the zip alone recounts
+        for p in sorted((run / "coded").glob("*.json")):
+            z.write(p, "coded/" + p.name)
         for sub in ("steps", "corpus", "background"):
             for p in sorted((rec / sub).rglob("*")) if (rec / sub).is_dir() else []:
                 if p.is_file():
@@ -81,7 +84,7 @@ def unpack(zipped, run):
         for n in z.namelist():
             if n.endswith("/"):
                 continue
-            to = (run / n if n in ("answer.md", "revisions.md") else run / n.removeprefix("check/") if n == "check/check.md"
+            to = (run / n if n in ("answer.md", "revisions.md") or n.startswith("coded/") else run / n.removeprefix("check/") if n == "check/check.md"
                   else run / "recode" / n.removeprefix("check/") if n.startswith("check/") else run / "recount" / n)
             to.parent.mkdir(parents=True, exist_ok=True)
             to.write_bytes(z.read(n))
@@ -306,9 +309,13 @@ def asked(R, static=False):
             f'<p>{esc(rest)}</p></details>' if rest else f'<p class="asked"><b>Question</b> {esc(q)}</p>')
 
 
+def n_synthetic(R):
+    return sum(1 for d in R["index"] if (d.get("synthetic") or "").strip().lower() == "yes")
+
+
 def synthetic(R):
     """A notice that the report rests on made-up documents, wherever the index marks any as synthetic."""
-    n = sum(1 for d in R["index"] if (d.get("synthetic") or "").strip().lower() == "yes")
+    n = n_synthetic(R)
     if not n:
         return ""
     of = "All" if n == len(R["index"]) else f"{n} of the {len(R['index'])}"
@@ -477,17 +484,34 @@ def passages(R, D):
 
 
 def further(R):
-    """What comes after this draft: making sense of it with stakeholders, the run's zip, and help from Causal Map."""
-    return ('<p>Treat this report as a draft. Before it is final, make sense of it with the people it concerns, such as '
-            'programme staff and participants: whether the findings ring true, what they leave out, and what to do about '
-            'them. Their responses can go back into a revised answer.</p>'
-            f'<p><b>{esc(R["zip"])}</b>, saved beside this report, holds the whole run: the documents, the coded '
-            'passages and the workflow that recounts every number. Keep it, or pass it on to people allowed to read '
-            'the documents.</p>'
-            + (handoff(R) if R.get("page") else '') +
-            '<p>Causal Map also runs workshops and consultancy on '
-            'analysing qualitative evidence for evaluation: '
-            '<a href="https://causalmap.app/?utm_source=rubicon-plugin&amp;utm_medium=report">causalmap.app</a>.</p>')
+    """What comes after this draft: making sense of it with stakeholders, or, for a test on made-up documents,
+    what the test's result calls for; the run's zip; and help from Causal Map."""
+    test = bool(R["index"]) and n_synthetic(R) == len(R["index"])
+    causal_map = ('<p>The Rubicon plugin for Claude is provided for free by Causal Map Ltd. Causal Map also runs '
+                  'consultancy services on analysing qualitative evidence for evaluation: '
+                  '<a href="https://causalmap.app/?utm_source=rubicon-plugin&amp;utm_medium=report">causalmap.app</a>.'
+                  + ('' if R.get("page") else ' Coming soon: continue your Rubicon work at the Rubicon website.') + '</p>')
+    if test:
+        return ('<p>This report is one half of a test of the workflow on made-up documents, and what it says about them '
+                'matters only as a result of that test. Compare its verdict, and the other test set\'s, with the verdicts '
+                'the documents were written to reach. If both match, save the workflow as it stands, with its date, and '
+                'run it unchanged on the real documents. If either does not, find whether a document, the plan the '
+                'documents were written from or the workflow went wrong, and correct that before testing again.</p>'
+                f'<p><b>{esc(R["zip"])}</b>, saved beside this report, holds the whole run: the documents, the coded '
+                'passages and the workflow that recounts every number. Keep it with the test\'s plan as the record of '
+                'what was tested.</p>'
+                + (handoff(R) if R.get("page") else '') + causal_map)
+    return ('<p><b>For the evaluator:</b> Treat this report as a draft. Before it is final, make sense of it with the '
+            'people it concerns, such as programme staff and participants: whether the findings ring true, what they '
+            'leave out, and what to do about them. Rubicon can help discuss how to build their responses back into a '
+            'revised answer.</p>'
+            f'<p><b>For evaluation commissioners:</b> Parallel to this report is a zip file ({esc(R["zip"])}), saved in '
+            'the same folder, which contains the whole run: the documents, the coded passages and the workflow that '
+            'recounts every number. With it, anyone can check every number against the coded passages, and code the '
+            'documents again to the same definitions without Rubicon or any other particular software. A fresh coding '
+            'will not reproduce this report word for word, because AI models are unpredictable, but it should come '
+            'close.</p>'
+            + (handoff(R) if R.get("page") else '') + causal_map)
 
 
 def run_zip(R):
@@ -598,6 +622,10 @@ if __name__ == "__main__":
     frag = "--fragment" in sys.argv
     R["page"] = sys.argv[sys.argv.index("--page") + 1] if "--page" in sys.argv else PAGE if HANDOFF else None
     out = run / f"{name}{'.fragment' if frag else ''}.html"
+    runs = run.resolve().parent / "rubicon-runs.md"
+    if not frag and runs.is_file() and f"{name}.html" in runs.read_text(encoding="utf-8"):
+        sys.exit(f"{name}.html is already listed in {runs.name} as handed over, so it is not overwritten. A revision "
+                 "adds its line to revisions.md first, and the report is then written under a new -revision- name.")
     bundle(run, run / R["zip"])
     if R["page"]:
         R["folder"] = str(run.resolve())
