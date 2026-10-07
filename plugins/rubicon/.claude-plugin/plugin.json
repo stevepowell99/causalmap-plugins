@@ -1,7 +1,7 @@
 {
   "name": "rubicon",
   "displayName": "Rubicon",
-  "version": "0.1.0+87eabef6a5d8",
+  "version": "0.1.0+c2f5d065ba9d",
   "description": "An opinionated evaluation assistant: argues out with you a workflow to answer one evaluation question from your documents, then runs it with every count made by code and every quotation checked against its source.",
   "author": {
     "name": "Causal Map",

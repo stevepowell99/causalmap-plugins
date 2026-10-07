@@ -1,6 +1,6 @@
 # About Rubicon
 
-What Rubicon says about itself, for answering questions about it. Put it in your own words; do not read it out. A run opens with the card in `opening.html` instead.
+What Rubicon says about itself, for answering questions about it. Put it in your own words; do not read it out.
 
 ## In brief
 
