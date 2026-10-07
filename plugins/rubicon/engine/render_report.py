@@ -4,7 +4,7 @@
     python render_report.py <run .zip>   [the same options]
 
 The three files share one name, made from the question and the day: `<question>-<yyyy-mm-dd>.html`, `.doc` and
-`.zip`. The zip is the recounted run in the open format (`recount/`: `workflow.json`, `run.json`, `steps/*.json`,
+`.zip`, with `-revision-<n>` added once the run has been revised (`revisions.md`). The zip is the recounted run in the open format (`recount/`: `workflow.json`, `run.json`, `steps/*.json`,
 `corpus/` and `background/`), which the Rubicon page's "Open a downloaded run (.zip)" reads in the browser and
 never saves. It holds the documents, because the page needs them to show each quotation in its place, and
 `answer.md`, `counts.json` and `report.json`, so that given the zip in place of a folder this draws the report again
@@ -39,13 +39,15 @@ CONTEXT = 420  # characters of the document shown either side of a quotation
 
 
 def name_of(R):
-    """The name the run's files share: the agreed question, cut to its first words, and today's date."""
+    """The name the run's files share: the agreed question, cut to its first words, and today's date, then the revision
+    number where the run has been revised, so a revised report never overwrites the one before it."""
     words, slug = re.findall(r"[a-z0-9]+", re.sub(r"['\u2019]", "", R["workflow"].get("question_as_agreed", "").lower())), ""
     for w in words:
         if len(slug) + len(w) > 50:
             break
         slug = f"{slug}-{w}" if slug else w
-    return f"{slug or 'rubicon'}-{datetime.date.today().isoformat()}"
+    revised = sum(1 for l in R.get("revisions", "").splitlines() if l.strip().startswith("- "))
+    return f"{slug or 'rubicon'}-{datetime.date.today().isoformat()}" + (f"-revision-{revised}" if revised else "")
 
 
 def bundle(run, out):
@@ -56,6 +58,8 @@ def bundle(run, out):
             z.write(rec / name, name)
         # The answer as written, cell ids and figure lines and all, so the zip alone rebuilds the report (`unpack`)
         z.write(run / "answer.md", "answer.md")
+        if (run / "revisions.md").is_file():
+            z.write(run / "revisions.md", "revisions.md")
         for sub in ("steps", "corpus", "background"):
             for p in sorted((rec / sub).rglob("*")) if (rec / sub).is_dir() else []:
                 if p.is_file():
@@ -77,7 +81,7 @@ def unpack(zipped, run):
         for n in z.namelist():
             if n.endswith("/"):
                 continue
-            to = (run / n if n == "answer.md" else run / n.removeprefix("check/") if n == "check/check.md"
+            to = (run / n if n in ("answer.md", "revisions.md") else run / n.removeprefix("check/") if n == "check/check.md"
                   else run / "recode" / n.removeprefix("check/") if n.startswith("check/") else run / "recount" / n)
             to.parent.mkdir(parents=True, exist_ok=True)
             to.write_bytes(z.read(n))
@@ -114,6 +118,7 @@ def load(run):
         "index": index,
         "texts": texts,
         "check": (run / "check.md").read_text(encoding="utf-8") if (run / "check.md").exists() else "",
+        "revisions": (run / "revisions.md").read_text(encoding="utf-8") if (run / "revisions.md").exists() else "",
     }
 
 
@@ -154,6 +159,13 @@ def build_data(R):
 CITE = re.compile(r"\[([a-z][\w]*\.[a-z0-9]+(?:\s*,\s*[a-z][\w]*\.[a-z0-9]+)*)\]")
 CELL = re.compile(r"\{([a-z][\w]*\.(?:c\d+|of)(?:\.within\.[\w]+)?)\}")
 FIG = re.compile(r"^\{\{figure\s+([\w]+)\}\}$")
+#: [§ A heading]: a claim that builds on a finding stated in that section of the answer, which is how a revision follows
+#: what rests on what (stale.py)
+SEE = re.compile(r"\[§\s*([^\]]+)\]")
+
+
+def anchor(heading):
+    return "s-" + "-".join(re.findall(r"[a-z0-9]+", heading.lower()))
 
 
 def inline(text, R, cite_no, static):
@@ -179,8 +191,15 @@ def inline(text, R, cite_no, static):
             chips.append(f"<sup>{k}</sup>" if static else f'<button class="cite" data-row="{esc(i)}" aria-label="Passage {k}">{k}</button>')
         return "".join(chips)
 
+    def see(m):
+        h = html.unescape(m.group(1)).strip()
+        if h not in R.get("sections", ()):
+            R.setdefault("missing_sections", []).append(h)
+        return f"(see “{esc(h)}”)" if static else f'<a class="see" href="#{anchor(h)}">§ {esc(h)}</a>'
+
     out = CELL.sub(cell, out)
     out = CITE.sub(cite, out)
+    out = SEE.sub(see, out)
     return out
 
 
@@ -292,6 +311,7 @@ def synthetic(R):
 
 def answer_html(R, D, static=False):
     lines = R["answer"].splitlines()
+    R["sections"] = {ln[3:].strip() for ln in lines if ln.startswith("## ")}
     title, lead, parts, cite_no = "", "", [], {}
     para, items, rows = [], [], []
 
@@ -314,7 +334,7 @@ def answer_html(R, D, static=False):
         if s.startswith("# "):
             flush(); title = s[2:]; continue
         if s.startswith("## "):
-            flush(); parts.append(f"<h2>{inline(s[3:], R, cite_no, static)}</h2>"); continue
+            flush(); parts.append(f'<h2 id="{anchor(s[3:].strip())}">{inline(s[3:], R, cite_no, static)}</h2>'); continue
         m = FIG.match(s.strip())
         if m:
             flush(); parts.append("" if static else figure(m.group(1), R, D)); continue
@@ -426,6 +446,11 @@ def annex(R, D):
                    "checked every sentence and quotation of the answer against the documents, correcting the coding and "
                    "the answer where they were wrong. Its record is <code>check.md</code>, in the run's zip with the "
                    "second coder's rows.</p>" + (f'<p class="small">{esc(counts)}</p>' if counts else ""))
+    revised = [l.strip()[2:] for l in R.get("revisions", "").splitlines() if l.strip().startswith("- ")]
+    if revised:
+        out.append("<h3>Revisions</h3><p>Changes made after the first report, each recounted and checked before this "
+                   "version was drawn. Earlier versions keep their own files.</p><ul>"
+                   + "".join(f"<li>{esc(l)}</li>" for l in revised) + "</ul>")
     return "\n".join(out)
 
 
@@ -572,6 +597,8 @@ if __name__ == "__main__":
     out.write_text(page(R, frag), encoding="utf-8")
     (run / f"{name}.doc").write_text(word(R), encoding="utf-8")
     print(f"wrote {out.name}, {name}.doc and {R['zip']} in {run}")
+    if R.get("missing_sections"):
+        print("[§ ] references naming no section of the answer: " + ", ".join(sorted(set(R["missing_sections"]))))
     if R.get("missing_figures"):
         print("figure lines naming no table, left out: " + ", ".join(sorted(set(R["missing_figures"]))))
     if R.get("wide_figures"):

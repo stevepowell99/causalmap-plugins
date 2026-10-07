@@ -131,3 +131,4 @@ blockquote { margin: .6rem 0; padding: .6rem .9rem; background: var(--panel); bo
   body { background: #fff; color: #000; }
 }
 @media (prefers-reduced-motion: no-preference) { .panel { transition: transform .15s ease-out; } }
+a.see { font-size: .85em; color: var(--quiet); text-decoration: none; white-space: nowrap; }
