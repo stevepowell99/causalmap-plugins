@@ -23,15 +23,20 @@
     panel.hidden = false;
     panel.scrollTop = 0;
   }
-  function showCell(id) {
+  function showCell(id, within) {
     const c = RUN.cells[id];
     if (!c) return;
+    if (!Object.keys(c.values).length) {
+      return open(`<h3>${c.n} documents</h3><p class="small">Every document this count was made from:</p>` +
+        c.docs.map(d => `<div class="item"><p class="doc-tag">${esc(d)} · ${esc(group(d))}</p></div>`).join(''));
+    }
+    const base = within && within in c.within ? c.within[within] : c.base;
     const what = Object.entries(c.values).map(([k, v]) => {
       const d = RUN.defs[k + '=' + v];
       return `<li><b>${esc(label(k))}: ${esc(label(v))}</b>${d ? '. ' + esc(d) : ''}</li>`;
     }).join('');
     const rows = c.rows.map(rowShort).join('');
-    open(`<h3>${c.n} of ${c.base}</h3><p class="small">Counted by code from the coded passages: the documents where</p><ul>${what}</ul>
+    open(`<h3>${c.n} of ${base}</h3><p class="small">Counted by code from the coded passages: the documents where</p><ul>${what}</ul>
       <p class="small">${c.docs.length ? 'Who: ' + c.docs.map(esc).join(', ') : 'Nobody.'}</p>${rows}`);
   }
   function showRows(ids) {
@@ -64,7 +69,7 @@
     if (!b) return;
     if (b.id === 'panel-close') { panel.hidden = true; return; }
     if (b.id === 'open-in-cm') return openInCausalMap();
-    if (b.dataset.cell) return showCell(b.dataset.cell);
+    if (b.dataset.cell) return showCell(b.dataset.cell, b.dataset.within);
     if (b.dataset.row) return open(rowInPlace(b.dataset.row));
     if (b.dataset.rows) return showRows(b.dataset.rows.split(','));
   });

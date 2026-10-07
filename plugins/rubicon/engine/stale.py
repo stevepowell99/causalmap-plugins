@@ -89,6 +89,7 @@ def stale(old: Path, new: Path, answer: str) -> tuple[dict[str, str], list[tuple
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")  # a Windows console is not UTF-8, and the output names documents and arrows
     if len(sys.argv) != 4:
         sys.exit(__doc__)
     changes, hits, broken = stale(Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]).read_text(encoding="utf-8"))

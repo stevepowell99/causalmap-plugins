@@ -150,7 +150,13 @@ def build_data(R):
         elif s.get("kind") == "tabulate":
             for c in s.get("cells", []):
                 cells[c["id"]] = {"values": c["values"], "n": c["n"], "base": c.get("base", s.get("of")),
-                                  "docs": c.get("documents", []), "rows": c.get("rows", []), "step": sid}
+                                  "within": c.get("within") or {}, "docs": c.get("documents", []),
+                                  "rows": c.get("rows", []), "step": sid}
+            # {<step>.of}, the documents the tabulation read, as the engine takes them from its input step
+            src = R["steps"].get(s.get("input"), {})
+            read = src.get("documents") or R["steps"].get(src.get("input"), {}).get("documents") or sorted(docs)
+            cells[f"{sid}.of"] = {"values": {}, "n": s.get("of"), "base": s.get("of"), "within": {},
+                                  "docs": sorted(read), "rows": [], "step": sid}
     return {"docs": docs, "rows": rows, "cells": cells, "defs": defs, "group": gcol}
 
 
@@ -178,8 +184,9 @@ def inline(text, R, cite_no, static):
         txt = R["counts"].get(cid, cid)
         if static:
             return esc(txt)
-        base = re.sub(r"\.within\..*$", "", cid)
-        return f'<button class="n" data-cell="{esc(base)}">{esc(txt)}</button>'
+        base, _, col = cid.partition(".within.")
+        within = f' data-within="{esc(col)}"' if col else ""
+        return f'<button class="n" data-cell="{esc(base)}"{within}>{esc(txt)}</button>'
 
     def cite(m):
         ids = [i.strip() for i in m.group(1).split(",")]
@@ -579,6 +586,7 @@ def word(R):
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")  # a Windows console is not UTF-8, and the output names documents and arrows
     run = Path(sys.argv[1])
     if run.suffix.lower() == ".zip":  # a run's zip opens as the folder beside it, named after it
         unpack(run, run.with_suffix(""))

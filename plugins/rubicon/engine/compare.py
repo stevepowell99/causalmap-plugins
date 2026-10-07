@@ -76,4 +76,5 @@ def compare(a: Path, b: Path) -> dict:
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")  # a Windows console is not UTF-8, and the output names documents and arrows
     print(json.dumps(compare(Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()), indent=1, ensure_ascii=False))

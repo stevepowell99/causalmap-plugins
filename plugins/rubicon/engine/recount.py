@@ -33,6 +33,7 @@ from rubicon_open import steps as S
 from rubicon_open import workflow as W
 from rubicon_open.judge import judge, markdown as judge_markdown
 
+sys.stdout.reconfigure(encoding="utf-8")  # a Windows console is not UTF-8, and the output names documents and arrows
 ap = argparse.ArgumentParser()
 ap.add_argument("folder")
 ap.add_argument("--answer")
