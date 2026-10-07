@@ -3,12 +3,21 @@
     python render_report.py <run folder> [--date "6 October 2026"] [--fragment] [--page <url of rubicon.html>]
     python render_report.py <run .zip>   [the same options]
 
-The three files share one name, made from the question and the day: `<question>-<yyyy-mm-dd>.html`, `.doc` and
-`.zip`, with `-revision-<n>` added once the run has been revised (`revisions.md`). The zip is the recounted run in the open format (`recount/`: `workflow.json`, `run.json`, `steps/*.json`,
+The three files share one name, made from the question, the day and the first eight characters of the run's
+fingerprint: `<question>-<yyyy-mm-dd>-<fingerprint>.html`, `.doc` and `.zip`, with `-revision-<n>` before the
+fingerprint once the run has been revised (`revisions.md`), so a report and its zip are seen to match by their names. The zip is the recounted run in the open format (`recount/`: `workflow.json`, `run.json`, `steps/*.json`,
 `corpus/` and `background/`), which the Rubicon page's "Open a downloaded run (.zip)" reads in the browser and
 never saves. It holds the documents, because the page needs them to show each quotation in its place, and
 `answer.md`, `counts.json` and `report.json`, so that given the zip in place of a folder this draws the report again
-from the zip alone, into a folder beside it named after it (`unpack`).
+from the zip alone, into a folder beside it named after it (`unpack`), under the name and date it was first drawn with.
+
+The report is drawn from the zip and from nothing else: given a folder, this makes the zip first, then reads only the
+zip (`load`), so a report cannot say anything its zip does not hold. The zip is sealed: `SHA256SUMS` lists the SHA-256
+of every other file in it, and the SHA-256 of that list is the run's fingerprint, printed in the report. `render.json`
+in the zip gives the name, date and page the report is drawn under and the engine that drew it, and its files carry a
+fixed date, so the same run always makes the same zip and the same zip the same report, byte for byte. Nothing is drawn
+from a zip whose seal is broken, or whose recount a fresh recount of its own coded rows and answer would change
+(`problems`). `verify.py` says whether a given report was drawn from a given zip.
 
 Reads only what the run already holds (answer.md with its cell ids, recount/steps/*.json, recount/report.json,
 corpus/index.csv and the corpus text for context around each quotation). Makes no model call, so it costs nothing
@@ -22,14 +31,18 @@ The report carries its zip, and its "Open in Causal Map" button hands the run to
 browser (`webapp/rubicon/js/receive.js` says how), so nobody downloads or uploads anything. --page points the button
 at another copy of the page, such as a local one for testing.
 """
-import base64, csv, datetime, html, json, re, shutil, sys, zipfile
+import base64, csv, datetime, hashlib, html, io, json, re, shutil, subprocess, sys, tempfile, zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
 from rubicon_open import node
 from rubicon_open.corpus import INDEX_FIELDS
+from rubicon_open.seal import engine_fingerprint, engine_version, listed, seal_broken
 
-DRAW_MAP = Path(__file__).resolve().parent / "rubicon_open" / "draw_map.mjs"
+ENGINE = Path(__file__).resolve().parent
+DRAW_MAP = ENGINE / "rubicon_open" / "draw_map.mjs"
+#: Every file in a zip carries this date, so the same run always makes the same zip, byte for byte
+STAMP = (1980, 1, 1, 0, 0, 0)
 PAGE = "https://app.causalmap.app/rubicon.html"
 #: Whether a report offers to open its run on the Rubicon page (PAGE). Off until the live site, which serves `main`,
 #: has the page that receives a run; `--page <url>` turns it on for one report, such as against the dev site.
@@ -38,62 +51,110 @@ HANDOFF = False
 CONTEXT = 420  # characters of the document shown either side of a quotation
 
 
-def name_of(R):
+def name_of(workflow, revisions):
     """The name the run's files share: the agreed question, cut to its first words, and today's date, then the revision
     number where the run has been revised, so a revised report never overwrites the one before it."""
-    words, slug = re.findall(r"[a-z0-9]+", re.sub(r"['\u2019]", "", R["workflow"].get("question_as_agreed", "").lower())), ""
+    words, slug = re.findall(r"[a-z0-9]+", re.sub(r"['\u2019]", "", workflow.get("question_as_agreed", "").lower())), ""
     for w in words:
         if len(slug) + len(w) > 50:
             break
         slug = f"{slug}-{w}" if slug else w
-    revised = sum(1 for l in R.get("revisions", "").splitlines() if l.strip().startswith("- "))
+    revised = sum(1 for l in revisions.splitlines() if l.strip().startswith("- "))
     return f"{slug or 'rubicon'}-{datetime.date.today().isoformat()}" + (f"-revision-{revised}" if revised else "")
 
 
-def bundle(run, out):
-    """The recounted run as one zip, as the Rubicon page opens it."""
-    rec = run / "recount"
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
-        for name in ("workflow.json", "run.json", "counts.json", "report.json"):
-            z.write(rec / name, name)
-        # The answer as written, cell ids and figure lines and all, so the zip alone rebuilds the report (`unpack`)
-        z.write(run / "answer.md", "answer.md")
-        if (run / "revisions.md").is_file():
-            z.write(run / "revisions.md", "revisions.md")
-        # The rows each code step was coded with, which is what the recount counts from, so the zip alone recounts
-        for p in sorted((run / "coded").glob("*.json")):
-            z.write(p, "coded/" + p.name)
-        for sub in ("steps", "corpus", "background"):
-            for p in sorted((rec / sub).rglob("*")) if (rec / sub).is_dir() else []:
-                if p.is_file():
-                    z.write(p, p.relative_to(rec).as_posix())
-        # The second reading: the check's record and the second coder's own rows, beside the run they checked
-        for p in [run / "check.md"] + [run / "recode" / f for f in ("disagreements.md", "unclear.md")] \
-                + sorted((run / "recode" / "coded").glob("*.json")):
+def recorded(rec):
+    """What the zip takes from a run's recount, by its name in the zip."""
+    files = {n: rec / n for n in ("workflow.json", "run.json", "counts.json", "report.json") if (rec / n).is_file()}
+    for sub in ("steps", "corpus", "background"):
+        for p in sorted((rec / sub).rglob("*")) if (rec / sub).is_dir() else []:
             if p.is_file():
-                z.write(p, "check/" + p.relative_to(run).as_posix().removeprefix("recode/"))
+                files[p.relative_to(rec).as_posix()] = p
+    return files
+
+
+def recount_differs(run):
+    """The files of the run's recount that a fresh recount from its coded rows and its answer would not write as they
+    stand. Empty means every number, check and table the report draws follows from the coded passages and the answer
+    as they are now."""
+    with tempfile.TemporaryDirectory() as t:
+        fresh = Path(t)
+        for name in ("workflow.json", "answer.md"):
+            shutil.copy2(run / name, fresh / name)
+        for sub in ("corpus", "background", "coded"):
+            if (run / sub).is_dir():
+                shutil.copytree(run / sub, fresh / sub)
+        done = subprocess.run([sys.executable, "-I", "-S", str(ENGINE / "recount.py"), str(fresh), "--answer",
+                               str(fresh / "answer.md")], capture_output=True, text=True, encoding="utf-8")
+        if done.returncode:
+            return ["the recount itself, which failed: " + done.stderr.strip()[-400:]]
+        old, new = recorded(run / "recount"), recorded(fresh / "recount")
+        return sorted(n for n in old.keys() | new.keys() if n not in old or n not in new
+                      or old[n].read_bytes() != new[n].read_bytes())
+
+
+def bundle(run, out, render):
+    """The recounted run as one zip, as the Rubicon page opens it, sealed: `SHA256SUMS` lists the SHA-256 of every
+    other file in it, and the SHA-256 of that list is the run's fingerprint, which the report prints.
+    Fixed dates and order make the same run always give the same zip."""
+    rec = run / "recount"
+    files = {n: p for n, p in recorded(rec).items() if not n.startswith(("steps/", "corpus/", "background/"))}
+    # The answer as written, cell ids and figure lines and all, so the zip alone rebuilds the report (`unpack`)
+    files["answer.md"] = run / "answer.md"
+    if (run / "revisions.md").is_file():
+        files["revisions.md"] = run / "revisions.md"
+    # The rows each code step was coded with, which is what the recount counts from, so the zip alone recounts
+    for p in sorted((run / "coded").glob("*.json")):
+        files["coded/" + p.name] = p
+    files.update({n: p for n, p in recorded(rec).items() if n.startswith(("steps/", "corpus/", "background/"))})
+    # The second reading: the check's record and the second coder's own rows, beside the run they checked
+    for p in [run / "check.md"] + [run / "recode" / f for f in ("disagreements.md", "unclear.md")] \
+            + sorted((run / "recode" / "coded").glob("*.json")):
+        if p.is_file():
+            files["check/" + p.relative_to(run).as_posix().removeprefix("recode/")] = p
+    entries = [(n, p.read_bytes()) for n, p in files.items()]
+    # How the report was drawn, so the zip alone draws it again under the same name, from the same engine
+    entries.append(("render.json", json.dumps(render, indent=1, ensure_ascii=False).encode("utf-8")))
+    out.write_bytes(sealed(entries))
+
+
+def sealed(entries):
+    """A zip of (name, bytes) pairs in the order given, with `SHA256SUMS` last, as bytes: the same files always give
+    the same bytes, so a zip re-made from another's contents is that zip again."""
+    sums = "".join(f"{hashlib.sha256(b).hexdigest()}  {n}\n" for n, b in entries).encode("utf-8")
+    data = io.BytesIO()
+    with zipfile.ZipFile(data, "w") as z:
+        for n, b in entries + [("SHA256SUMS", sums)]:
+            info = zipfile.ZipInfo(n, STAMP)
+            info.compress_type, info.external_attr = zipfile.ZIP_DEFLATED, 0o644 << 16
+            z.writestr(info, b)
+    return data.getvalue()
 
 
 def unpack(zipped, run):
     """A run's zip laid out again as the run folder it was made from, so the report can be drawn from the zip alone:
-    the recount at `recount/`, the answer, the check and the second coder's rows where they were, and the workflow and
-    documents at the top as `load` reads them."""
+    the recount at `recount/`, the answer, the coded rows, the check and the second coder's rows where they were, and
+    the workflow, documents and background at the top as `load` and the recount read them. Refused for a zip whose
+    seal is broken, since a report drawn from it would carry a fingerprint the original never had."""
     if run.exists():
         sys.exit(f"{run} already exists; move it, or draw the report from that folder instead")
     with zipfile.ZipFile(zipped) as z:
+        broken = seal_broken(z)
+        if broken:
+            sys.exit(f"{zipped.name} is not as it was made, so no report is drawn from it: " + "; ".join(broken))
         for n in z.namelist():
             if n.endswith("/"):
                 continue
-            to = (run / n if n in ("answer.md", "revisions.md") or n.startswith("coded/") else run / n.removeprefix("check/") if n == "check/check.md"
+            to = (run / n if n in ("answer.md", "revisions.md", "render.json", "SHA256SUMS") or n.startswith("coded/")
+                  else run / n.removeprefix("check/") if n == "check/check.md"
                   else run / "recode" / n.removeprefix("check/") if n.startswith("check/") else run / "recount" / n)
             to.parent.mkdir(parents=True, exist_ok=True)
             to.write_bytes(z.read(n))
-    if not (run / "answer.md").exists():
-        shutil.rmtree(run)
-        sys.exit(f"{zipped.name} was made before a run's zip carried its answer, so the report cannot be drawn from it "
-                 "alone; draw it from the run's folder instead")
     shutil.copy2(run / "recount" / "workflow.json", run / "workflow.json")
-    shutil.copytree(run / "recount" / "corpus", run / "corpus")
+    for sub in ("corpus", "background"):
+        if (run / "recount" / sub).is_dir():
+            shutil.copytree(run / "recount" / sub, run / sub)
+    return json.loads((run / "render.json").read_text(encoding="utf-8"))
 
 
 def esc(s):
@@ -104,25 +165,53 @@ def label(v):
     return str(v).replace("_", " ").strip().capitalize()
 
 
-def load(run):
-    steps = {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in (run / "recount/steps").glob("*.json")}
-    with open(run / "corpus/index.csv", encoding="utf-8") as f:
-        index = list(csv.DictReader(f))
-    texts = {}
-    for d in index:
-        p = run / "corpus" / (d.get("file") or f"{d['id']}.txt")
-        texts[d["id"]] = p.read_text(encoding="utf-8") if p.exists() else ""
-    return {
-        "workflow": json.loads((run / "workflow.json").read_text(encoding="utf-8")),
-        "steps": steps,
-        "counts": json.loads((run / "recount/counts.json").read_text(encoding="utf-8")),
-        "report": json.loads((run / "recount/report.json").read_text(encoding="utf-8")),
-        "answer": (run / "answer.md").read_text(encoding="utf-8"),
-        "index": index,
-        "texts": texts,
-        "check": (run / "check.md").read_text(encoding="utf-8") if (run / "check.md").exists() else "",
-        "revisions": (run / "revisions.md").read_text(encoding="utf-8") if (run / "revisions.md").exists() else "",
-    }
+def load(zipped):
+    """Everything a report draws, read from the run's sealed zip and from nothing else, so a report can say nothing its
+    zip does not hold: the counts, rows and checks of the recount, the answer as written, the documents, the second
+    reading, the revisions, and from `render.json` the name, date and page it is drawn under."""
+    with zipfile.ZipFile(zipped) as z:
+        names = set(z.namelist())
+        text = lambda n: z.read(n).decode("utf-8") if n in names else ""
+        index = list(csv.DictReader(io.StringIO(text("corpus/index.csv"), newline="")))
+        render = json.loads(text("render.json"))
+        fingerprint = hashlib.sha256(z.read("SHA256SUMS")).hexdigest()
+        return {
+            "workflow": json.loads(text("workflow.json")),
+            "steps": {n[len("steps/"):-len(".json")]: json.loads(text(n)) for n in sorted(names)
+                      if re.fullmatch(r"steps/[^/]+\.json", n)},
+            "counts": json.loads(text("counts.json")),
+            "report": json.loads(text("report.json")),
+            "answer": text("answer.md"),
+            "index": index,
+            "texts": {d["id"]: text("corpus/" + (d.get("file") or f"{d['id']}.txt")) for d in index},
+            "check": text("check/check.md"),
+            "revisions": text("revisions.md"),
+            # The files' own name carries the fingerprint's first characters, so a report and its zip are seen to match
+            "name": f"{render['name']}-{fingerprint[:8]}", "zip": f"{render['name']}-{fingerprint[:8]}.zip",
+            "date": render["date"], "page": render.get("page"),
+            "folder": render.get("folder", ""), "version": render.get("version"), "engine": render.get("engine"),
+            "fingerprint": fingerprint,
+            # The run the report hands to the page: the zip re-made from its own contents in its own order, so how the
+            # zip was packed, by this engine or by any other tool, never changes the report
+            "zip_b64": base64.b64encode(sealed([(n, z.read(n)) for n in listed(z)])).decode("ascii")
+                       if render.get("page") else "",
+        }
+
+
+def problems(zipped):
+    """Why no report may be drawn from this zip: its seal is broken, or its recount is not what a fresh recount of its
+    own coded rows and answer gives. Empty means the zip is as it was made and every number in it follows from its
+    coded passages."""
+    with zipfile.ZipFile(zipped) as z:
+        broken = seal_broken(z)
+    if broken:
+        return [f"{zipped.name} is not as it was made: " + "; ".join(broken)]
+    with tempfile.TemporaryDirectory() as t:
+        run = Path(t) / "run"
+        unpack(zipped, run)
+        differs = recount_differs(run)
+    return ([f"its recount does not follow from its coded rows and its answer: {', '.join(differs)} would change. "
+             "Recount with recount.py <folder> --answer answer.md, then draw again"] if differs else [])
 
 
 def group_column(index):
@@ -460,6 +549,16 @@ def annex(R, D):
                    "checked every sentence and quotation of the answer against the documents, correcting the coding and "
                    "the answer where they were wrong. Its record is <code>check.md</code>, in the run's zip with the "
                    "second coder's rows.</p>" + (f'<p class="small">{esc(counts)}</p>' if counts else ""))
+    if R.get("fingerprint"):
+        out.append(f"<h3>The record</h3><p>Code drew this report from the run's zip, {esc(R['zip'])}"
+                   + (f", with Rubicon {esc(R['version'])}" if R.get("version") else "") + ". The zip's fingerprint is "
+                   f'<code class="fingerprint">{R["fingerprint"]}</code>. It is the SHA-256 of the zip\'s SHA256SUMS '
+                   "file, which lists the SHA-256 of every other file in the zip, so changing any file breaks the match. "
+                   "To check that the zip is the one this report was drawn from, unzip it, run <code>sha256sum -c "
+                   "SHA256SUMS</code>, then <code>sha256sum SHA256SUMS</code>, and compare the result with the "
+                   "fingerprint above. Rubicon's own code, which is public, checks the rest: <code>python verify.py "
+                   "&lt;report&gt; &lt;zip&gt;</code> recounts every number from the coded passages in the zip, draws "
+                   "the report again from the zip and says whether it matches this one exactly.</p>")
     revised = [l.strip()[2:] for l in R.get("revisions", "").splitlines() if l.strip().startswith("- ")]
     if revised:
         out.append("<h3>Revisions</h3><p>Changes made after the first report, each recounted and checked before this "
@@ -507,7 +606,8 @@ def further(R):
             'revised answer.</p>'
             f'<p><b>For evaluation commissioners:</b> Parallel to this report is a zip file ({esc(R["zip"])}), saved in '
             'the same folder, which contains the whole run: the documents, the coded passages and the workflow that '
-            'recounts every number. With it, anyone can check every number against the coded passages, and code the '
+            'recounts every number. Its fingerprint, under How this was made, ties it to this report: change a file in '
+            'either and they no longer match. With it, anyone can check every number against the coded passages, and code the '
             'documents again to the same definitions without Rubicon or any other particular software. A fresh coding '
             'will not reproduce this report word for word, because AI models are unpredictable, but it should come '
             'close.</p>'
@@ -612,27 +712,42 @@ def word(R):
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")  # a Windows console is not UTF-8, and the output names documents and arrows
     run = Path(sys.argv[1])
-    if run.suffix.lower() == ".zip":  # a run's zip opens as the folder beside it, named after it
-        unpack(run, run.with_suffix(""))
-        run = run.with_suffix("")
-    R = load(run)
-    name = name_of(R)
-    R["zip"] = f"{name}.zip"
-    R["date"] = sys.argv[sys.argv.index("--date") + 1] if "--date" in sys.argv else ""
     frag = "--fragment" in sys.argv
-    R["page"] = sys.argv[sys.argv.index("--page") + 1] if "--page" in sys.argv else PAGE if HANDOFF else None
-    out = run / f"{name}{'.fragment' if frag else ''}.html"
-    runs = run.resolve().parent / "rubicon-runs.md"
-    if not frag and runs.is_file() and f"{name}.html" in runs.read_text(encoding="utf-8"):
-        sys.exit(f"{name}.html is already listed in {runs.name} as handed over, so it is not overwritten. A revision "
-                 "adds its line to revisions.md first, and the report is then written under a new -revision- name.")
-    bundle(run, run / R["zip"])
-    if R["page"]:
-        R["folder"] = str(run.resolve())
-        R["zip_b64"] = base64.b64encode((run / R["zip"]).read_bytes()).decode("ascii")
+    if run.suffix.lower() == ".zip":  # a run's zip lays out its run beside it, named after it, and draws as it was drawn
+        folder = run.with_suffix("")
+        given = unpack(run, folder)
+        zipped = folder / f"{given['name']}.zip.part"
+        shutil.copy2(run, zipped)
+    else:
+        folder = run
+        workflow = json.loads((folder / "workflow.json").read_text(encoding="utf-8"))
+        revisions = (folder / "revisions.md").read_text(encoding="utf-8") if (folder / "revisions.md").is_file() else ""
+        name = name_of(workflow, revisions)
+        runs = folder.resolve().parent / "rubicon-runs.md"
+        if not frag and runs.is_file() and re.search(rf"{re.escape(name)}-[0-9a-f]{{8}}\.html", runs.read_text(encoding="utf-8")):
+            sys.exit(f"{name}-….html is already listed in {runs.name} as handed over, so it is not overwritten. A revision "
+                     "adds its line to revisions.md first, and the report is then written under a new -revision- name.")
+        page_url = sys.argv[sys.argv.index("--page") + 1] if "--page" in sys.argv else PAGE if HANDOFF else None
+        render = {"name": name, "date": sys.argv[sys.argv.index("--date") + 1] if "--date" in sys.argv else "",
+                  "page": page_url, "engine": engine_fingerprint(ENGINE), "version": engine_version(ENGINE)}
+        if page_url:
+            render["folder"] = str(folder.resolve())
+        zipped = folder / f"{name}.zip.part"  # named once its fingerprint is known
+        bundle(folder, zipped, render)
+    refused = problems(zipped)
+    if refused:
+        zipped.unlink()
+        sys.exit("No report is drawn: " + "; ".join(refused) + ".")
+    # From here on the report reads the zip and nothing else
+    R = load(zipped)
+    zipped = zipped.replace(folder / R["zip"])
+    if R["engine"] != engine_fingerprint(ENGINE):
+        print(f"This engine is not the one that made the zip (Rubicon {R['version'] or 'of unknown version'}), so the "
+              "report drawn here may differ from the one drawn when the zip was made.")
+    out = folder / f"{R['name']}{'.fragment' if frag else ''}.html"
     out.write_text(page(R, frag), encoding="utf-8")
-    (run / f"{name}.doc").write_text(word(R), encoding="utf-8")
-    print(f"wrote {out.name}, {name}.doc and {R['zip']} in {run}")
+    (folder / f"{R['name']}.doc").write_text(word(R), encoding="utf-8")
+    print(f"wrote {out.name}, {R['name']}.doc and {R['zip']} in {folder}")
     if R.get("missing_sections"):
         print("[§ ] references naming no section of the answer: " + ", ".join(sorted(set(R["missing_sections"]))))
     if R.get("missing_figures"):

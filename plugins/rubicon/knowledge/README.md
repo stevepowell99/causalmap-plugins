@@ -6,7 +6,7 @@ Pages that describe a workflow, the ones whose names end in "in Rubicon" above a
 
 One line per page: its name, its title and its first sentence.
 
-- `causal-mapping-in-rubicon`: Causal mapping in Rubicon. Rubicon's coding records a causal claim as a row with a cause, an effect and the quote behind it, tabulates the cases behind each link, and traces paths through each case's own links; it does not draw, filter or thin a map, so a question th
+- `causal-mapping-in-rubicon`: Causal mapping in Rubicon. Rubicon's coding records a causal claim as a row with a cause, an effect and the quote behind it, tabulates the cases behind each link, traces paths through each case's own links, and draws, filters, thins and zooms a map as steps of the wo
 - `causal-mapping`: Causal mapping. Causal mapping records who said what causes what, one causal claim per link with its quote and its source, and answers questions by selecting, tracing and counting those claims: it maps the evidence people give about causes, not the causes
 - `choosing-a-method`: Choosing a method. Which evaluation method suits a question, given what kind of claim it asks for and what the documents can bear, with the signs that a named method is the wrong one; read it when a question names no method, when it names one that may not fit
 - `clustering-labels`: Clustering the labels a coding invents. A coding that lets the model name what it finds coins its labels call by call, so they must be grouped under one short list of defined kinds before anything is counted by them, with every case then placed against that list and the record sa
