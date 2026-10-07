@@ -2,7 +2,7 @@
   "name": "rubicon",
   "displayName": "Rubicon",
   "version": "0.1.0+f8d9ab1a4535",
-  "description": "Answers an evaluation question from a folder of documents, with every count made by code and every quotation checked against its document.",
+  "description": "An opinionated evaluation assistant: argues out with you a workflow to answer one evaluation question from your documents, then runs it with every count made by code and every quotation checked against its source.",
   "author": {
     "name": "Causal Map",
     "url": "https://causalmap.app"

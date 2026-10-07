@@ -9,7 +9,7 @@
     {
       "name": "rubicon",
       "source": "./plugins/rubicon",
-      "description": "Answers an evaluation question from a folder of documents, with every count made by code and every quotation checked against its document."
+      "description": "An opinionated evaluation assistant: argues out with you a workflow to answer one evaluation question from your documents, then runs it with every count made by code and every quotation checked against its source."
     }
   ]
 }
