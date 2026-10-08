@@ -64,6 +64,8 @@ button:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 .map .edge polygon { stroke: var(--ink); fill: var(--ink); }
 .map g.edge { cursor: pointer; }
 .map g.edge:hover path, .map g.edge:hover polygon { stroke: var(--red); }
+.map g.node { cursor: pointer; }
+.map g.node:hover path, .map g.node:hover polygon { stroke: var(--red); }
 .fig figcaption { font-size: .8rem; color: var(--quiet); margin-top: .6rem; }
 .legend { font-size: .8rem; color: var(--quiet); display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: center; margin-bottom: .6rem; }
 .key { display: inline-block; width: .9em; height: .6em; border-radius: 2px; margin-right: .3rem; vertical-align: middle; }

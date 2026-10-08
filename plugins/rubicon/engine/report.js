@@ -114,6 +114,18 @@
     open(`<h3>${esc(said)}</h3><p class="small">Counted by code from the coded passages: the ${c.base == null ? 'passages' : 'documents'} where</p><ul>${what}</ul>
       <p class="small">${c.docs.length ? 'Who: ' + c.docs.map(esc).join(', ') : 'Nobody.'}</p>${rows}`);
   }
+  // A factor in a map opens the passages behind every link into and out of it, each once: the cells of the arrows
+  // Graphviz drew to or from it, whose titles read "from->to" with the node's own title at either end.
+  function showFactor(node) {
+    const name = node.querySelector('title').textContent;
+    const ends = t => t.split('->').map(x => x.replace(/:\w+$/, ''));
+    const cells = [...node.closest('svg').querySelectorAll('g.edge')]
+      .filter(e => ends(e.querySelector('title').textContent).includes(name)).map(e => RUN.cells[e.id]).filter(Boolean);
+    const ids = [...new Set(cells.flatMap(c => c.rows))];
+    if (!ids.length) return;
+    const text = [...node.querySelectorAll('text')].map(t => t.textContent).join(' ');
+    open(`<h3>${esc(text)}</h3><p class="small">${ids.length} passage${ids.length === 1 ? '' : 's'} behind the ${cells.length} link${cells.length === 1 ? '' : 's'} into and out of this factor</p>` + ids.map(rowShort).join(''));
+  }
   // What a finding rests on: the numbers it states, each opening who it counts, the passages it quotes, and the
   // workflow steps they came from, each opening its block under How this was made.
   function showBased(key) {
@@ -161,6 +173,8 @@
   document.addEventListener('click', e => {
     const edge = e.target.closest('.map g.edge');
     if (edge) return showCell(edge.id);
+    const factor = e.target.closest('.map g.node');
+    if (factor) return showFactor(factor);
     const span = e.target.closest('.whole .span');
     if (span) return showRows(span.dataset.rows.split(','));
     const b = e.target.closest('button');

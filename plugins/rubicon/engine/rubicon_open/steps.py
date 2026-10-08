@@ -642,16 +642,25 @@ def cited_as(document: str, quote: str, words: int = 5) -> str:
 def readable_citations(text: str, rows: dict[str, dict]) -> str:
     """`text` with each group of row ids in square brackets written as `cited_as` gives them, each a link to its row."""
     def one(m):
-        ids = [c.strip() for c in re.split(r"[,;]", m.group(1)) if c.strip()]
+        ids = group_ids(m.group(1))
         if not ids or any(i not in rows for i in ids):
             return m.group(0)
         return "(" + "; ".join(f"[{cited_as(rows[i]['document'], rows[i]['quote'])}](#{i})" for i in ids) + ")"
     return re.sub(r"\[([^\]]+)\]", one, text)
 
 
+#: A row's id as `row_id` makes it: its step's, a stop, five characters, and the suffix a second row on the same span takes
+ROW_ID = re.compile(r"[a-z][\w-]*\.[a-z0-9]+(?:-\d+)?")
+
+
+def group_ids(group: str) -> list[str]:
+    """The ids in one square-bracketed group of an answer, separated by commas or semicolons."""
+    return [c.strip() for c in re.split(r"[,;]", group) if c.strip()]
+
+
 def citation_ids(text: str) -> list[str]:
     """Every id cited in square brackets, a group's ids separated by commas or semicolons."""
-    return [c.strip() for g in re.findall(r"\[([^\]]+)\]", text) for c in re.split(r"[,;]", g) if c.strip()]
+    return [c for g in re.findall(r"\[([^\]]+)\]", text) for c in group_ids(g)]
 
 
 def _sentences_with_scope(answer: str) -> list[tuple[str, str]]:

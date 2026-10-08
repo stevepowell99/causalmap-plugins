@@ -39,16 +39,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder
 from rubicon_open import node
 from rubicon_open.corpus import INDEX_FIELDS
 from rubicon_open.seal import engine_fingerprint, engine_version, listed, seal_broken
-from rubicon_open.steps import base_of, cited_as, stated
+from rubicon_open.steps import ROW_ID, base_of, cited_as, group_ids, stated
 from rubicon_open.workflow import arrow_parts, loop_markers, sign_of
 
 ENGINE = Path(__file__).resolve().parent
 DRAW_MAP = ENGINE / "rubicon_open" / "draw_map.mjs"
 #: Every file in a zip carries this date, so the same run always makes the same zip, byte for byte
 STAMP = (1980, 1, 1, 0, 0, 0)
-#: The Rubicon page a report can hand its run to. Unset in this release, so a report names no address it could send to;
-#: dev sets it with the run viewer.
-PAGE = None
+PAGE = "https://app.causalmap.app/rubicon.html"
 #: Whether a report offers to open its run on the Rubicon page (PAGE). Off until the live site, which serves `main`,
 #: has the page that receives a run; `--page <url>` turns it on for one report, such as against the dev site.
 #: `rubicon/plugin/build.py` reads this line, and leaves the skill's hand-over bullet out while it is off.
@@ -268,7 +266,9 @@ def build_data(R):
 
 # ---------- the answer: markdown with cell ids and row citations ----------
 
-CITE = re.compile(r"\[([a-z][\w]*\.[a-z0-9]+(?:\s*,\s*[a-z][\w]*\.[a-z0-9]+)*)\]")
+#: [<row id>, <row id>; ...]: a group of row ids as the engine reads one (`steps.group_ids`); a bracket holding anything
+#: else is left as written
+CITE = re.compile(r"\[([^\[\]]+)\]")
 #: {<id>}: any count the engine made (steps.counts_of is the one list of them); one it did not make is left as written,
 #: and a report still holding one is not drawn
 CELL = re.compile(r"\{([a-z][\w]*(?:\.[\w]+)+)\}")
@@ -330,8 +330,11 @@ def inline(text, R, D, cite_no, static, plain=False):
 
     def cite(m):
         # each row cited by its document and the opening words of its quotation, the row id kept behind it
+        ids = group_ids(m.group(1))
+        if not ids or not all(ROW_ID.fullmatch(i) for i in ids):
+            return m.group(0)
         chips = []
-        for i in [i.strip() for i in m.group(1).split(",")]:
+        for i in ids:
             cite_no.setdefault(i, len(cite_no) + 1)
             if R.get("finding") is not None:
                 R["finding"].setdefault("rows", []).append(i)
@@ -452,7 +455,7 @@ def causal_map(s, cells, by):
     signs = (" The sign at each arrowhead says whether the two move the same way (+), opposite ways (\u2212) or the "
              "source did not say (?).") if len(by) == 3 else ""
     return (f'<figure class="fig map">{svg}<figcaption>Each arrow is a causal link, numbered by the documents that '
-            f'mention it.{signs} Click an arrow for its passages.</figcaption></figure>')
+            f'mention it.{signs} Click an arrow or a factor for its passages.</figcaption></figure>')
 
 
 #: The most loops one figure line draws, each as its own small diagram
@@ -484,7 +487,7 @@ def loop_diagrams(tid, s, R):
         out.append(f'<figure class="fig map loop">{svg}<figcaption>{esc(markers[lp])}: '
                    f'{esc(POLARITY_SAID[whole["values"]["polarity"]])}, told whole in {told} documents. Each arrow is '
                    f'numbered by the documents telling that link; a dashed box is a variable outside the loop that drives '
-                   f'it. Click an arrow for its passages.</figcaption></figure>')
+                   f'it. Click an arrow or a factor for its passages.</figcaption></figure>')
     if len(chosen) > MOST_LOOPS:
         R.setdefault("loops_left_out", []).append(f"{tid} ({len(chosen) - MOST_LOOPS} more)")
     return "".join(out)
