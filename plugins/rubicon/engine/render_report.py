@@ -25,7 +25,7 @@ and draws the same report every time. Standard library and Node only.
 
 In answer.md, a line holding only {{figure <table id>}} draws that table as a chart at that point. A table by the two
 ends of a code step's causal links draws as a causal map: the report carries its DOT (rubicon_open/draw_map.mjs) and
-Graphviz draws it in the reader's browser, loaded at a fixed version from jsDelivr (report.js).
+Graphviz draws it in the reader's browser, loaded at a fixed version from jsDelivr and checked against its hash (`GRAPHVIZ`).
 --fragment writes the page without <html>/<head>/<body>, for publishing as an Artifact.
 
 The report carries its zip, and its "Open in Causal Map" button hands the run to the Rubicon page in the reader's own
@@ -366,6 +366,11 @@ def link_ends(s, R):
     return [links["from"], links["to"]] if links else None
 
 
+#: Graphviz for the reader's browser, at one version and held to its hash, loaded only by a report that has a map
+GRAPHVIZ = ('<script src="https://cdn.jsdelivr.net/npm/@viz-js/viz@3.31.0/dist/viz-global.js" '
+            'integrity="sha384-iX6VK6ib27dxYB4T470zbHOsDDoLewuYvrIgv2B3XXe8kgfKsGMf8QIleFy6VPi4" crossorigin="anonymous"></script>')
+
+
 def graph(drawn):
     """A map's DOT, carried in the report for Graphviz to draw in the reader's browser (report.js), with the words a
     reader sees until it is drawn or if it cannot be."""
@@ -692,7 +697,7 @@ def page(R, fragment=False):
 <aside class="panel" id="panel" hidden><button class="close" id="panel-close" aria-label="Close">×</button><div id="panel-body"></div></aside>
 </div>
 <script>const RUN = {data};{run_zip(R)}</script>
-<script>{js}</script>
+{GRAPHVIZ if '<pre class="dot"' in body else ""}<script>{js}</script>
 """
     if fragment:
         return content

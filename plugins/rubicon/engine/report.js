@@ -75,11 +75,11 @@
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') panel.hidden = true; });
 
-  // Each map is carried as DOT and drawn here by Graphviz (Viz.js), fetched once at a fixed version; the report holds
-  // nothing else that draws, so a reader offline sees the words under each figure and its counts, and no map.
+  // Each map is carried as DOT and drawn here by Graphviz (Viz.js), which the page loads at a fixed version
+  // (`GRAPHVIZ` in render_report.py); a reader offline sees the words under each figure and its counts, and no map.
   const dots = [...document.querySelectorAll('pre.dot')];
   if (dots.length) {
-    import('https://cdn.jsdelivr.net/npm/@viz-js/viz@3.31.0/dist/viz.js').then(m => m.instance()).then(viz => {
+    (window.Viz ? Viz.instance() : Promise.reject()).then(viz => {
       for (const pre of dots) {
         const svg = viz.renderSVGElement(pre.textContent, { engine: pre.dataset.engine });
         pre.parentElement.replaceWith(svg);
