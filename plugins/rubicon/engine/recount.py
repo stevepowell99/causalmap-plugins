@@ -12,7 +12,8 @@ run as they do in any run. Nothing calls a model.
 
 Writes `recount/`: `steps/<id>.json`, `rows.md` (every row with its id), `tables.md` (every table and verdict with
 the ids of its cells), `counts.json`, `report.json`. With `--answer`, the answer's {cell ids} are replaced with their
-counts as the write step does (`answer.resolved.md`), and the report adds ids naming no cell, numbers written bare,
+counts as the write step does, and its [row ids] with each row's document and the opening words of its quotation,
+linked to the row (`answer.resolved.md`); and the report adds ids naming no cell, numbers written bare,
 row citations naming no row, quotations found in no document and quotations not in what they cite. `recount/` is then
 a run's folder in the open format (`rubicon/docs/open-format.md`), with `workflow.json`, `run.json` and the write
 step's record beside the others, so the page draws it as it draws any run of pieces.
@@ -126,6 +127,7 @@ if a.answer:
                                             if locator.locate_all(whole, [q])[0] is None],
         "quotations_not_in_what_they_cite": [q for _, scope in S._sentences_with_scope(text)
                                              for q in S.quoted_elsewhere(run, scope, {k: r["document"] for k, r in rows.items()})]}
+    resolved = S.readable_citations(resolved, rows)
     (out / "answer.resolved.md").write_text(resolved, encoding="utf-8")
     # the write step's record as the runner keeps it, with the checks named as the page reads them
     a_ = report["answer"]

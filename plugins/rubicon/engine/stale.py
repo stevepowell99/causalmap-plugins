@@ -9,7 +9,7 @@ paragraph of the answer that cites one of them by its {count id} or [row id]. A 
 finding stated in another section says so with [§ That heading], and it is stale when anything in that section is,
 followed through as many sections as the chain runs. Stale paragraphs are read again against the new figures. The
 answer's opening paragraph states its conclusion, which rests on everything below it, so it is named whenever anything
-moved. Exits 1 when anything is stale or a [§ ] reference names no section.
+moved. A count or row that is only new makes nothing stale, since nothing could cite it before. Exits 1 when anything is stale or a [§ ] reference names no section.
 """
 from __future__ import annotations
 
@@ -92,12 +92,15 @@ def stale(old: Path, new: Path, answer: str) -> tuple[dict[str, str], list[tuple
     stale paragraph, however many sections deep the chain runs; the opening conclusion is stale whenever anything is."""
     changes = {**moved(counts(old), counts(new)), **moved(rows(old), rows(new))}
     changes = {**renamed(old, new, counts(old).keys() | counts(new).keys()), **changes}
+    # a count or row that is only new cannot have been cited before, so it makes nothing stale: it is what a revision
+    # adds, and the paragraph citing it is the revision's own
+    moving = {k: v for k, v in changes.items() if v != "new"}
     paras = [(sec, p) for sec, p in paragraphs(answer) if not p.startswith("# ")]
     sections = {sec for sec, _ in paras if sec} | {ln[3:].strip() for ln in answer.splitlines() if ln.startswith("## ")}
     why: dict[int, list[str]] = {}
     for n, (_, p) in enumerate(paras):
         ids = set(re.findall(r"\{([\w-]+\.[\w.-]+)\}", p)) | {c for c in citation_ids(p) if not c.startswith("§")}
-        if hit := sorted(i for i in ids if i in changes):
+        if hit := sorted(i for i in ids if i in moving):
             why[n] = hit
     refs = {n: {r.strip() for r in re.findall(r"\[§\s*([^\]]+)\]", p)} for n, (_, p) in enumerate(paras)}
     while True:  # follow claims built on claims until nothing more turns stale
@@ -107,7 +110,7 @@ def stale(old: Path, new: Path, answer: str) -> tuple[dict[str, str], list[tuple
         if not more:
             break
         why.update(more)
-    if changes and paras and 0 not in why:
+    if moving and paras and 0 not in why:
         why[0] = []
     broken = sorted({r for rs in refs.values() for r in rs} - sections)
     return changes, [(n, paras[n][1], why[n]) for n in sorted(why)], broken

@@ -7,8 +7,9 @@ or run (`steps/`, as the engine's coders leave it): the first is the analyst's, 
 code step and column, each document either holds a value (has a row coded with it) or does not, in each of the two
 codings: agreement is counted over every document and value, with the documents on which the two differ named. For
 each tabulation, the cells whose counts differ, by the same cell ids. Writes compare.json beside the second coding and
-prints it, and disagreements.md: each document and value one coder placed and the other did not, with the passages
-each coder gave for that document, for a reviewer to rule on against the text.
+prints it, and disagreements.md: each document and value one coder placed and the other did not, and each both placed
+but one only weakly (a row marked weak, by the weakness its column's definition names), with the passages each coder
+gave for that document, for a reviewer to rule on against the text.
 """
 from __future__ import annotations
 
@@ -55,10 +56,23 @@ def compare(a: Path, b: Path) -> dict:
                         disagreements.append(f"- **{sid}.{c['name']} = {v}**, document {d}: coded by the {who} only.\n"
                                              f"    - The {who}'s passages: " + " / ".join(f"\"{q}\"" for q in quotes) + "\n"
                                              f"    - The other coder's rows for {d} in this step: " + (" / ".join(said) or "none"))
+                firm = lambda rec: {(r["document"], value_key(r.get(c["name"]))) for r in rec["rows"]
+                                    if r.get(c["name"]) not in (None, "") and not r.get("weak")}
+                fa, fb = firm(ra), firm(rb)
+                strength = sorted(x for x in ha & hb if (x in fa) != (x in fb))
+                for d, v in strength:
+                    said = lambda rec: " / ".join(f"\"{r['quote']}\"" + (" (weak)" if r.get("weak") else "")
+                                                  for r in rec["rows"] if r["document"] == d and value_key(r.get(c["name"])) == v)
+                    disagreements.append(f"- **{sid}.{c['name']} = {v}**, document {d}: firm for the "
+                                         f"{'first' if (d, v) in fa else 'second'} coder, weak for the "
+                                         f"{'second' if (d, v) in fa else 'first'}.\n"
+                                         f"    - The first coder's passages: {said(ra)}\n"
+                                         f"    - The second coder's passages: {said(rb)}")
                 out["coding"][f"{sid}.{c['name']}"] = {
                     "document_value_pairs": len(cells), "agree": agree, "held_by_first": len(ha), "held_by_second": len(hb),
                     "held_by_both": both, "kappa": round((agree / len(cells) - pe) / (1 - pe), 2) if cells and pe < 1 else None,
-                    "first_only": sorted(f"{d}: {v}" for d, v in ha - hb), "second_only": sorted(f"{d}: {v}" for d, v in hb - ha)}
+                    "first_only": sorted(f"{d}: {v}" for d, v in ha - hb), "second_only": sorted(f"{d}: {v}" for d, v in hb - ha),
+                    "firm_for_one_weak_for_other": [f"{d}: {v}" for d, v in strength]}
         elif s["kind"] in ("tabulate", "judge") and (sa / f"{sid}.json").exists() and (sb / f"{sid}.json").exists():
             ta, tb = load(sa / f"{sid}.json"), load(sb / f"{sid}.json")
             if s["kind"] == "tabulate":

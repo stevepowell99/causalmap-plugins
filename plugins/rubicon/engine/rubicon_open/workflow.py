@@ -74,6 +74,46 @@ def value_faults(said: str, where, known: dict[str, list[str] | None]) -> list[s
     return out
 
 
+#: A loop table's columns: the loop, written as its variables with each link's sign; its polarity; which part of it a
+#: cell counts (`PARTS`); and, for a link or a driver, that link.
+LOOP_COLUMNS = ("loop", "polarity", "part", "link")
+#: The parts of a loop a cell counts: the whole loop told in one document's own links, one of its links, and a link
+#: into the loop from a variable outside it.
+PARTS = ("whole", "link", "driver")
+#: A loop's polarity: reinforcing (an even number of minus links), balancing (odd), or unknown (a link's sign unclear).
+POLARITIES = ("R", "B", "unknown")
+#: A link's sign as the coding gives it, written into a loop as it is drawn; any other value is unclear.
+SIGNS = {"plus": "+", "minus": "-"}
+
+
+def sign_of(v) -> str:
+    """A coded sign as `+`, `-` or `?`: the one place a sign's spelling is read."""
+    return next((mark for name, mark in SIGNS.items() if value_key(v) in (value_key(name), value_key(mark))), "?")
+
+
+
+def arrow(a: str, sign: str, b: str) -> str:
+    """A signed link as a loop table writes it, such as `income →+ reinvestment`; `arrow_parts` reads one back."""
+    return f"{a} →{sign} {b}"
+
+
+def arrow_parts(text: str) -> tuple[str, str, str]:
+    a, _, rest = str(text).partition(" →")
+    return a, rest[:1], rest[2:]
+
+
+def loop_markers(cells: list[dict]) -> dict[str, str]:
+    """Each loop of a loop table with its marker, R1, R2, B1 or ?1, numbered by polarity in the table's order, so the
+    answer and the report's diagrams name a loop the same way."""
+    out, seen = {}, {}
+    for c in cells:
+        loop, polarity = c["values"]["loop"], c["values"]["polarity"]
+        if loop not in out:
+            seen[polarity] = seen.get(polarity, 0) + 1
+            out[loop] = f"{'?' if polarity == 'unknown' else polarity}{seen[polarity]}"
+    return out
+
+
 def has_values(column: dict) -> bool:
     """Whether a column is coded against a list of values: its own, or a group step's codebook."""
     return bool(codebook_of(column) or (isinstance(column.get("values"), list) and column["values"]))
@@ -103,7 +143,8 @@ def resolve_step(s: dict, kind: str | None = None) -> dict:
         cols = s.get("columns") or []
         out = fill({"model": C.CODER, "second_coder": C.SECOND_CODER if cols and all(map(has_values, cols)) else None,
                     "check": False, "section_chars": SECTION_CHARS, "prompt_note": None, "per_document": False,
-                    "links": None}, s)  # links: {"from": column, "to": column}, the two columns that are a link's ends
+                    "links": None}, s)  # links: {"from": column, "to": column, "sign": column}, a link's two ends and, for
+        # a causal loop diagram, the column giving its sign (plus or minus)
         if isinstance(out["second_coder"], bool):  # true asks for the default second coder, false for none
             out["second_coder"] = C.SECOND_CODER if out["second_coder"] else None
         if out["second_coder"]:  # second_thinking null: the provider's own effort; second_section_chars null: the first's;
@@ -126,8 +167,11 @@ def resolve_step(s: dict, kind: str | None = None) -> dict:
     if k == "tabulate":
         # sparse: only the combinations that occur are cells, as an edge list (from, to, count) rather than a grid;
         # paths: the first two `by` columns are a link's two ends, and a cell is a path traced in one document's links;
-        # filters: Causal Map's link filters, in order, applied to the links its input coded before anything is counted
-        return fill({"by": [], "count": "documents", "sparse": False, "paths": False, "filters": []}, s)
+        # filters: Causal Map's link filters, in order, applied to the links its input coded before anything is counted;
+        # loops: the cells are the feedback loops of up to loop_links links that all documents' signed links make
+        # together, through one of the variables `through` names where it names any
+        return fill({"by": [], "count": "documents", "sparse": False, "paths": False, "filters": [], "loops": False,
+                     "loop_links": 4, "through": []}, s)
     if k == "judge":
         return fill({"model": C.JUDGE, "combine": "weakest"}, s)
     if k == "write":
@@ -230,10 +274,12 @@ def _shape_faults(sid, kind: str, s: dict) -> list[str]:
             if c.get("values") is not None and not isinstance(c["values"], (list, str)):
                 out.append(f"{sid}: column {c.get('name')!r} has values that are neither a list nor a codebook")
     if kind == "code" and s.get("links") is not None and not (
-            isinstance(s["links"], dict) and all(isinstance(s["links"].get(k), str) for k in ("from", "to"))):
-        out.append(f"{sid}: links is not {{\"from\": column, \"to\": column}}")
+            isinstance(s["links"], dict) and all(isinstance(s["links"].get(k), str) for k in ("from", "to"))
+            and isinstance(s["links"].get("sign", ""), str)):
+        out.append(f"{sid}: links is not {{\"from\": column, \"to\": column}}, with \"sign\": column where links are signed")
     if kind == "tabulate":
         list_of("by", str, "column names")
+        list_of("through", str, "variable names")
         if list_of("filters", dict, "filters") and not all(isinstance(f.get("type"), str) for f in s["filters"]):
             out.append(f"{sid}: a filter does not say its type")
     if kind == "judge":
@@ -352,7 +398,9 @@ def table_sizes(wf: dict, attributes, n_documents: int | None = None,
             else:
                 table = made[ins[0]].get("table", ins[0]) if ins and ins[0] in made else None
                 out[sid] = cells(table, by, base[sid])
-            if (s.get("sparse") or s.get("paths") or s.get("filters")) and out[sid] and base[sid]:
+            if s.get("loops"):  # a loop table's cells are its loops' parts, which no design can know before the run
+                out[sid] = base[sid] * SPARSE_CELLS_PER_DOCUMENT if base[sid] else out[sid]
+            elif (s.get("sparse") or s.get("paths") or s.get("filters")) and out[sid] and base[sid]:
                 out[sid] = min(out[sid], base[sid] * SPARSE_CELLS_PER_DOCUMENT)
             made[sid] = {"kind": kind}
         else:
@@ -471,6 +519,8 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
             if links:
                 faults += [f"{sid}: links names {links[k]!r} as a link's {k} end, which is not one of its columns"
                            for k in ("from", "to") if links[k] not in cols]
+                if links.get("sign") and links["sign"] not in cols:
+                    faults.append(f"{sid}: links names {links['sign']!r} as a link's sign, which is not one of its columns")
             made[sid] = {"kind": kind, "columns": cols, "links": links,
                          "values": {str(c.get("name")).lower(): column_values(c) for c in s.get("columns") or [] if isinstance(c, dict)}}
         elif kind == "group":
@@ -519,6 +569,19 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
             made[sid] = {"kind": kind, "by": s.get("by") or [], "cells": table_cells.get(sid),
                          "values": {str(c).lower(): own[str(c).lower()] if str(c).lower() in own else coded.get(str(c).lower())
                                     for c in s.get("by") or []}}
+            if s.get("loops"):
+                links = src[0].get("links") if len(src) == 1 and src[0]["kind"] == "code" else None
+                if not (links and links.get("sign")):
+                    faults.append(f"{sid}: finds loops, so its input must be a code step whose links name their two ends and their sign")
+                elif list(s.get("by") or []) != [links["from"], links["to"]]:
+                    faults.append(f"{sid}: finds loops, so it counts by its links' two ends, {links['from']!r} and {links['to']!r}, and nothing else")
+                if s.get("paths"):
+                    faults.append(f"{sid}: finds loops or traces paths, not both")
+                if s.get("count", "documents") != "documents":
+                    faults.append(f"{sid}: finds loops, which are counted by documents")
+                if not (isinstance(s.get("loop_links", 4), int) and 2 <= s.get("loop_links", 4) <= 6):
+                    faults.append(f"{sid}: loop_links {s.get('loop_links')!r}; a loop has between 2 and 6 links")
+                made[sid].update({"by": list(LOOP_COLUMNS), "values": {"polarity": list(POLARITIES), "part": list(PARTS)}})
         elif kind == "judge":
             faults += check_rubric(sid, s, made, attrs, n_documents, standard_text, background, coded)
             made[sid] = {"kind": kind}

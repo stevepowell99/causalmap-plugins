@@ -25,6 +25,7 @@ h4 { font-family: var(--sans); font-size: .8rem; text-transform: uppercase; lett
 p { margin: .6rem 0; }
 ul { padding-left: 1.2rem; margin: .6rem 0; display: grid; gap: .45rem; }
 code { font-size: .85em; background: var(--wash); padding: 0 .25em; border-radius: 3px; }
+.fingerprint { overflow-wrap: anywhere; }
 .small { font-size: .85rem; color: var(--quiet); }
 .scroll { overflow-x: auto; }
 
@@ -41,6 +42,8 @@ code { font-size: .85em; background: var(--wash); padding: 0 .25em; border-radiu
 .meta { font-size: .85rem; color: var(--quiet); margin: 0; font-variant-numeric: tabular-nums; }
 .checks { list-style: none; padding: .8rem 1rem; margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; font-size: .88rem; gap: .3rem; }
 .checks li::before { content: "✓"; color: var(--red); font-weight: 600; margin-right: .5rem; }
+.checks .head { font-weight: 600; }
+.checks .head::before { content: none; }
 
 .answer { font-size: 1.02rem; }
 .answer p, .answer li { max-width: var(--measure); }
@@ -49,8 +52,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 button:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 .n { background: var(--red-wash); color: var(--ink); border: 0; border-bottom: 1.5px solid var(--red); padding: 0 .2em; border-radius: 2px 2px 0 0; font-variant-numeric: tabular-nums; }
 .n:hover { box-shadow: 0 1px 0 var(--ink); }
-.cite { font-size: .68rem; vertical-align: super; line-height: 1; border: 1px solid var(--red); color: var(--red); background: transparent; border-radius: 99px; min-width: 1.35em; padding: .1em .3em; margin-left: .15em; }
-.cite:hover, .cite.on { background: var(--red); color: var(--paper); }
+.based { font-family: var(--sans); font-size: .62rem; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; vertical-align: middle; margin-left: .6rem; padding: .1rem .45rem; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--red); cursor: pointer; }
+.cite { font: inherit; font-size: .85em; color: var(--red); background: transparent; border: 0; border-bottom: 1px dotted var(--red); padding: 0; cursor: pointer; text-align: left; }
+.cite:hover, .cite.on { background: var(--red-wash); }
 
 .fig { margin: 1.2rem 0; padding: 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
 .map svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
@@ -79,6 +83,7 @@ table { border-collapse: collapse; font-size: .82rem; }
 .md { margin: 1rem 0; }
 .md th, .md td { padding: .3rem .5rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
 .md thead th { font-weight: 500; color: var(--quiet); }
+.md td.heat { text-align: center; background: color-mix(in srgb, var(--red) calc(var(--a) * 70%), transparent); font-variant-numeric: tabular-nums; }
 .grid th, .grid td { padding: .3rem .4rem; text-align: center; border-bottom: 1px solid var(--line); }
 .grid tbody th { text-align: left; font-weight: 500; }
 .grid thead th { font-weight: 500; color: var(--quiet); }
@@ -97,7 +102,37 @@ table { border-collapse: collapse; font-size: .82rem; }
 .dot.raised { background: transparent; color: var(--red); }
 .dot.k { width: .8rem; height: .8rem; vertical-align: middle; margin-right: .3rem; display: inline-block; }
 
-.annex { border-top: 1px solid var(--line); padding-top: 1rem; }
+.annex { border-top: 1px solid var(--line); padding-top: 1rem; position: relative; }
+/* The margin map (minimap-mount.js): the page's own markup and behaviour, placed beside the annex. */
+:root { --rb-paper: var(--paper); --rb-panel: var(--panel); --rb-ink: var(--ink); --rb-red: var(--red); --rb-red-wash: var(--red-wash); }
+.wf-gutter { position: absolute; top: 0; bottom: 0; right: 0; pointer-events: none; }
+.wf-gutter > * { pointer-events: auto; }
+.rb-minimap { position: sticky; top: calc(100vh - 3.5rem); padding: 6px 0; }
+.rb-minimap canvas.rb-map { display: block; width: 100%; }
+.rb-minimap:not(.rb-map-open) > :not(.rb-map-toggle) { display: none; }
+.rb-minimap.rb-map-open { position: fixed; top: 12px; right: 10px; bottom: auto; z-index: 4; width: 176px; padding: 6px 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 14px rgb(0 0 0 / .18); }
+.rb-map-toggle { display: block; margin-left: auto; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); box-shadow: 0 1px 4px rgb(0 0 0 / .18); font-size: 12px; letter-spacing: .04em; color: var(--red); cursor: pointer; }
+@media (min-width: 1100px) {
+  .wf-gutter { right: auto; left: 100%; margin-left: 1.5rem; width: 9rem; }
+  .rb-minimap, .rb-minimap.rb-map-open { position: sticky; top: 12px; width: auto; padding: 6px 0; background: none; border: 0; box-shadow: none; }
+  .rb-minimap:not(.rb-map-open) > :not(.rb-map-toggle) { display: block; }
+  .rb-map-toggle { display: none; }
+}
+.rb-map-key { margin: 6px 0 0; font-size: 10px; letter-spacing: .04em; color: var(--quiet); }
+.rb-map-key > summary { display: flex; align-items: center; gap: 5px; cursor: pointer; list-style: none; padding: 2px 0; font-weight: 400; }
+.rb-map-key > summary::-webkit-details-marker { display: none; }
+.rb-map-key[open] > summary { color: var(--red); }
+.rb-map-marks { display: flex; align-items: center; gap: 2px; }
+.rb-map-items { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 2px 0 0; }
+.rb-map-item { display: flex; align-items: center; gap: 4px; }
+.rb-map-item canvas, .rb-map-marks canvas { width: 16px; height: 16px; flex: none; }
+.rb-map-tips { position: absolute; inset: 6px 0 0 0; pointer-events: none; z-index: 3; }
+.rb-map-tip { position: absolute; right: calc(100% - 6px); transform: translateY(-50%); max-width: 42ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 1px 6px; border-radius: 3px; background: var(--paper); box-shadow: 0 1px 3px rgb(0 0 0 / .18); font-size: 10.5px; line-height: 1.5; color: var(--quiet); }
+.rb-map-tip.rb-on { color: var(--ink); font-weight: 600; }
+.annex .rb-block { border-left: 3px solid transparent; padding-left: .7rem; margin-left: -.85rem; }
+.annex .record { overflow-wrap: anywhere; font-size: .92rem; }
+@keyframes rb-found-fade { from { background: var(--mark); } to { background: transparent; } }
+.rb-found { animation: rb-found-fade 2.4s ease-out; }
 .annex > p:first-of-type { font-family: var(--serif); font-size: 1.08rem; }
 details { margin: .5rem 0; }
 summary { cursor: pointer; font-weight: 500; }
@@ -123,10 +158,16 @@ blockquote { margin: .6rem 0; padding: .6rem .9rem; background: var(--panel); bo
 .panel .codes span { font-size: .75rem; background: var(--wash); border-radius: 99px; padding: .1rem .55rem; }
 .panel .item { border-top: 1px solid var(--line); padding-top: .7rem; margin-top: .7rem; }
 .panel .item q { font-family: var(--serif); }
+.panel .whole { font-family: var(--serif); font-size: 1rem; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.panel .whole .span { border-radius: 2px; cursor: pointer; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.panel .whole .span.from { box-shadow: 0 0 0 2px var(--red); }
+.panel .layers { display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-size: .78rem; color: var(--quiet); }
+.panel .layers i { display: inline-block; width: .9em; height: .9em; border-radius: 2px; margin-right: .35rem; vertical-align: -.1em; }
 
 @media print {
-  .panel, .next, .checks li:last-child { display: none !important; }
-  .n { background: none; padding: 0; } .cite { border: 0; }
+  .wf-gutter { display: none !important; }
+  .panel, .next, .checks .click, .based { display: none !important; }
+  .n { background: none; padding: 0; } .cite { border: 0; color: inherit; }
   details { display: block; } details > * { display: block; }
   body { background: #fff; color: #000; }
 }

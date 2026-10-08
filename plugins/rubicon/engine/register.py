@@ -11,9 +11,9 @@ run asked, when, and its fingerprint are read from its zip whenever the list is 
 
 Given a handed-over report, this writes its line in `rubicon-runs.md`, creating the file where it is missing, and adds
 the documents folder to the register. It refuses a report whose zip is missing, broken, or not the zip the report names.
-`--list` draws Rubicon Central: one page listing every run of every listed folder, with each report carried inside
-it, so choosing a run shows its report beside the list and the page needs no link to any other file. `--folder` adds the folder this chat has open, so the page shows its runs even where the plugin
-data folder was lost. `--find` searches a folder for `rubicon-runs.md` files and adds the folders holding them, which
+`--list` draws Rubicon Central: one page listing every run of every listed folder, whether its `rubicon-runs.md` links
+it or it only lies in one of the folder's run folders, with each report carried inside it, so choosing a run shows its report beside the list and the page needs no link to any other file. `--folder` adds the folder this chat has open, so the page shows its runs even where the plugin
+data folder was lost. `--find` searches a folder for `rubicon-runs.md` files and run folders and adds the documents folders holding them, which
 rebuilds the register where the plugin's data folder was lost. Makes no model call. Standard library only.
 """
 import datetime, hashlib, html, json, os, re, sys, urllib.parse, zipfile
@@ -24,12 +24,17 @@ from rubicon_open.seal import seal_broken
 
 RUNS = "rubicon-runs.md"
 FOLDERS = "folders.txt"
-REPORT = re.compile(r"\]\(([^)]+?-[0-9a-f]{8}\.html)\)")
+REPORT = re.compile(r"\]\(([^)]+?\.html)\)")
+SEALED = re.compile(r"-[0-9a-f]{8}$")
 
 
 def run_of(report):
-    """What a report's zip says of the run: its question, date and fingerprint, or why it cannot be read."""
+    """What a report's zip says of the run: its question, date and fingerprint, or why it cannot be read. A report
+    whose name carries no fingerprint was drawn before reports were sealed to their zip: it is read for its question
+    and date and marked `unsealed`, since there is no seal to check it against."""
     zipped = report.with_suffix(".zip")
+    if not SEALED.search(report.stem):
+        return unsealed(report)
     if not zipped.is_file():
         return {"fault": "its zip is missing"}
     with zipfile.ZipFile(zipped) as z:
@@ -46,6 +51,24 @@ def run_of(report):
     day = datetime.date.fromisoformat(m.group(0)) if m else datetime.date.min
     return {"question": workflow.get("question_as_agreed", "").strip(), "day": day,
             "date": f"{day.day} {day:%B %Y}" if m else "", "fingerprint": fingerprint, "revision": "-revision-" in report.stem}
+
+
+def unsealed(report):
+    """What can be read of a report drawn before reports were sealed: the question from its zip where the zip holds
+    one, otherwise the report's own title, and the day in its name."""
+    question = ""
+    try:
+        with zipfile.ZipFile(report.with_suffix(".zip")) as z:
+            question = json.loads(z.read("workflow.json").decode("utf-8")).get("question_as_agreed", "").strip()
+    except (OSError, KeyError, ValueError, zipfile.BadZipFile):
+        pass
+    if not question:
+        m = re.search(r"<title>(.*?)</title>", report.read_text(encoding="utf-8", errors="replace"), re.S)
+        question = html.unescape(m.group(1)).strip() if m else report.stem
+    m = re.search(r"\d{4}-\d{2}-\d{2}", report.stem)
+    day = datetime.date.fromisoformat(m.group(0)) if m else datetime.date.fromtimestamp(report.stat().st_mtime)
+    return {"question": question, "day": day, "date": f"{day.day} {day:%B %Y}", "revision": "-revision-" in report.stem,
+            "unsealed": "drawn before reports were sealed to their zip, so not checked against it"}
 
 
 def folders(data):
@@ -66,8 +89,8 @@ def remember(data, *documents):
 def add(report, data):
     report = report.resolve()
     run = run_of(report)
-    if "fault" in run:
-        sys.exit(f"{report.name} is not listed: {run['fault']}.")
+    if "fault" in run or "unsealed" in run:
+        sys.exit(f"{report.name} is not listed: {run.get('fault') or run['unsealed']}.")
     run_folder = report.parent
     documents = run_folder.parent  # the folder holding corpus/, as render_report.py takes it
     runs = documents / RUNS
@@ -93,11 +116,16 @@ def find(root, data):
     found, searched = [], 0
     for here, dirs, files in os.walk(root):
         searched += 1
-        dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("node_modules", "corpus", "recount", "coded")]
+        if "workflow.json" in files:  # a run folder, whose documents folder is the one above it; nothing below it is another
+            found.append(Path(here).parent)
+            dirs[:] = []
+            continue
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d.lower() not in ("node_modules", "appdata")]
         if RUNS in files:
             found.append(Path(here))
+    found = [f for f in dict.fromkeys(found) if runs_in(f)]  # a folder that holds no report adds nothing to the page
     new = remember(data, *found)
-    print(f"searched {searched} folders under {root}; {len(found)} hold {RUNS}, {len(new)} of them new to the register")
+    print(f"searched {searched} folders under {root}; {len(found)} hold Rubicon runs, {len(new)} of them new to the register")
     for f in new:
         print(f"  added {f}")
 
@@ -107,12 +135,16 @@ def n(k, noun):
 
 
 def runs_in(documents):
-    """The runs a documents folder's `rubicon-runs.md` lists, each as (report path, what its zip says)."""
+    """Every run of a documents folder, each as (report path, what its zip says): the reports its `rubicon-runs.md`
+    links, and every report in its run folders (those holding a `workflow.json`), which a report drawn but never handed over, or a `rubicon-runs.md`
+    written by hand, would otherwise leave out. A report is an .html beside a zip or Word copy of the same name."""
+    runs = documents / RUNS
+    linked = [documents / urllib.parse.unquote(rel) for rel in REPORT.findall(runs.read_text(encoding="utf-8"))] if runs.is_file() else []
+    drawn = sorted(p for p in documents.glob("*/*.html") if (p.parent / "workflow.json").is_file()
+                   and not p.name.endswith(".fragment.html") and (p.with_suffix(".zip").is_file() or p.with_suffix(".doc").is_file()))
     out = []
-    for line in (documents / RUNS).read_text(encoding="utf-8").splitlines():
-        for rel in REPORT.findall(line):
-            report = documents / urllib.parse.unquote(rel)
-            out.append((report, run_of(report) if report.is_file() else {"fault": "the report is no longer there"}))
+    for report in dict.fromkeys(linked + drawn):
+        out.append((report, run_of(report) if report.is_file() else {"fault": "the report is no longer there"}))
     return out
 
 
@@ -121,13 +153,16 @@ def page(listed):
     choosing a run in the list shows its report beside the list with no link to follow. A folder this computer cannot
     read now is named with the reason, rather than left out."""
     esc = html.escape
-    groups, reports, lost = [], [], []
+    groups, reports, lost, empty = [], [], [], []
     for f in listed:
         documents = Path(f)
-        if not (documents / RUNS).is_file():
+        if not documents.is_dir():
             lost.append(f)
             continue
         runs = sorted(runs_in(documents), key=lambda r: r[1].get("day", datetime.date.min), reverse=True)
+        if not runs:
+            empty.append(f)
+            continue
         items = []
         for report, run in runs:
             if "fault" in run:
@@ -135,7 +170,9 @@ def page(listed):
                 continue
             reports.append(report.read_text(encoding="utf-8"))
             items.append(f'<li><button data-i="{len(reports) - 1}"><span class="small">{esc(run["date"])}'
-                         f'{" &middot; revision" if run["revision"] else ""}</span>{esc(run["question"])}</button></li>')
+                         f'{" &middot; revision" if run["revision"] else ""}</span>{esc(run["question"])}'
+                         + (f'<span class="small">{esc(run["unsealed"])}</span>' if "unsealed" in run else "")
+                         + '</button></li>')
         groups.append(f'<h2>{esc(documents.name)}</h2><p class="small path">{esc(str(documents))}</p><ul>{"".join(items)}</ul>')
     total = len(reports)
     carried = json.dumps(reports, ensure_ascii=False).replace("</", "<\\/")
@@ -159,9 +196,11 @@ def page(listed):
             f"<p class=\"small\">{n(total, 'report')} from {n(len(groups), 'documents folder')}, newest first in each. "
             "Choose one to read it here.</p>"
             + (f"<p class=\"small fault\">Not reachable from here, so not shown:</p><ul class=\"small\">{missing}</ul>" if lost else "")
-            + "".join(groups) + "</nav><main>"
+            + "".join(groups)
+            + (f"<p class=\"small path\">No report in {', '.join(esc(f) for f in empty)}.</p>" if empty else "")
+            + "</nav><main>"
             + ("<iframe title=\"Report\" id=\"report\"></iframe>" if total else
-               "<p class=\"empty\">No report to show yet.</p>")
+               ("<p class=\"empty\">No report found in " + ("these folders" if groups else "any folder: Rubicon has no folder on its list here, and none was given") + ".</p>"))
             + "</main><script type=\"application/json\" id=\"reports\">" + carried + "</script><script>"
               "const R=JSON.parse(document.getElementById('reports').textContent),f=document.getElementById('report'),"
               "b=[...document.querySelectorAll('button[data-i]')];"

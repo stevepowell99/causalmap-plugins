@@ -20,7 +20,7 @@ from typing import Callable
 from . import locator, node
 from .corpus import Corpus
 from .judge import level_counts
-from .workflow import canonical, codebook_of, column_values, resolve_step, value_key
+from .workflow import LOOP_COLUMNS, arrow, canonical, codebook_of, column_values, loop_markers, resolve_step, sign_of, value_key
 
 
 def reply_list(got) -> list[dict]:
@@ -191,6 +191,8 @@ def place_rows(run: Run, s: dict, docs: list[str], cols: list[dict], results: li
             quote = h.quote
             row = {"row": row_id(s["id"], d, h.start, h.end, {r["row"] for r in rows}), "document": d, "section": i + 1, "quote": quote, "tier": h.tier,
                    "start": h.start, "end": h.end}
+            if r.get("weak") is True:  # a passage the coder judged to fit only weakly, which a count keeps apart
+                row["weak"] = True
             for c in cols:
                 v = row[c["name"]] = canonical(r.get(c["name"]), allowed[c["name"]])
                 if v in (None, ""):
@@ -272,11 +274,15 @@ def tabulate(run: Run, s: dict) -> dict:
     if s["filters"]:
         rows, filtered = filter_links(run, src, rows, s["filters"])
     by, count = s["by"], s["count"]
-    cells = _paths(run, rows, by) if s["paths"] else _combinations(run, rows, by)
+    if s["loops"]:
+        ends = next(st.get("links") for st in run.steps if st.get("id") == src)
+        by, cells = list(LOOP_COLUMNS), _loops(rows, ends, s["loop_links"], s["through"])
+    else:
+        cells = _paths(run, rows, by) if s["paths"] else _combinations(run, rows, by)
     # every combination the columns allow is a cell, so a count of none is stated as 0 rather than left out; a sparse
     # table, such as causal links from one factor list crossed with itself, lists only the combinations that occur
     in_rows = {k for r in rows for k in r}
-    sparse = s["sparse"] or s["paths"] or bool(s["filters"])  # a filter can rename a factor, so no codebook lists its values
+    sparse = s["sparse"] or s["paths"] or s["loops"] or bool(s["filters"])  # a filter can rename a factor, so no codebook lists its values
     if not sparse:
         domains = [_domain(run, src, c, read, c in in_rows) or sorted({k[i] for k in cells} - {"(blank)"}) for i, c in enumerate(by)]
         for cmb in itertools.product(*domains):
@@ -284,7 +290,7 @@ def tabulate(run: Run, s: dict) -> dict:
     # a cell's base is the documents read that share its values on every column describing a document, so a count by
     # kind of submitter is out of that kind; counting the document list itself, every cell is out of all those read
     listing = src == "documents" or run.out.get(src, {}).get("kind") == "sample"
-    whole = [] if listing else [i for i, c in enumerate(by) if c == "document" or (c not in in_rows and run.is_attribute(c))]
+    whole = [] if listing or s["loops"] else [i for i, c in enumerate(by) if c == "document" or (c not in in_rows and run.is_attribute(c))]
 
     def of_doc(d, c):
         v = d if c == "document" else run.attribute(d, c)
@@ -293,21 +299,35 @@ def tabulate(run: Run, s: dict) -> dict:
     def base(cmb):
         return sum(all(of_doc(d, by[i]) == cmb[i] for i in whole) for d in read) if count == "documents" else None
 
+    # a cell counts its firm rows, or the documents with one; rows the coder marked weak are counted beside them, as the
+    # documents (or rows) the cell holds only through weak rows, and never folded into the count
+    weak = {r["row"] for r in rows if r.get("weak")}
+    doc_of = {r["row"]: r["document"] for r in rows}
+
+    def firm(v):
+        if not weak:
+            return v["documents"] if count == "documents" else v["rows"]
+        kept = [x for x in v["rows"] if x not in weak]
+        return {doc_of[x] for x in kept if x in doc_of} if count == "documents" else kept
+
     # a count can also be stated within the group a coded column defines ("of those improved, 13 of 15"): its base is
     # then the documents with that value in that column, as well as the cell's values on the columns describing a document
     def docs_with(i, v):
-        return {d for (k, c) in cells.items() if k[i] == v for d in c["documents"]}
-    coded = [i for i, c in enumerate(by) if i not in whole and re.fullmatch(r"[\w-]+", c)] if count == "documents" and len(by) > 1 else []
+        return {d for (k, c) in cells.items() if k[i] == v for d in firm(c)}
+    coded = [i for i, c in enumerate(by) if i not in whole and re.fullmatch(r"[\w-]+", c)] if count == "documents" and len(by) > 1 and not s["loops"] else []
     marginal = {(i, k[i]): docs_with(i, k[i]) for k in cells for i in coded}
 
     def within(cmb):
         return {by[i]: sum(all(of_doc(d, by[j]) == cmb[j] for j in whole) for d in marginal[(i, cmb[i])]) for i in coded}
-    out = [{"values": dict(zip(by, k)), "n": len(v["documents"]) if count == "documents" else len(v["rows"]), "base": base(k),
-            "within": within(k), "documents": sorted(v["documents"]), "rows": v["rows"]} for k, v in cells.items()]
-    out.sort(key=lambda c: (-c["n"], list(c["values"].values())))
+    out = [{"values": dict(zip(by, k)), "n": len(firm(v)), "base": base(k), "within": within(k),
+            **({"weak": len(v["documents"] if count == "documents" else v["rows"]) - len(firm(v))} if weak else {}),
+            "documents": sorted(v["documents"]), "rows": v["rows"]} for k, v in cells.items()]
+    if not s["loops"]:  # a loop's cells stay together, the loop's own first, in the order the loops were ranked
+        out.sort(key=lambda c: (-c["n"], list(c["values"].values())))
     for k, c in enumerate(out, 1):  # an id per count, which the answer writes in place of the number
         c["id"] = f"{s['id']}.c{k}"
     return {"input": src, "by": by, "count": count, "of": len(read), "sparse": sparse, "paths": s["paths"],
+            **({"loops": True} if s["loops"] else {}),
             **({"filters": s["filters"], "filtered": filtered} if filtered else {}), "cells": out}
 
 
@@ -389,6 +409,63 @@ def _paths(run: Run, rows: list[dict], by: list[str]) -> dict[tuple, dict]:
     return cells
 
 
+def _loops(rows: list[dict], ends: dict, most: int, through: list[str]) -> dict[tuple, dict]:
+    """The feedback loops the coded links make, all documents' links combined: every loop of up to `most` links that
+    visits no variable twice, through one of the variables `through` names where it names any. A link with two signs
+    in the coding is two links, so one cycle of variables can be a reinforcing loop and a balancing one. Each loop
+    gives a cell for itself, holding the documents whose own links make all of it; a cell for each of its links,
+    holding the documents behind that link; and a cell for each link into it from a variable outside it."""
+    def vals(r, c):
+        v = r.get(c)
+        return [str(x) for x in (v if isinstance(v, list) else [v]) if x not in (None, "")]
+    edges: dict[tuple, dict] = {}
+    for r in rows:
+        sign = sign_of(r.get(ends.get("sign"))) if ends.get("sign") else "?"
+        for a in vals(r, ends["from"]):
+            for b in vals(r, ends["to"]):
+                if a != b:
+                    e = edges.setdefault((a, b, sign), {"documents": set(), "rows": []})
+                    e["documents"].add(r["document"])
+                    e["rows"].append(r["row"])
+    nxt: dict[str, list] = defaultdict(list)
+    for a, b, sign in sorted(edges):
+        nxt[a].append((b, sign))
+    names = sorted({x for a, b, _ in edges for x in (a, b)})
+    rank = {x: i for i, x in enumerate(names)}
+    want = {value_key(t) for t in through}
+    found = []
+    for start in names:  # each loop once, found from its variable that sorts first
+        def walk(node, path):
+            for b, sign in nxt[node]:
+                if b == start:
+                    found.append(path + [(node, b, sign)])
+                elif rank[b] > rank[start] and len(path) + 1 < most and b not in {x for x, _, _ in path} | {node}:
+                    walk(b, path + [(node, b, sign)])
+        walk(start, [])
+    loops = []
+    for links in found:
+        on = [x for x, _, _ in links]
+        if want and not any(value_key(x) in want for x in on):
+            continue
+        signs = [sg for _, _, sg in links]
+        polarity = "unknown" if "?" in signs else "R" if signs.count("-") % 2 == 0 else "B"
+        whole = set.intersection(*(edges[k]["documents"] for k in links))
+        loops.append((links, polarity, whole))
+    loops.sort(key=lambda lp: (-len(lp[2]), -min(len(edges[k]["documents"]) for k in lp[0]), lp[0]))
+    doc_of = {r["row"]: r["document"] for r in rows}
+    cells: dict[tuple, dict] = {}
+    for links, polarity, whole in loops:
+        label = " ".join(f"{a} →{sg}" for a, _, sg in links) + f" {links[0][0]}"
+        cells[(label, polarity, "whole", "")] = {
+            "documents": whole, "rows": [rid for k in links for rid in edges[k]["rows"] if doc_of[rid] in whole]}
+        for k in links:
+            cells[(label, polarity, "link", arrow(k[0], k[2], k[1]))] = {"documents": set(edges[k]["documents"]), "rows": list(edges[k]["rows"])}
+        on = {a for a, _, _ in links}
+        for k in sorted(k for k in edges if k[1] in on and k[0] not in on):
+            cells[(label, polarity, "driver", arrow(k[0], k[2], k[1]))] = {"documents": set(edges[k]["documents"]), "rows": list(edges[k]["rows"])}
+    return cells
+
+
 def _domain(run: Run, src: str, column: str, read, in_rows: bool) -> list[str] | None:
     """Every value a tabulated column can take, as the workflow defines it: a codebook's items, a column's own values,
     true and false, the documents, or a document attribute's values among the documents read. None where the column
@@ -412,14 +489,22 @@ def _domain(run: Run, src: str, column: str, read, in_rows: bool) -> list[str] |
 
 
 def _markdown(tab: dict, sid: str) -> str:
-    traced = (f"Paths: each row is a {tab['by'][0]} from which the {tab['by'][1]} can be reached by following one document's own "
+    looped = ("Loops: the feedback loops all documents' coded links make together, each written as its variables with "
+              "each link's sign (+ the two move the same way, - opposite ways, ? unclear), and its polarity, R reinforcing, "
+              "B balancing. Each loop has a row for the whole loop, counting the documents whose own links make all of it, "
+              "which may be none; a row for each of its links, counting the documents behind that link; and a row for each "
+              "link into it from a variable outside it (a driver). A loop nobody tells whole is linked up from separate "
+              "accounts, so say so where the answer relies on one. Name a loop by its marker, as the report's diagrams do: "
+              + "; ".join(f"{m} is {lp}" for lp, m in loop_markers(tab["cells"]).items()) + ".\n") if tab.get("loops") else ""
+    traced = looped + ((f"Paths: each row is a {tab['by'][0]} from which the {tab['by'][1]} can be reached by following one document's own "
               "coded links, directly or through others, counted by the documents whose links make it; the links are joined "
-              "within a document, not told as one chain, so read them before calling a path a story.\n") if tab.get("paths") else ""
+              "within a document, not told as one chain, so read them before calling a path a story.\n") if tab.get("paths") else "")
     by_document = "document" in tab["by"]  # the documents behind a cell are then its own, so not listed again
     head = (traced + f"Documents read: {tab['of']}, written {{{sid}.of}}, which reads \"{tab['of']}\"\n" + _within_said(tab)
             + "| id | " + " | ".join(tab["by"]) + " | reads as |" + ("" if by_document else " which |") + "\n|"
             + "---|" * (len(tab["by"]) + (2 if by_document else 3)))
-    return head + "\n" + "\n".join(f"| {{{c['id']}}} | " + " | ".join(c["values"].values()) + f" | \"{stated(tab, c)}\" |"
+    return head + "\n" + "\n".join(f"| {{{c['id']}}} | " + " | ".join(c["values"].values()) + f" | \"{stated(tab, c)}\""
+                                   + (f", and {{{c['id']}.weak}} more only weakly, \"{c['weak']}\"" if c.get("weak") else "") + " |"
                                    + ("" if by_document else f" {', '.join(c['documents'])} |") for c in tab["cells"])
 
 
@@ -452,7 +537,7 @@ def _base(tab: dict, cell: dict) -> int | None:
 def stated(tab: dict, cell: dict) -> str:
     """A cell's count as an answer states it, always with what it is out of, so that a bare count cannot be written."""
     b = _base(tab, cell)
-    return f"{cell['n']} passages" if b is None else f"{cell['n']} of {b}"
+    return f"{cell['n']} passage{'' if cell['n'] == 1 else 's'}" if b is None else f"{cell['n']} of {b}"
 
 
 def counts_of(run: Run, inputs: list[str]) -> dict[str, int | str]:
@@ -464,6 +549,7 @@ def counts_of(run: Run, inputs: list[str]) -> dict[str, int | str]:
         if rec.get("kind") == "tabulate":
             out[f"{i}.of"] = rec["of"]
             out.update({c["id"]: stated(rec, c) for c in rec["cells"] if "id" in c})
+            out.update({f"{c['id']}.weak": str(c["weak"]) for c in rec["cells"] if "id" in c and "weak" in c})
             out.update({f"{c['id']}.within.{col}": f"{c['n']} of {b}" for c in rec["cells"] if "id" in c
                         for col, b in (c.get("within") or {}).items()})
         elif rec.get("kind") == "judge":
@@ -544,6 +630,23 @@ def cited_document(run: Run, ref: str) -> str | None:
         if value_key(ref) == value_key(d) or any(n and stem(n) == stem(ref) for n in (m.get("title"), m.get("file"))):
             return d
     return None
+
+
+def cited_as(document: str, quote: str, words: int = 5) -> str:
+    """A cited row as a reader sees it: its document and the opening words of its quotation, so the citation says where
+    to look without the row id, which stays behind it as the link."""
+    w = quote.split()
+    return f"{document}, “{' '.join(w[:words]).rstrip(',.;:')}{'…' if len(w) > words else ''}”"
+
+
+def readable_citations(text: str, rows: dict[str, dict]) -> str:
+    """`text` with each group of row ids in square brackets written as `cited_as` gives them, each a link to its row."""
+    def one(m):
+        ids = [c.strip() for c in re.split(r"[,;]", m.group(1)) if c.strip()]
+        if not ids or any(i not in rows for i in ids):
+            return m.group(0)
+        return "(" + "; ".join(f"[{cited_as(rows[i]['document'], rows[i]['quote'])}](#{i})" for i in ids) + ")"
+    return re.sub(r"\[([^\]]+)\]", one, text)
 
 
 def citation_ids(text: str) -> list[str]:

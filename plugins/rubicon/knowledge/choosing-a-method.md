@@ -18,6 +18,7 @@ Most evaluation questions ask for one of a few kinds of claim, and the kind deci
 | What changed, including what nobody planned | An inventory of outcomes with their contributors | Outcome harvesting; Most Significant Change where the point is what participants value | [outcome harvesting](outcome-harvesting.md), [Most Significant Change](most-significant-change.md) |
 | What do people say about X, across these interviews | A structured description, case by theme | Framework analysis | [framework analysis](framework-analysis.md) |
 | What leads to what, in people's own accounts | A map of causal claims | Causal mapping | [causal mapping](causal-mapping.md) |
+| Will it last, why did it level off, what did it set off | Feedback loops in people's accounts, reinforcing or balancing | Causal loop diagrams, with a rubric for the verdict | [causal loop diagrams](causal-loop-diagrams.md) |
 
 A question often asks for two kinds at once, typically a contribution and a verdict on it ("how effective was the programme in achieving X"). Settle each part separately: the contribution by its method, the verdict by a rubric applied to what the method found. A verdict needs a standard from the evaluator; without one, deliver the evidence and say the verdict waits on their standard.
 

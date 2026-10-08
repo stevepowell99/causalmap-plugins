@@ -2,6 +2,9 @@
 
     python verify.py <report .html or .doc> <run .zip>
 
+A PDF or other converted copy is not read: it carries the same file name and prints the same fingerprint, which a
+reader compares by eye, and its .html or .doc is what this checks.
+
 Four checks, in order, each of which the next relies on:
 
 1. The zip is as it was made: every file in it matches its own `SHA256SUMS`, and nothing is added or missing.
@@ -30,6 +33,10 @@ def verdict(report, zipped):
             return 1, f"NO MATCH: {zipped.name} is not as it was made: " + "; ".join(broken) + "."
         fingerprint = hashlib.sha256(z.read("SHA256SUMS")).hexdigest()
         render = json.loads(z.read("render.json").decode("utf-8"))
+    if report.suffix.lower() not in (".html", ".doc"):
+        return 1, (f"CANNOT CHECK: verify.py reads a report's .html or .doc. A {report.suffix} copy is tied to its zip by "
+                   "its file name and by the fingerprint printed under How this was made, which a reader compares by eye; "
+                   "check the .html or .doc it was converted from instead.")
     named = re.findall(r'class="fingerprint">([0-9a-f]{64})<', report.read_text(encoding="utf-8", errors="replace"))
     if not named:
         return 1, f"NO MATCH: {report.name} carries no fingerprint, so it names no zip."

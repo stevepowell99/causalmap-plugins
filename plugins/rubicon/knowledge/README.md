@@ -6,6 +6,8 @@ Pages that describe a workflow, the ones whose names end in "in Rubicon" above a
 
 One line per page: its name, its title and its first sentence.
 
+- `causal-loop-diagrams-in-rubicon`: Causal loop diagrams in Rubicon. Rubicon codes a causal loop diagram as causal links between positively named variables, each with a plus or minus, finds the loops the combined links make as a tabulate step, gives each loop's polarity as reinforcing or balancing, and count
+- `causal-loop-diagrams`: Causal loop diagrams. A causal loop diagram links variables, gives each link a plus or a minus, and looks for the closed loops the links make, marking each loop as reinforcing or balancing, so an evaluator can say why a change keeps growing, levels off or undoes
 - `causal-mapping-in-rubicon`: Causal mapping in Rubicon. Rubicon's coding records a causal claim as a row with a cause, an effect and the quote behind it, tabulates the cases behind each link, traces paths through each case's own links, and draws, filters, thins and zooms a map as steps of the wo
 - `causal-mapping`: Causal mapping. Causal mapping records who said what causes what, one causal claim per link with its quote and its source, and answers questions by selecting, tracing and counting those claims: it maps the evidence people give about causes, not the causes
 - `choosing-a-method`: Choosing a method. Which evaluation method suits a question, given what kind of claim it asks for and what the documents can bear, with the signs that a named method is the wrong one; read it when a question names no method, when it names one that may not fit
