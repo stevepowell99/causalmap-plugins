@@ -1,16 +1,12 @@
 {
   "name": "rubicon",
   "displayName": "Rubicon",
-  "version": "0.1.0+1af322ee7c93",
+  "version": "0.1.0+0fdd6b599c52",
   "description": "An opinionated evaluation assistant: argues out with you a workflow to answer one evaluation question from your documents, then runs it with every count made by code and every quotation checked against its source.",
   "author": {
     "name": "Causal Map",
     "url": "https://causalmap.app"
   },
   "homepage": "https://rubicon.causalmap.app/",
-  "documentationUrl": "https://github.com/stevepowell99/causalmap-plugins/tree/main/plugins/rubicon#readme",
-  "repository": "https://github.com/stevepowell99/causalmap-plugins",
-  "supportUrl": "https://causalmap.app/contact/",
-  "privacyPolicyUrl": "https://causalmap.app/privacy-policy/",
-  "termsOfServiceUrl": "https://causalmap.app/terms-and-conditions/"
+  "repository": "https://github.com/stevepowell99/causalmap-plugins"
 }
