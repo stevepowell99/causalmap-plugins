@@ -24,7 +24,8 @@ corpus/index.csv and the corpus text for context around each quotation). Makes n
 and draws the same report every time. Standard library and Node only.
 
 In answer.md, a line holding only {{figure <table id>}} draws that table as a chart at that point. A table by the two
-ends of a code step's causal links draws as a causal map, with Graphviz under Node (rubicon_open/draw_map.mjs).
+ends of a code step's causal links draws as a causal map: the report carries its DOT (rubicon_open/draw_map.mjs) and
+Graphviz draws it in the reader's browser, loaded at a fixed version from jsDelivr (report.js).
 --fragment writes the page without <html>/<head>/<body>, for publishing as an Artifact.
 
 The report carries its zip, and its "Open in Causal Map" button hands the run to the Rubicon page in the reader's own
@@ -365,11 +366,18 @@ def link_ends(s, R):
     return [links["from"], links["to"]] if links else None
 
 
+def graph(drawn):
+    """A map's DOT, carried in the report for Graphviz to draw in the reader's browser (report.js), with the words a
+    reader sees until it is drawn or if it cannot be."""
+    return (f'<div class="graph"><pre class="dot" data-engine="{esc(drawn["engine"])}" hidden>{esc(drawn["dot"])}</pre>'
+            f'<p class="small drawing">Drawing the map with Graphviz, which loads from the internet the first time a '
+            f'report is opened.</p></div>')
+
+
 def causal_map(s, cells):
     a, b = s["by"]
     edges = [{"id": c["id"], "from": c["values"][a], "to": c["values"][b], "n": c["n"]} for c in cells if c["n"]]
-    svg = node.call(DRAW_MAP, {"edges": edges}, "map drawing")["svg"]
-    svg = svg[svg.index("<svg"):]
+    svg = graph(node.call(DRAW_MAP, {"edges": edges}, "map drawing"))
     return (f'<figure class="fig map">{svg}<figcaption>Each arrow is a causal link, numbered by the documents that '
             f'mention it. Click an arrow for its passages.</figcaption></figure>')
 

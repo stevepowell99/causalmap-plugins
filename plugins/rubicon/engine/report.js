@@ -74,4 +74,20 @@
     if (b.dataset.rows) return showRows(b.dataset.rows.split(','));
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') panel.hidden = true; });
+
+  // Each map is carried as DOT and drawn here by Graphviz (Viz.js), fetched once at a fixed version; the report holds
+  // nothing else that draws, so a reader offline sees the words under each figure and its counts, and no map.
+  const dots = [...document.querySelectorAll('pre.dot')];
+  if (dots.length) {
+    import('https://cdn.jsdelivr.net/npm/@viz-js/viz@3.31.0/dist/viz.js').then(m => m.instance()).then(viz => {
+      for (const pre of dots) {
+        const svg = viz.renderSVGElement(pre.textContent, { engine: pre.dataset.engine });
+        pre.parentElement.replaceWith(svg);
+      }
+    }).catch(() => {
+      for (const p of document.querySelectorAll('.graph .drawing')) {
+        p.textContent = 'The map could not be drawn: Graphviz loads from cdn.jsdelivr.net, which this computer could not reach. Open the report again when it is online.';
+      }
+    });
+  }
 })();
