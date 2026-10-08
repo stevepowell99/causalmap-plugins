@@ -39,7 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder
 from rubicon_open import node
 from rubicon_open.corpus import INDEX_FIELDS
 from rubicon_open.seal import engine_fingerprint, engine_version, listed, seal_broken
-from rubicon_open.steps import cited_as
+from rubicon_open.steps import base_of, cited_as, stated
 from rubicon_open.workflow import arrow_parts, loop_markers, sign_of
 
 ENGINE = Path(__file__).resolve().parent
@@ -255,13 +255,13 @@ def build_data(R):
                     rows[r["row"]]["at"] = [a, b]
         elif s.get("kind") == "tabulate":
             for c in s.get("cells", []):
-                cells[c["id"]] = {"values": c["values"], "n": c["n"], "base": c.get("base", s.get("of")),
+                cells[c["id"]] = {"values": c["values"], "n": c["n"], "base": base_of(s, c), "said": stated(s, c),
                                   "within": c.get("within") or {}, "docs": c.get("documents", []),
                                   "rows": c.get("rows", []), "step": sid}
             # {<step>.of}, the documents the tabulation read, as the engine takes them from its input step
             src = R["steps"].get(s.get("input"), {})
             read = src.get("documents") or R["steps"].get(src.get("input"), {}).get("documents") or sorted(docs)
-            cells[f"{sid}.of"] = {"values": {}, "n": s.get("of"), "base": s.get("of"), "within": {},
+            cells[f"{sid}.of"] = {"values": {}, "n": s.get("of"), "base": s.get("of"), "said": f'{s.get("of")} of {s.get("of")}', "within": {},
                                   "docs": sorted(read), "rows": [], "step": sid}
     return {"docs": docs, "rows": rows, "cells": cells, "defs": defs, "group": gcol, "zip": R.get("zip", "")}
 
@@ -288,13 +288,22 @@ def anchor(heading):
     return "s-" + "-".join(re.findall(r"[a-z0-9]+", heading.lower()))
 
 
-OF = re.compile(r"(\d+) of (\d+)")
+#: a count as steps.stated writes it: "n of base", or "n passages" where it counts passages and has no base
+SAID = re.compile(r"(\d+) (?:of (\d+)|passages?)")
 
 
-def one_base(texts):
-    """The base every count in a table is out of, where they share one, so the table says it once and shows plain numbers."""
-    bases = {m.group(2) if m else None for m in map(OF.fullmatch, texts)}
-    return bases.pop() if len(texts) > 1 and len(bases) == 1 and None not in bases else None
+def heat(pairs):
+    """How a table shows its counts, from each count's (n, base), base None for a count of passages: a shade for each
+    count, and the line said once beneath where every count shares one base (plain numbers, shaded by share) or none
+    has one (plain numbers, shaded against the largest); the line is None where the bases differ, and each count then
+    says its own."""
+    top = max([n for n, b in pairs if b is None] + [1])
+    bases = {b for _, b in pairs}
+    note = None
+    if len(pairs) > 1 and len(bases) == 1:
+        b = bases.pop()
+        note = f"Each number is out of {b}." if b else "Each number counts coded passages, not documents."
+    return (lambda n, b: n / (b or top)), note
 
 
 def inline(text, R, D, cite_no, static, plain=False):
@@ -308,7 +317,7 @@ def inline(text, R, D, cite_no, static, plain=False):
             return m.group(0)
         txt = R["counts"][cid]
         if plain:
-            txt = OF.fullmatch(txt).group(1)
+            txt = SAID.fullmatch(txt).group(1)
         base = cell_of(cid)
         if R.get("finding") is not None:
             # a count with no cell behind it, such as a judgement's, still names the step that made it
@@ -360,17 +369,18 @@ def figure(tid, R, D):
     cells = [c for c in s["cells"]]
     if len(by) == 1:
         rows = sorted(cells, key=lambda c: -c["n"])
-        mx = max([c.get("base") or s["of"] for c in rows] + [1])
+        mx = max([base_of(s, c) or c["n"] for c in rows] + [1])
         bars = "".join(
             f'<div class="bar-row"><span class="bar-label">{esc(label(c["values"][by[0]]))}</span>'
             f'<span class="bar-track"><button class="bar" data-cell="{esc(c["id"])}" style="width:{100*c["n"]/mx:.1f}%"></button></span>'
             f'<span class="bar-n">{c["n"]}</span></div>' for c in rows)
-        return f'<figure class="fig"><div class="bars">{bars}</div><figcaption>Documents, out of {s["of"]}. Click a bar for its passages.</figcaption></figure>'
+        return f'<figure class="fig"><div class="bars">{bars}</div><figcaption>{caption(s)} Click a bar for its passages.</figcaption></figure>'
     a, b = by[0], by[1]
     avals = list(dict.fromkeys(c["values"][a] for c in cells))
     bvals = list(dict.fromkeys(c["values"][b] for c in cells))
     look = {(c["values"][a], c["values"][b]): c for c in cells}
     if set(bvals) <= {"yes", "no"}:  # a binary split: two bars a value, never stacked, as one document can be in both
+        top = max([c["n"] for c in cells] + [1])
         avals.sort(key=lambda v: -sum(look.get((v, x), {"n": 0})["n"] for x in ("yes", "no")))
         yes_l = label(b) + " for this reason"
         out = []
@@ -379,29 +389,38 @@ def figure(tid, R, D):
             for x, cls in (("yes", "yes"), ("no", "no")):
                 c = look.get((v, x))
                 n = c["n"] if c else 0
-                w = 100 * n / s["of"]
+                w = 100 * n / (base_of(s, c) or top) if c else 0
                 btn = f'<button class="bar {cls}" data-cell="{esc(c["id"])}" style="width:{w:.1f}%"></button>' if c and n else ""
                 pair += f'<span class="bar-track thin">{btn}</span><span class="bar-n">{n}</span>'
             out.append(f'<div class="bar-row pair"><span class="bar-label">{esc(label(v))}</span><span class="pair-bars">{pair}</span></div>')
         legend = (f'<span class="key yes"></span>{esc(yes_l)} <span class="key no"></span>Raised, not tied to that')
         return (f'<figure class="fig"><div class="legend">{legend}</div><div class="bars">{"".join(out)}</div>'
-                f'<figcaption>Interviewees, out of {s["of"]}. Click a bar for the passages behind it.</figcaption></figure>')
+                f'<figcaption>{caption(s)} Click a bar for the passages behind it.</figcaption></figure>')
     # two nominal columns: a grid of counts within each column of b
     avals.sort(key=lambda v: -sum(look.get((v, x), {"n": 0})["n"] for x in bvals))
     head = "".join(f"<th>{esc(label(x))}</th>" for x in bvals)
     body = ""
-    of = one_base([f'{c["n"]} of {c.get("base") or s["of"]}' for c in look.values() if c["n"]])
+    shade, note = heat([(c["n"], base_of(s, c)) for c in cells if c["n"]])
     for v in avals:
         tds = ""
         for x in bvals:
             c = look.get((v, x))
-            n, base = (c["n"], c.get("base") or s["of"]) if c else (0, 1)
-            shade = n / base if base else 0
-            tds += (f'<td><button class="cellbtn" data-cell="{esc(c["id"])}" style="--a:{shade:.2f}">{n}'
-                    f'{"" if of else f"<small> of {base}</small>"}</button></td>' if c and n else '<td class="zero">0</td>')
+            if c and c["n"]:
+                n, base = c["n"], base_of(s, c)
+                tds += (f'<td><button class="cellbtn" data-cell="{esc(c["id"])}" style="--a:{shade(n, base):.2f}">{n}'
+                        f'{"" if note else f"<small> of {base}</small>"}</button></td>')
+            else:
+                tds += '<td class="zero">0</td>'
         body += f"<tr><th>{esc(label(v))}</th>{tds}</tr>"
     return (f'<figure class="fig"><div class="scroll"><table class="grid"><thead><tr><th></th>{head}</tr></thead><tbody>{body}</tbody></table></div>'
-            f'<figcaption>Interviewees in each group{f", each out of {of}" if of else ""}. Click a count for its passages.</figcaption></figure>')
+            f'<figcaption>{caption(s)} Click a count for its passages.</figcaption></figure>')
+
+
+def caption(s):
+    """What a figure's counts are, and the base they all share where they share one."""
+    note = heat([(c["n"], base_of(s, c)) for c in s["cells"] if c["n"]])[1]
+    what = "Documents in each group" if s.get("count", "documents") == "documents" else "Coded passages in each group"
+    return f"{what}. {note}" if note else f"{what}."
 
 
 def link_ends(s, R):
@@ -523,19 +542,18 @@ def answer_html(R, D, static=False):
         if rows:
             raw = [[c.strip() for c in r.strip().strip("|").split("|")] for r in rows if not re.fullmatch(r"[\s|:-]+", r)]
             # a cell that is one count alone; where all of them share a base, each shows its number shaded by its share
-            alone = {(i, j): R["counts"][m.group(1)] for i, r in enumerate(raw[1:]) for j, c in enumerate(r)
-                     if (m := CELL.fullmatch(c)) and m.group(1) in R["counts"]}
-            of = one_base(list(alone.values()))
+            alone = {(i, j): (int(s.group(1)), s.group(2) and int(s.group(2))) for i, r in enumerate(raw[1:]) for j, c in enumerate(r)
+                     if (m := CELL.fullmatch(c)) and (s := SAID.fullmatch(str(R["counts"].get(m.group(1), ""))))}
+            shade, note = heat(list(alone.values()))
 
             def td(i, j, c):
-                if not (of and (i, j) in alone):
+                if not (note and (i, j) in alone):
                     return f"<td>{inline(c, R, D, cite_no, static)}</td>"
-                share = int(OF.fullmatch(alone[i, j]).group(1)) / int(of)
-                return f'<td class="heat" style="--a:{share:.2f}">{inline(c, R, D, cite_no, static, plain=True)}</td>'
+                return f'<td class="heat" style="--a:{shade(*alone[i, j]):.2f}">{inline(c, R, D, cite_no, static, plain=True)}</td>'
             parts.append('<table class="md"><thead><tr>' + "".join(f"<th>{inline(c, R, D, cite_no, static)}</th>" for c in raw[0])
                          + "</tr></thead><tbody>"
                          + "".join("<tr>" + "".join(td(i, j, c) for j, c in enumerate(r)) + "</tr>" for i, r in enumerate(raw[1:]))
-                         + "</tbody></table>" + (f'<p class="small">Each number is out of {of}.</p>' if of else ""))
+                         + "</tbody></table>" + (f'<p class="small">{note}</p>' if note else ""))
         if para:
             parts.append(f"<p>{inline(' '.join(para), R, D, cite_no, static)}</p>")
         if items:
@@ -737,7 +755,7 @@ def table_of(sid, s, static=False):
     head = "".join(f"<th>{esc(label(b))}</th>" for b in by)
     trs = "".join("<tr>" + "".join(f'<td>{esc(label(c["values"].get(b, "")))}</td>' for b in by)
                   + (f'<td>{c["n"]}' if static else f'<td><button class="num" data-cell="{esc(c["id"])}">{c["n"]}</button>')
-                  + f' of {c.get("base", s.get("of"))}</td></tr>'
+                  + (f' of {b}' if (b := base_of(s, c)) is not None else '') + '</td></tr>'
                   for c in s.get("cells", []))
     return (f'<div class="scroll"><table class="codebook"><thead><tr>{head}<th>{esc(label(s.get("count", "documents")))}</th>'
             f'</tr></thead><tbody>{trs}</tbody></table></div>')

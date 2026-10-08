@@ -528,7 +528,7 @@ def _within_said(tab: dict) -> str:
     return "A count within a group one column defines:\n" + "\n".join(out) + "\n"
 
 
-def _base(tab: dict, cell: dict) -> int | None:
+def base_of(tab: dict, cell: dict) -> int | None:
     """What a cell's count is out of: its own base, or for a record made before cells carried one, the documents read.
     None where the count is of passages rather than documents."""
     return cell.get("base", tab["of"] if tab.get("count", "documents") == "documents" else None)
@@ -536,7 +536,7 @@ def _base(tab: dict, cell: dict) -> int | None:
 
 def stated(tab: dict, cell: dict) -> str:
     """A cell's count as an answer states it, always with what it is out of, so that a bare count cannot be written."""
-    b = _base(tab, cell)
+    b = base_of(tab, cell)
     return f"{cell['n']} passage{'' if cell['n'] == 1 else 's'}" if b is None else f"{cell['n']} of {b}"
 
 

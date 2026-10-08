@@ -105,13 +105,13 @@
       return open(`<h3>${c.n} documents</h3><p class="small">Every document this count was made from:</p>` +
         c.docs.map(d => `<div class="item"><p class="doc-tag">${esc(d)} · ${esc(group(d))}</p></div>`).join(''));
     }
-    const base = within && within in c.within ? c.within[within] : c.base;
+    const said = within && within in c.within ? `${c.n} of ${c.within[within]}` : c.said;
     const what = Object.entries(c.values).map(([k, v]) => {
       const d = RUN.defs[k + '=' + v];
       return `<li><b>${esc(label(k))}: ${esc(label(v))}</b>${d ? '. ' + esc(d) : ''}</li>`;
     }).join('');
     const rows = c.rows.map(rowShort).join('');
-    open(`<h3>${c.n} of ${base}</h3><p class="small">Counted by code from the coded passages: the documents where</p><ul>${what}</ul>
+    open(`<h3>${esc(said)}</h3><p class="small">Counted by code from the coded passages: the ${c.base == null ? 'passages' : 'documents'} where</p><ul>${what}</ul>
       <p class="small">${c.docs.length ? 'Who: ' + c.docs.map(esc).join(', ') : 'Nobody.'}</p>${rows}`);
   }
   // What a finding rests on: the numbers it states, each opening who it counts, the passages it quotes, and the
@@ -123,7 +123,7 @@
     const steps = [...new Set([...(f.steps || []), ...cells.map(id => RUN.cells[id].step), ...rows.map(id => RUN.rows[id].step)])]
       .filter(id => document.querySelector(`.annex [data-node="step:${CSS.escape(id)}"]`));
     const said = id => { const c = RUN.cells[id]; const v = Object.entries(c.values).map(([k, x]) => `${label(k)}: ${label(x)}`).join(', ');
-      return `<div class="item"><button class="n" data-cell="${esc(id)}">${c.n} of ${c.base}</button> ${esc(v || 'documents read')}</div>`; };
+      return `<div class="item"><button class="n" data-cell="${esc(id)}">${esc(c.said)}</button> ${esc(v || 'documents read')}</div>`; };
     open('<h3>What this rests on</h3>' +
       (cells.length ? `<p class="small">${cells.length} number${cells.length === 1 ? '' : 's'}, counted by code</p>` + cells.map(said).join('') : '') +
       (rows.length ? `<p class="small">${rows.length} quoted passage${rows.length === 1 ? '' : 's'}</p>` + rows.map(rowShort).join('') : '') +
