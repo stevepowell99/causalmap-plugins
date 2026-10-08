@@ -44,7 +44,9 @@ ENGINE = Path(__file__).resolve().parent
 DRAW_MAP = ENGINE / "rubicon_open" / "draw_map.mjs"
 #: Every file in a zip carries this date, so the same run always makes the same zip, byte for byte
 STAMP = (1980, 1, 1, 0, 0, 0)
-PAGE = "https://app.causalmap.app/rubicon.html"
+#: The Rubicon page a report can hand its run to. Unset in this release, so a report names no address it could send to;
+#: dev sets it with the run viewer.
+PAGE = None
 #: Whether a report offers to open its run on the Rubicon page (PAGE). Off until the live site, which serves `main`,
 #: has the page that receives a run; `--page <url>` turns it on for one report, such as against the dev site.
 #: `rubicon/plugin/build.py` reads this line, and leaves the skill's hand-over bullet out while it is off.
