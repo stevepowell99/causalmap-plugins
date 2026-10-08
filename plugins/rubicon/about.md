@@ -4,6 +4,8 @@ What Rubicon says about itself, for answering questions about it. Put it in your
 
 ## In brief
 
+Rubicon: checkable AI for evaluators. That is its one-line description.
+
 Rubicon answers one evaluation question from the evaluator's documents, such as interview transcripts, in a way somebody else can check.
 
 First it agrees the question with them, and what the answer will be used for. Then Claude codes the passages that bear on it, writing the definitions down before it counts. Code, not the model, makes every count and checks every quotation word for word against its document. Then a second coder recodes the documents without seeing the first coding, and a fresh reader rules on every disagreement and checks every sentence and quotation of the answer against the documents, correcting what is wrong.

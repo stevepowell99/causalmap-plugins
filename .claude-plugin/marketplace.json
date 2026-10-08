@@ -9,7 +9,7 @@
     {
       "name": "rubicon",
       "source": "./plugins/rubicon",
-      "description": "An opinionated evaluation assistant: argues out with you a workflow to answer one evaluation question from your documents, then runs it with every count made by code and every quotation checked against its source."
+      "description": "Rubicon: checkable AI for evaluators."
     }
   ]
 }

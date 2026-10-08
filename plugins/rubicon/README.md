@@ -1,5 +1,7 @@
 # Rubicon for Claude
 
+**Rubicon: checkable AI for evaluators.**
+
 Rubicon answers an evaluator's question from a folder of documents, such as interview transcripts, inside your own Claude. It reads the documents, codes the passages that bear on the question, and leaves its work as a workflow that code carries out again, so every count in the answer is made by code from the coded passages and every quotation is checked against its document. The model calls run on your own Claude plan; nothing is sent to Causal Map.
 
 ## Install

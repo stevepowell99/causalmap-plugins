@@ -1,8 +1,8 @@
 {
   "name": "rubicon",
   "displayName": "Rubicon",
-  "version": "0.1.0+88e8f2b62b2a",
-  "description": "An opinionated evaluation assistant: argues out with you a workflow to answer one evaluation question from your documents, then runs it with every count made by code and every quotation checked against its source.",
+  "version": "0.1.0+090d412ee981",
+  "description": "Rubicon: checkable AI for evaluators.",
   "author": {
     "name": "Causal Map",
     "url": "https://causalmap.app"
