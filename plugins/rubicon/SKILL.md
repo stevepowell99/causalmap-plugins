@@ -1,6 +1,6 @@
 ---
 name: rubicon
-description: Answer an evaluator's question from a folder of documents such as interview transcripts, leaving a workflow that code recounts, so every count in the answer is made by code and every quotation is checked against its document. Use when the user runs /rubicon or asks Rubicon to answer an evaluation question from the documents in this folder.
+description: Answer an evaluator's question from a folder of documents such as interview transcripts, leaving a workflow that code recounts, so every count in the answer is made by code and every quotation is checked against its document. Use when the user runs /rubicon or asks Rubicon to answer an evaluation question from the documents in this folder, and whenever they ask for their Rubicon runs, earlier questions or reports, as in "list my Rubicon runs", which this skill draws as one clickable page.
 argument-hint: "the evaluation question"
 ---
 
