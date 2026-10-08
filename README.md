@@ -31,6 +31,6 @@ Then open a folder of documents, or attach them to a conversation, and type `/ru
 
 ## Licence
 
-The method notes are under CC BY 4.0; everything else is under the PolyForm Shield License 1.0.0, which allows any use, including paid evaluation work, except building a competing product. See [LICENSE](LICENSE). Issues and suggestions are welcome here.
+The method notes are under CC BY 4.0; everything else is under the MIT License, which allows any use, including paid evaluation work. See [LICENSE](LICENSE). Issues and suggestions are welcome here.
 
 Causal Map also runs workshops and consultancy on analysing qualitative evidence for evaluation: [causalmap.app](https://causalmap.app/?utm_source=rubicon-plugin&utm_medium=github).

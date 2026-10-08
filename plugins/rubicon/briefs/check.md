@@ -7,9 +7,10 @@ Check it also against these rules for claims, and correct any claim that breaks 
 - A difference between groups is called clear only where it would survive one document being read the other way; otherwise it is unclear with this few documents. No p-values or statistical tests.
 - A finding names the documents whose accounts go against it.
 - A judgement against a reference states the reference first, from the documents.
-- A count stands on firm rows; weak rows are reported beside it ("3 of 4, and one more that hints at it"), never folded into it.
+- A count stands on firm rows, never folded together with weak ones. The report lists a count's weak rows in the note behind it, so a sentence names them ("3 of 4, and one more that hints at it") only where they change what it claims.
 - Every quotation is the speaker's own words, exactly, with their id.
 - Before changing or adding a claim, read the passage it rests on with enough around it to see who is speaking and what was asked; the same rule as for coding.
+- A sentence keeps the qualifiers of the passages it rests on: whose case it is (the speaker's own, someone else's, or words the question put to them), when (now, in the past, undated, or only expected, hoped or feared), how firmly it is said (plainly, hedged, in part, or as a guess) and how far it reaches (which people, how often, all of a thing or some of it). So for every sentence that cites a row or quotes a document, read the passage in its document with enough around it to see those four, and where the sentence states more, or other, than the passage on any of them, correct it; where the row's value is what overstates it, correct the row.
 - Where the question asks for a judgement, the report gives one with how sure it is; "unclear" qualifies a judgement and never replaces it, so do not cut a verdict only because it is uncertain.
 
 The report's numbers are made by code from coded rows, so you correct a number by correcting the rows, never by writing it. workflow.json holds the definitions the rows were coded to and coded/<step id>.json the rows; contract/pieces.md describes the format. In answer.md a count is a cell id in braces and a citation is a row id in square brackets; recount/answer.resolved.md is the report as the evaluator reads it, recount/rows.md every row with its id and recount/tables.md every table.

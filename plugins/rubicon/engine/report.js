@@ -110,9 +110,14 @@
       const d = RUN.defs[k + '=' + v];
       return `<li><b>${esc(label(k))}: ${esc(label(v))}</b>${d ? '. ' + esc(d) : ''}</li>`;
     }).join('');
-    const rows = c.rows.map(rowShort).join('');
+    // a count stands on firm rows; the documents a cell holds only through weak rows are listed apart, after them
+    const weakDocs = c.weak_docs || [], firmDocs = c.docs.filter(d => !weakDocs.includes(d));
+    const isWeak = id => (RUN.rows[id] || {}).weak;
+    const firmRows = c.rows.filter(id => !isWeak(id)).map(rowShort).join('');
+    const weakRows = c.rows.filter(isWeak).map(rowShort).join('');
     open(`<h3>${esc(said)}</h3><p class="small">Counted by code from the coded passages: the ${c.base == null ? 'passages' : 'documents'} where</p><ul>${what}</ul>
-      <p class="small">${c.docs.length ? 'Who: ' + c.docs.map(esc).join(', ') : 'Nobody.'}</p>${rows}`);
+      <p class="small">${firmDocs.length ? 'Who: ' + firmDocs.map(esc).join(', ') : 'Nobody firmly.'}</p>${firmRows}` +
+      (weakRows ? `<p class="small">Only hinted at, so left out of the count${weakDocs.length ? ': ' + weakDocs.map(esc).join(', ') : ''}</p>${weakRows}` : ''));
   }
   // A factor in a map opens the passages behind every link into and out of it, each once: the cells of the arrows
   // Graphviz drew to or from it, whose titles read "from->to" with the node's own title at either end.

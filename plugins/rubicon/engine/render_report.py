@@ -169,7 +169,10 @@ def esc(s):
 
 
 def label(v):
-    return str(v).replace("_", " ").strip().capitalize()
+    """A value as a reader sees it: underscores as spaces and the first letter capitalised, the rest left as coded, so
+    an acronym such as AI keeps its capitals."""
+    s = str(v).replace("_", " ").strip()
+    return s[:1].upper() + s[1:]
 
 
 def load(zipped):
@@ -234,7 +237,7 @@ def build_data(R):
     docs = {d["id"]: {"group": d.get(gcol, ""), "title": d.get("title", d["id"]),
                       "file": "corpus/" + (d.get("file") or f"{d['id']}.txt")} for d in R["index"]}
     rows, cells, defs = {}, {}, {}
-    for sid, s in R["steps"].items():
+    for sid, s in sorted(R["steps"].items(), key=lambda kv: kv[1].get("kind") != "code"):  # rows before the cells that read them
         if s.get("kind") == "code":
             for col in s.get("columns", []):
                 for v in col.get("values", []) or []:
@@ -248,13 +251,18 @@ def build_data(R):
                 else:
                     ctx = ["", r["quote"], ""]
                 codes = {c["name"]: r.get(c["name"]) for c in s.get("columns", [])}
-                rows[r["row"]] = {"doc": r["document"], "step": sid, "ctx": ctx, "codes": codes}
+                rows[r["row"]] = {"doc": r["document"], "step": sid, "ctx": ctx, "codes": codes,
+                                  **({"weak": True} if r.get("weak") else {})}
                 if a is not None and t:
                     rows[r["row"]]["at"] = [a, b]
         elif s.get("kind") == "tabulate":
+            weak = {x: r["doc"] for x, r in rows.items() if r.get("weak")}
             for c in s.get("cells", []):
+                # the documents a cell holds only through weak rows, which its count leaves out (steps.tabulate)
+                firm = {rows[x]["doc"] for x in c.get("rows", []) if x in rows and x not in weak}
                 cells[c["id"]] = {"values": c["values"], "n": c["n"], "base": base_of(s, c), "said": stated(s, c),
                                   "within": c.get("within") or {}, "docs": c.get("documents", []),
+                                  "weak_docs": sorted({weak[x] for x in c.get("rows", []) if x in weak} - firm),
                                   "rows": c.get("rows", []), "step": sid}
             # {<step>.of}, the documents the tabulation read, as the engine takes them from its input step
             src = R["steps"].get(s.get("input"), {})

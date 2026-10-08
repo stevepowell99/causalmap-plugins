@@ -20,7 +20,7 @@ from typing import Callable
 from . import locator, node
 from .corpus import Corpus
 from .judge import level_counts
-from .workflow import LOOP_COLUMNS, arrow, canonical, codebook_of, column_values, loop_markers, resolve_step, sign_of, value_key
+from .workflow import LOOP_COLUMNS, SEQUENCE_COLUMNS, arrow, canonical, codebook_of, column_values, loop_markers, resolve_step, sign_of, value_key
 
 
 def reply_list(got) -> list[dict]:
@@ -193,6 +193,10 @@ def place_rows(run: Run, s: dict, docs: list[str], cols: list[dict], results: li
                    "start": h.start, "end": h.end}
             if r.get("weak") is True:  # a passage the coder judged to fit only weakly, which a count keeps apart
                 row["weak"] = True
+            if str(r.get("sequence") or "").strip():  # one of the links a speaker tells as one chain, and its place in it
+                row["sequence"] = str(r["sequence"]).strip()
+                if re.fullmatch(r"\s*\d+\s*", str(r.get("step", ""))):
+                    row["step"] = int(r["step"])
             for c in cols:
                 v = row[c["name"]] = canonical(r.get(c["name"]), allowed[c["name"]])
                 if v in (None, ""):
@@ -277,12 +281,14 @@ def tabulate(run: Run, s: dict) -> dict:
     if s["loops"]:
         ends = next(st.get("links") for st in run.steps if st.get("id") == src)
         by, cells = list(LOOP_COLUMNS), _loops(rows, ends, s["loop_links"], s["through"])
+    elif s.get("sequences"):
+        by, cells = list(SEQUENCE_COLUMNS), _sequences(rows, by)
     else:
         cells = _paths(run, rows, by) if s["paths"] else _combinations(run, rows, by)
     # every combination the columns allow is a cell, so a count of none is stated as 0 rather than left out; a sparse
     # table, such as causal links from one factor list crossed with itself, lists only the combinations that occur
     in_rows = {k for r in rows for k in r}
-    sparse = s["sparse"] or s["paths"] or s["loops"] or bool(s["filters"])  # a filter can rename a factor, so no codebook lists its values
+    sparse = s["sparse"] or s["paths"] or s["loops"] or s.get("sequences") or bool(s["filters"])  # a filter can rename a factor, so no codebook lists its values
     if not sparse:
         domains = [_domain(run, src, c, read, c in in_rows) or sorted({k[i] for k in cells} - {"(blank)"}) for i, c in enumerate(by)]
         for cmb in itertools.product(*domains):
@@ -290,7 +296,7 @@ def tabulate(run: Run, s: dict) -> dict:
     # a cell's base is the documents read that share its values on every column describing a document, so a count by
     # kind of submitter is out of that kind; counting the document list itself, every cell is out of all those read
     listing = src == "documents" or run.out.get(src, {}).get("kind") == "sample"
-    whole = [] if listing or s["loops"] else [i for i, c in enumerate(by) if c == "document" or (c not in in_rows and run.is_attribute(c))]
+    whole = [] if listing or s["loops"] or s.get("sequences") else [i for i, c in enumerate(by) if c == "document" or (c not in in_rows and run.is_attribute(c))]
 
     def of_doc(d, c):
         v = d if c == "document" else run.attribute(d, c)
@@ -327,7 +333,7 @@ def tabulate(run: Run, s: dict) -> dict:
     for k, c in enumerate(out, 1):  # an id per count, which the answer writes in place of the number
         c["id"] = f"{s['id']}.c{k}"
     return {"input": src, "by": by, "count": count, "of": len(read), "sparse": sparse, "paths": s["paths"],
-            **({"loops": True} if s["loops"] else {}),
+            **({"loops": True} if s["loops"] else {}), **({"sequences": True} if s.get("sequences") else {}),
             **({"filters": s["filters"], "filtered": filtered} if filtered else {}), "cells": out}
 
 
@@ -406,6 +412,36 @@ def _paths(run: Run, rows: list[dict], by: list[str]) -> dict[tuple, dict]:
                     cell = cells.setdefault((x, y) + cmb, {"documents": set(), "rows": []})
                     cell["documents"].add(d)
                     cell["rows"] += [rid for rid in on if rid not in cell["rows"]]
+    return cells
+
+
+def _sequences(rows: list[dict], by: list[str]) -> dict[tuple, dict]:
+    """The chains the speakers tell: the rows one document gives one "sequence", in the order of their "step" (then of
+    the passages), written as the factors in the order told, a factor repeated straight after itself said once. A cell
+    is one chain, holding the documents that tell it and its rows; chains are never put together across sequences or
+    documents, so every cell is a chain somebody told as one."""
+    start, end = by[0], by[1]
+
+    def first(r, c):
+        v = r.get(c)
+        v = v[0] if isinstance(v, list) and v else v
+        return None if v in (None, "") else str(v)
+
+    told: dict[tuple, list] = defaultdict(list)
+    for r in rows:
+        if r.get("sequence"):
+            told[(r["document"], r["sequence"])].append(r)
+    cells: dict[tuple, dict] = {}
+    for (d, _), links in sorted(told.items()):
+        links.sort(key=lambda r: (r.get("step", 0), r.get("start") or 0))
+        names = []
+        for r in links:
+            for v in (first(r, start), first(r, end)):
+                if v and (not names or names[-1] != v):
+                    names.append(v)
+        cell = cells.setdefault((" → ".join(names),), {"documents": set(), "rows": []})
+        cell["documents"].add(d)
+        cell["rows"] += [r["row"] for r in links if r["row"] not in cell["rows"]]
     return cells
 
 
@@ -499,6 +535,9 @@ def _markdown(tab: dict, sid: str) -> str:
     traced = looped + ((f"Paths: each row is a {tab['by'][0]} from which the {tab['by'][1]} can be reached by following one document's own "
               "coded links, directly or through others, counted by the documents whose links make it; the links are joined "
               "within a document, not told as one chain, so read them before calling a path a story.\n") if tab.get("paths") else "")
+    traced = (("Told sequences: each row is a chain one speaker tells as one, its factors in the order told, counted by the "
+               "documents that tell it; nothing is joined across speakers, so a chain here is a story somebody told.\n")
+              if tab.get("sequences") else "") + traced
     by_document = "document" in tab["by"]  # the documents behind a cell are then its own, so not listed again
     head = (traced + f"Documents read: {tab['of']}, written {{{sid}.of}}, which reads \"{tab['of']}\"\n" + _within_said(tab)
             + "| id | " + " | ".join(tab["by"]) + " | reads as |" + ("" if by_document else " which |") + "\n|"

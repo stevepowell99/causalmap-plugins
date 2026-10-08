@@ -77,6 +77,8 @@ def value_faults(said: str, where, known: dict[str, list[str] | None]) -> list[s
 #: A loop table's columns: the loop, written as its variables with each link's sign; its polarity; which part of it a
 #: cell counts (`PARTS`); and, for a link or a driver, that link.
 LOOP_COLUMNS = ("loop", "polarity", "part", "link")
+#: A told-sequence table's one column: each chain one speaker tells, written as its factors in the order told.
+SEQUENCE_COLUMNS = ("chain",)
 #: The parts of a loop a cell counts: the whole loop told in one document's own links, one of its links, and a link
 #: into the loop from a variable outside it.
 PARTS = ("whole", "link", "driver")
@@ -169,9 +171,10 @@ def resolve_step(s: dict, kind: str | None = None) -> dict:
         # paths: the first two `by` columns are a link's two ends, and a cell is a path traced in one document's links;
         # filters: Causal Map's link filters, in order, applied to the links its input coded before anything is counted;
         # loops: the cells are the feedback loops of up to loop_links links that all documents' signed links make
-        # together, through one of the variables `through` names where it names any
+        # together, through one of the variables `through` names where it names any; sequences: the cells are the chains
+        # the speakers tell, each built from the rows one document gives one "sequence", in the order of their "step"
         return fill({"by": [], "count": "documents", "sparse": False, "paths": False, "filters": [], "loops": False,
-                     "loop_links": 4, "through": []}, s)
+                     "loop_links": 4, "through": [], "sequences": False}, s)
     if k == "judge":
         return fill({"model": C.JUDGE, "combine": "weakest"}, s)
     if k == "write":
@@ -563,6 +566,16 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
                            for c in by[2:] if c != "document" and (c.lower() not in attrs or c in ends)]
                 if s.get("count", "documents") != "documents":
                     faults.append(f"{sid}: traces paths, which are counted by the documents whose links make them")
+            if s.get("sequences"):
+                links = src[0].get("links") if len(src) == 1 and src[0]["kind"] == "code" else None
+                if not links:
+                    faults.append(f"{sid}: lists told sequences, so its input must be a code step that names its links' two ends")
+                elif list(s.get("by") or []) != [links["from"], links["to"]]:
+                    faults.append(f"{sid}: lists told sequences, so it counts by its links' two ends, {links['from']!r} and {links['to']!r}, and nothing else")
+                if s.get("paths") or s.get("loops"):
+                    faults.append(f"{sid}: lists told sequences, so it neither traces paths nor finds loops")
+                if s.get("count", "documents") != "documents":
+                    faults.append(f"{sid}: lists told sequences, which are counted by the documents that tell them")
             if s.get("filters") and not (len(src) == 1 and src[0]["kind"] == "code" and src[0].get("links")):
                 faults.append(f"{sid}: filters links, so its input must be a code step that names its links' two ends")
             own = src[0].get("values", {}) if len(src) == 1 and src[0] else {}  # a row's own value first, as the counting takes it
@@ -582,6 +595,8 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
                 if not (isinstance(s.get("loop_links", 4), int) and 2 <= s.get("loop_links", 4) <= 6):
                     faults.append(f"{sid}: loop_links {s.get('loop_links')!r}; a loop has between 2 and 6 links")
                 made[sid].update({"by": list(LOOP_COLUMNS), "values": {"polarity": list(POLARITIES), "part": list(PARTS)}})
+            if s.get("sequences"):
+                made[sid].update({"by": list(SEQUENCE_COLUMNS), "values": {}})
         elif kind == "judge":
             faults += check_rubric(sid, s, made, attrs, n_documents, standard_text, background, coded)
             made[sid] = {"kind": kind}
