@@ -19,21 +19,23 @@
   // where two steps' passages overlap, and a click on a mark opening the passages under it. The texts come from the
   // report itself (TEXTS, gzipped), or for a corpus too large to carry, from the run's zip, which the reader chooses.
   const LAYERS = ['rgb(214 80 60 / .28)', 'rgb(60 120 214 / .28)', 'rgb(60 170 110 / .30)', 'rgb(200 150 30 / .32)', 'rgb(150 80 200 / .28)', 'rgb(40 170 180 / .30)'];
-  const steps = [...new Set(Object.values(RUN.rows).map(r => r.step))];
-  const layer = s => LAYERS[steps.indexOf(s) % LAYERS.length];
-  let carried = null;
+  // Read from RUN each time, since a combined report of several runs (bind.py) points RUN at the run being read
+  const stepsOf = () => [...new Set(Object.values(RUN.rows).map(r => r.step))];
+  const layer = s => LAYERS[stepsOf().indexOf(s) % LAYERS.length];
+  let carried = null, carriedFrom = null;
   async function unpack(bytes, how) {
     const out = new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream(how)));
     return new Uint8Array(await out.arrayBuffer());
   }
   async function carriedText(doc) {
-    if (!carried) {
+    if (!carried || carriedFrom !== TEXTS) {
       const bytes = Uint8Array.from(atob(TEXTS), c => c.charCodeAt(0));
       carried = JSON.parse(new TextDecoder().decode(await unpack(bytes, 'gzip')));
+      carriedFrom = TEXTS;
     }
     return carried[doc];
   }
-  let zipped = null;
+  let zipped = null, zippedFor = null;  // the zip chosen, and the run it was chosen for
   async function zipText(name) {
     const v = new DataView(zipped.buffer, zipped.byteOffset, zipped.byteLength);
     let end = zipped.length - 22;
@@ -59,13 +61,14 @@
       const f = e.target.files[0];
       if (!f) return;
       zipped = new Uint8Array(await f.arrayBuffer());
+      zippedFor = RUN;
       showDoc(doc, from);
     });
   }
   async function showDoc(doc, from) {
     let text;
     if (TEXTS) text = await carriedText(doc);
-    else if (zipped) text = await zipText(RUN.docs[doc].file);
+    else if (zipped && zippedFor === RUN) text = await zipText(RUN.docs[doc].file);
     else return chooseZip(doc, from);
     if (text == null) return open(`<p>${esc(doc)} is not in ${TEXTS ? 'this report' : 'that zip'}.</p>`);
     const marks = Object.entries(RUN.rows).filter(([, r]) => r.doc === doc && r.at);
@@ -82,12 +85,14 @@
       // a span rather than a button, which a browser always draws as a box and so breaks the line around it
       body += `<span class="span${ids.includes(from) ? ' from' : ''}" role="button" tabindex="0" data-rows="${esc(ids.join(','))}" style="background:${bg}">${piece}</span>`;
     }
-    const used = steps.filter(s => marks.some(([, r]) => r.step === s));
+    const used = stepsOf().filter(s => marks.some(([, r]) => r.step === s));
     open(`<p class="doc-tag">${esc(doc)} · ${esc(group(doc))}</p><h3>${esc(RUN.docs[doc].title || doc)}</h3>` +
       `<p class="layers">${used.map(s => `<span><i style="background:${layer(s)}"></i>${esc(label(s))}</span>`).join('')}</p>` +
       `<p class="small">${marks.length} coded passage${marks.length === 1 ? '' : 's'}. Click one to see how it was coded.</p><div class="whole">${body}</div>`);
     pbody.querySelector('.span.from')?.scrollIntoView({ block: 'center' });
   }
+  // The annex of the run being read: the report's one, or in a combined report the one of the part RUN points at (SCOPE)
+  const annexBlock = id => document.querySelector(`.annex${typeof SCOPE === 'string' ? SCOPE : ''} [data-node="step:${CSS.escape(id)}"]`);
   function rowShort(id) {
     const r = RUN.rows[id];
     if (!r) return '';
@@ -138,7 +143,7 @@
     const cells = (f.cells || []).filter(id => RUN.cells[id]);
     const rows = (f.rows || []).filter(id => RUN.rows[id]);
     const steps = [...new Set([...(f.steps || []), ...cells.map(id => RUN.cells[id].step), ...rows.map(id => RUN.rows[id].step)])]
-      .filter(id => document.querySelector(`.annex [data-node="step:${CSS.escape(id)}"]`));
+      .filter(id => annexBlock(id));
     const said = id => { const c = RUN.cells[id]; const v = Object.entries(c.values).map(([k, x]) => `${label(k)}: ${label(x)}`).join(', ');
       return `<div class="item"><button class="n" data-cell="${esc(id)}">${esc(c.said)}</button> ${esc(v || 'documents read')}</div>`; };
     open('<h3>What this rests on</h3>' +
@@ -147,7 +152,7 @@
       (steps.length ? '<p class="small">From these steps</p><p>' + steps.map(s => `<button class="rowlink" data-step="${esc(s)}">${esc(label(s))}</button>`).join('') + '</p>' : ''));
   }
   function showStep(id) {
-    const block = document.querySelector(`.annex [data-node="step:${CSS.escape(id)}"]`);
+    const block = annexBlock(id);
     if (!block) return;
     for (let d = block.closest('details'); d; d = d.parentElement.closest('details')) d.open = true;
     block.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -209,5 +214,21 @@
         p.textContent = 'The map could not be drawn: Graphviz loads from cdn.jsdelivr.net, which this computer could not reach. Open the report again when it is online.';
       }
     });
+  }
+
+  // The floating contents (report.css shows it on wide screens): the section the reader is in is marked as they scroll
+  const toc = document.querySelector('.toc');
+  if (toc) {
+    const links = [...toc.querySelectorAll('a[href^="#"]')];
+    const at = links.map(a => [a, document.getElementById(a.getAttribute('href').slice(1))]).filter(([, t]) => t);
+    let queued = false;
+    const mark = () => {
+      queued = false;
+      let on = null;
+      for (const [a, t] of at) if (t.getBoundingClientRect().top < innerHeight * 0.3) on = a;
+      for (const a of links) a.classList.toggle('on', a === on);
+    };
+    addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(mark); } }, { passive: true });
+    mark();
   }
 })();

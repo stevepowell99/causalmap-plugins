@@ -1,20 +1,20 @@
 /* Layout: one reading column; a side panel opens beside it on wide screens and as a sheet from the foot on phones. */
 :root {
   --ink: #17130f; --paper: #f7f4ee; --panel: #fdfbf6; --wash: #f2ece2; --line: #e4dcd0;
-  --quiet: #7d7166; --red: #8c1912; --red-wash: #f3e3de; --bar-no: #d9cfc2; --mark: #f7ed73; --mark-ink: #17130f;
+  --annex: #ece5d9; --quiet: #7d7166; --red: #8c1912; --red-wash: #f3e3de; --bar-no: #d9cfc2; --mark: #f7ed73; --mark-ink: #17130f;
   --serif: "Newsreader", Georgia, "Times New Roman", serif;
   --sans: "Libre Franklin", system-ui, -apple-system, "Segoe UI", sans-serif;
   --measure: 40rem;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --ink: #ece5da; --paper: #1a1714; --panel: #221e1a; --wash: #2a2520; --line: #3a332c;
-  --quiet: #a3978a; --red: #e07a6c; --red-wash: #3a221e; --bar-no: #4a4239; --mark: #5c5418; --mark-ink: #f6f0c0; color-scheme: dark } }
+  --annex: #13110f; --quiet: #a3978a; --red: #e07a6c; --red-wash: #3a221e; --bar-no: #4a4239; --mark: #5c5418; --mark-ink: #f6f0c0; color-scheme: dark } }
 :root[data-theme="dark"] {
   --ink: #ece5da; --paper: #1a1714; --panel: #221e1a; --wash: #2a2520; --line: #3a332c;
-  --quiet: #a3978a; --red: #e07a6c; --red-wash: #3a221e; --bar-no: #4a4239; --mark: #5c5418; --mark-ink: #f6f0c0; color-scheme: dark }
+  --annex: #13110f; --quiet: #a3978a; --red: #e07a6c; --red-wash: #3a221e; --bar-no: #4a4239; --mark: #5c5418; --mark-ink: #f6f0c0; color-scheme: dark }
 
 body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.55; margin: 0; }
-.wrap { padding-inline: 16px; padding-block: 2rem 4rem; }
+.wrap { padding-inline: 16px; padding-block: 2rem 4rem; position: relative; overflow-x: clip; }
 main { max-width: var(--measure); margin-inline: auto; display: grid; gap: 2.5rem; }
 main > *, .fig, .bar-row > * { min-width: 0; }
 h1, h2, h3, h4 { font-family: var(--serif); font-weight: 500; text-wrap: balance; margin: 0; }
@@ -104,7 +104,26 @@ table { border-collapse: collapse; font-size: .82rem; }
 .dot.raised { background: transparent; color: var(--red); }
 .dot.k { width: .8rem; height: .8rem; vertical-align: middle; margin-right: .3rem; display: inline-block; }
 
+/* Everything after the answer: one heading over it, on a slightly darker ground that runs the width of the window */
+.annexes { position: relative; isolation: isolate; display: grid; gap: 2.5rem; padding-block: 2rem 4rem; margin-bottom: -4rem; }
+.annexes::before { content: ""; position: absolute; z-index: -1; inset: 0 -100vmax; background: var(--annex); border-top: 1px solid var(--line); }
+.annexes-title { font-size: clamp(1.6rem, 4vw, 2rem); margin: 0; padding-bottom: .4rem; border-bottom: 2px solid var(--red); }
+.annexes > * { min-width: 0; }
+.annexes > section > h2:first-child, .annexes > aside > h2:first-child { margin-top: 0; }
 .annex { border-top: 1px solid var(--line); padding-top: 1rem; position: relative; }
+
+/* The contents, floating at the top left where the window leaves room beside the reading column, and gone where it does not */
+.toc { display: none; }
+@media (min-width: 1400px) {
+  .toc { display: block; position: absolute; top: 2rem; bottom: 0; left: 16px; width: min(15rem, calc(50vw - var(--measure) / 2 - 13rem - 3rem)); z-index: 2; }
+  .toc > div { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; font-size: .8rem; line-height: 1.35; }
+  .toc ol { list-style: none; padding: 0; margin: 0; display: grid; gap: .45rem; }
+  .toc a { color: var(--quiet); text-decoration: none; display: block; border-left: 2px solid transparent; padding-left: .5rem; }
+  .toc a:hover { color: var(--ink); }
+  .toc a.on { color: var(--red); border-left-color: var(--red); }
+  .toc .toc-part { margin: 1.1rem 0 .45rem; }
+  .toc .toc-part a { font-size: .7rem; text-transform: uppercase; letter-spacing: .1em; font-weight: 600; color: var(--ink); }
+}
 /* The margin map (minimap-mount.js): the page's own markup and behaviour, placed beside the annex. */
 :root { --rb-paper: var(--paper); --rb-panel: var(--panel); --rb-ink: var(--ink); --rb-red: var(--red); --rb-red-wash: var(--red-wash); }
 .wf-gutter { position: absolute; top: 0; bottom: 0; right: 0; pointer-events: none; }
@@ -168,7 +187,8 @@ blockquote { margin: .6rem 0; padding: .6rem .9rem; background: var(--panel); bo
 
 @media print {
   .wf-gutter { display: none !important; }
-  .panel, .next, .checks .click, .based { display: none !important; }
+  .panel, .next, .checks .click, .based, .toc { display: none !important; }
+  .annexes::before { background: none; }
   .n { background: none; padding: 0; } .cite { border: 0; color: inherit; }
   details { display: block; } details > * { display: block; }
   body { background: #fff; color: #000; }

@@ -370,7 +370,8 @@ def inline(text, R, D, cite_no, static, plain=False):
         h = html.unescape(m.group(1)).strip()
         if h not in R.get("sections", ()):
             R.setdefault("missing_sections", []).append(h)
-        return f"(see “{esc(h)}”)" if static else f'<a class="see" href="#{anchor(h)}">§ {esc(h)}</a>'
+        shown = R.get("renamed", {}).get(h, h)
+        return f"(see “{esc(shown)}”)" if static else f'<a class="see" href="#{anchor(h)}">§ {esc(shown)}</a>'
 
     out = CELL.sub(cell, out)
     out = CITE.sub(cite, out)
@@ -554,9 +555,26 @@ def synthetic(R):
             'They are not records of real people, and nothing in this report is evidence about anyone.</p>')
 
 
+#: The answer's closing section, on what limits how far it can be relied on, is headed this whatever the writer called it
+LIMITATIONS = "Limitations"
+#: The heading over everything the report adds after the answer: the evidence matrix, how it was made and what next
+ANNEXES = "Annexes"
+
+
+def limitations_of(headings):
+    """The writer's heading for the answer's closing section on its limits, if its last section is one, so the report
+    heads it `LIMITATIONS` without changing the answer the zip holds."""
+    last = headings[-1] if headings else ""
+    return last if re.search(r"(?i)\blimit", last) else None
+
+
 def answer_html(R, D, static=False):
     lines = R["answer"].splitlines()
-    R["sections"] = {ln[3:].strip() for ln in lines if ln.startswith("## ")}
+    heads = [ln[3:].strip() for ln in lines if ln.startswith("## ")]
+    R["sections"] = set(heads)
+    renamed = R["renamed"] = {h: LIMITATIONS for h in [limitations_of(heads)] if h}
+    # The answer's sections, for the report's contents: anchor and heading as the reader sees it
+    R["toc"] = [(anchor(h), renamed.get(h, re.sub(r"[*`]", "", h))) for h in heads]
     title, lead, parts, cite_no = "", "", [], {}
     para, items, rows = [], [], []
     # What each finding rests on, the short answer and each section, for its "based on" button (report.js)
@@ -594,7 +612,8 @@ def answer_html(R, D, static=False):
             flush()
             key = anchor(s[3:].strip())
             R["finding"] = based.setdefault(key, {})
-            parts.append(f'<h2 id="{key}">{inline(s[3:], R, D, cite_no, static)}'
+            shown = esc(renamed[s[3:].strip()]) if s[3:].strip() in renamed else inline(s[3:], R, D, cite_no, static)
+            parts.append(f'<h2 id="{key}">{shown}'
                          + ("" if static else f'<button class="based" data-based="{key}">based on</button>') + "</h2>")
             continue
         m = FIG.match(s.strip())
@@ -914,15 +933,18 @@ def further(R):
 TEXTS_CARRIED = 5_000_000
 
 
-def texts(R):
+def packed_texts(R):
     """The documents, for reading one whole with every passage this run coded in it marked (report.js): gzipped JSON
-    in base64, which the reader's browser unpacks only when a document is opened, or nothing for a corpus too large
+    in base64, which the reader's browser unpacks only when a document is opened, or "" for a corpus too large
     to carry, whose documents the reader opens from the run's zip instead. Compressed by the same zlib that makes the
     zip, so the report is as deterministic as its zip."""
     if sum(map(len, R["texts"].values())) > TEXTS_CARRIED:
-        return ' const TEXTS = "";'
-    packed = base64.b64encode(gzip.compress(json.dumps(R["texts"], ensure_ascii=False).encode("utf-8"), mtime=0))
-    return f' const TEXTS = "{packed.decode("ascii")}";'
+        return ""
+    return base64.b64encode(gzip.compress(json.dumps(R["texts"], ensure_ascii=False).encode("utf-8"), mtime=0)).decode("ascii")
+
+
+def texts(R):
+    return f' const TEXTS = "{packed_texts(R)}";'
 
 
 def run_zip(R):
@@ -976,35 +998,43 @@ def summary(R, a, nrows):
     return "".join(out)
 
 
+def facts(R, D):
+    """The line under the short answer saying what the run read, and the box of what in it can be checked."""
+    nrows = sum(len(s.get("rows", [])) for s in R["steps"].values() if s.get("kind") == "code")
+    groups = {d.get(D["group"], "") for d in R["index"]}
+    run = f" · Run {esc(R['run_id'])}" if R.get("run_id") else ""
+    return (f'<p class="meta">{len(R["index"])} interviews in {len(groups)} groups · {nrows} passages coded · '
+            f'{esc(R.get("date", ""))}{run}</p>\n  '
+            f'<ul class="checks">{summary(R, R["report"].get("answer", {}), nrows)}</ul>')
+
+
+def annexes(inner):
+    """Everything after the answer, under one heading and on a darker ground, in a report and in a binder alike."""
+    return f'<section class="annexes" id="annexes">\n  <h2 class="annexes-title">{ANNEXES}</h2>\n{inner}\n</section>'
+
+
+#: A section the report draws with an id, and its first heading, which is what the contents list for it
+SECTION = re.compile(r'<(?:section|aside)\s[^>]*\bid="([^"]+)"[^>]*>\s*(?:<p\b[^>]*>.*?</p>\s*)?<h2\b[^>]*>(.*?)</h2>', re.S)
+
+
+def contents(main, annexed):
+    """The floating contents (report.css hides it on narrow screens): the main sections, given as (id, heading), then
+    the annexes, read off their own markup so the list is never a second copy of their headings."""
+    li = lambda i, t: f'<li><a href="#{esc(i)}">{esc(t)}</a></li>'
+    annex = [(i, html.unescape(re.sub(r"<[^>]+>", "", t)).strip()) for i, t in SECTION.findall(annexed) if i != "annexes"]
+    return ('<nav class="toc" aria-label="Contents"><div><ol>' + "".join(li(i, t) for i, t in main) + "</ol>"
+            f'<p class="toc-part"><a href="#annexes">{ANNEXES}</a></p><ol>' + "".join(li(i, t) for i, t in annex)
+            + "</ol></div></nav>")
+
+
 def page(R, fragment=False):
     D = build_data(R)
     title, lead, body, cite_no = answer_html(R, D)
-    nrows = sum(len(s.get("rows", [])) for s in R["steps"].values() if s.get("kind") == "code")
-    a = R["report"].get("answer", {})
     data = json.dumps(D, ensure_ascii=False).replace("</", "<\\/")
     css = (Path(__file__).parent / "report.css").read_text(encoding="utf-8")
     js = (Path(__file__).parent / "report.js").read_text(encoding="utf-8")
     map_js = margin_map(R)
-    groups = {}
-    for d in R["index"]:
-        groups[d.get(D["group"], "")] = 1
-    content = f"""<title>{esc(heading(R, title))}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap">
-<style>{css}</style>
-<div class="wrap">
-<main>
-<header class="cover">
-  <p class="eyebrow">Rubicon report</p>
-  <h1>{esc(heading(R, title))}</h1>
-  {asked(R)}
-  {synthetic(R)}
-  <div class="lead">{lead}</div>
-  <p class="meta">{len(R["index"])} interviews in {len(groups)} groups · {nrows} passages coded · {esc(R.get("date",""))}{f" · Run {esc(R['run_id'])}" if R.get("run_id") else ""}</p>
-  <ul class="checks">{summary(R, a, nrows)}</ul>
-</header>
-<article class="answer rb-block" data-node="asset:answer">{body}</article>
-<section class="evidence" id="evidence">
+    annexed = annexes(f"""<section class="evidence" id="evidence">
   <h2>Every interview at a glance</h2>
   <p class="small">Each row is one interview, each column a reason as the coding defines it. Click a mark to read the passages.</p>
   {matrix(R, D)}
@@ -1015,10 +1045,27 @@ def page(R, fragment=False):
   <div class="wf-gutter"></div>
   {annex(R, D)}
 </section>
-<aside class="next">
+<aside class="next" id="next">
   <h2>What next</h2>
   {further(R)}
-</aside>
+</aside>""")
+    content = f"""<title>{esc(heading(R, title))}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap">
+<style>{css}</style>
+<div class="wrap">
+{contents([("top", "Short answer")] + R["toc"], annexed)}
+<main>
+<header class="cover" id="top">
+  <p class="eyebrow">Rubicon report</p>
+  <h1>{esc(heading(R, title))}</h1>
+  {asked(R)}
+  {synthetic(R)}
+  <div class="lead">{lead}</div>
+  {facts(R, D)}
+</header>
+<article class="answer rb-block" data-node="asset:answer">{body}</article>
+{annexed}
 </main>
 <aside class="panel" id="panel" hidden><button class="close" id="panel-close" aria-label="Close">×</button><div id="panel-body"></div></aside>
 </div>
@@ -1044,10 +1091,11 @@ def word(R):
             f'<title>{esc(heading(R, title))}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->'
             '<style>body,p,li,td{font-family:Cambria,Georgia,serif;font-size:11pt;line-height:1.35;color:#17130f}'
             'h1,h2,h3{font-family:Cambria,Georgia,serif;font-weight:normal;color:#8c1912}h1{font-size:20pt}h2{font-size:14pt}'
-            'p.note{font-size:9pt}td,th{border:1px solid #e4dcd0;padding:3pt 5pt;font-size:9pt;vertical-align:top}table{border-collapse:collapse}</style></head><body>'
+            'p.note{font-size:9pt}td,th{border:1px solid #e4dcd0;padding:3pt 5pt;font-size:9pt;vertical-align:top}table{border-collapse:collapse}'
+            '.pb{page-break-before:always}</style></head><body>'
             f'<p style="color:#8b7f72;font-size:9pt">RUBICON REPORT</p><h1>{esc(heading(R, title))}</h1>'
             + (f'<p style="color:#8b7f72;font-size:9pt">Run {esc(R["run_id"])}</p>' if R.get("run_id") else "") +
-            f'{asked(R, static=True)}{synthetic(R)}{lead}{body}<h2>How this was made</h2>{annex(R, D, static=True)}<h2>Passages cited</h2>{notes}'
+            f'{asked(R, static=True)}{synthetic(R)}{lead}{body}<h1 class="pb">{ANNEXES}</h1><h2>How this was made</h2>{annex(R, D, static=True)}<h2>Passages cited</h2>{notes}'
             f'<h2>What next</h2>{further(R)}</body></html>')
 
 
