@@ -16,7 +16,8 @@ counts as the write step does, and its [row ids] with each row's document and th
 linked to the row (`answer.resolved.md`); and the report adds ids naming no cell, numbers written bare,
 row citations naming no row, quotations found in no document and quotations not in what they cite. `recount/` is then
 a run's folder in the open format (`rubicon/docs/open-format.md`), with `workflow.json`, `run.json` and the write
-step's record beside the others, so the page draws it as it draws any run of pieces.
+step's record beside the others, so the page draws it as it draws any run of pieces. `run.json` also names the chat
+that first recounted the run, as `chat` (`rubicon_open/chat.py`), where the environment names one.
 """
 from __future__ import annotations
 
@@ -28,6 +29,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as the analyst's does
+from rubicon_open.chat import chat_from_env
 from rubicon_open.corpus import load_corpus
 from rubicon_open import locator
 from rubicon_open import steps as S
@@ -42,6 +44,10 @@ a = ap.parse_args()
 folder = Path(a.folder).resolve()
 out = folder / "recount"
 out.mkdir(exist_ok=True)
+try:  # the chat that first recounted this run stays its chat, however many later recounts, in however many chats
+    earlier = json.loads((out / "run.json").read_text(encoding="utf-8")).get("chat") or {}
+except (OSError, ValueError, AttributeError):
+    earlier = {}
 for p in out.iterdir():  # a recount starts clean, so nothing from an earlier one outlives an edited row
     shutil.rmtree(p) if p.is_dir() else p.unlink()
 (out / "steps").mkdir()
@@ -141,8 +147,9 @@ if a.answer:
                 indent=1, ensure_ascii=False), encoding="utf-8")
 
 (out / "report.json").write_text(json.dumps(report, indent=1, ensure_ascii=False), encoding="utf-8")
-(out / "run.json").write_text(json.dumps({"question": wf.get("question_as_agreed") or "", "recounted_from": "free+w"},
-                                         indent=1, ensure_ascii=False), encoding="utf-8")
+chat = earlier or chat_from_env()
+(out / "run.json").write_text(json.dumps({"question": wf.get("question_as_agreed") or "", "recounted_from": "free+w",
+                                          **({"chat": chat} if chat else {})}, indent=1, ensure_ascii=False), encoding="utf-8")
 print(json.dumps(report, indent=1, ensure_ascii=False))
 if missing_coding:
     print(f"\nNot recounted: {', '.join(f'coded/{m}.json' for m in missing_coding)} missing. A recount counts from the rows "

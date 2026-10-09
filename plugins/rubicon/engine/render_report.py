@@ -38,6 +38,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
 from rubicon_open import node
 from rubicon_open.corpus import INDEX_FIELDS
+from rubicon_open.run_id import clean as run_id_of
 from rubicon_open.seal import engine_fingerprint, engine_version, listed, seal_broken
 from rubicon_open.steps import ROW_ID, base_of, cited_as, group_ids, stated
 from rubicon_open.workflow import arrow_parts, loop_markers, sign_of
@@ -92,8 +93,19 @@ def recount_differs(run):
         if done.returncode:
             return ["the recount itself, which failed: " + done.stderr.strip()[-400:]]
         old, new = recorded(run / "recount"), recorded(fresh / "recount")
-        return sorted(n for n in old.keys() | new.keys() if n not in old or n not in new
-                      or old[n].read_bytes() != new[n].read_bytes())
+        return sorted(n for n in old.keys() | new.keys() if n not in old or n not in new or not same(n, old[n], new[n]))
+
+
+def same(name, a, b):
+    """Whether two copies of a recount file are the same. `run.json` is compared without its `chat`, which names the
+    chat that first recounted the run and so is never what a fresh recount, run in whatever chat verifies it, would write."""
+    if name == "run.json":
+        try:
+            drop = lambda p: {k: v for k, v in json.loads(p.read_text(encoding="utf-8")).items() if k != "chat"}
+            return drop(a) == drop(b)
+        except (OSError, ValueError, AttributeError):
+            pass
+    return a.read_bytes() == b.read_bytes()
 
 
 def bundle(run, out, render):
@@ -185,8 +197,11 @@ def load(zipped):
         index = list(csv.DictReader(io.StringIO(text("corpus/index.csv"), newline="")))
         render = json.loads(text("render.json"))
         fingerprint = hashlib.sha256(z.read("SHA256SUMS")).hexdigest()
+        workflow = json.loads(text("workflow.json"))
         return {
-            "workflow": json.loads(text("workflow.json")),
+            "workflow": workflow,
+            # Minted once when the run's folder was made and kept through revisions; a run made before IDs has none
+            "run_id": run_id_of(workflow.get("run_id")),
             "steps": {n[len("steps/"):-len(".json")]: json.loads(text(n)) for n in sorted(names)
                       if re.fullmatch(r"steps/[^/]+\.json", n)},
             "counts": json.loads(text("counts.json")),
@@ -842,7 +857,10 @@ def annex(R, D, static=False):
                       f'<span class="small">check.md</span></summary><div class="record">{record_html(R["check"])}</div></details></div>')
                    + "</section>")
     if R.get("fingerprint"):
-        out.append(f"<h3>The record</h3><p>Code drew this report from the run's zip, {esc(R['zip'])}"
+        out.append("<h3>The record</h3><p>"
+                   + (f"This is run <code>{esc(R['run_id'])}</code>. Its ID stays the same through every revision, and the "
+                      "zip's fingerprint, below, names this version of it. " if R.get("run_id") else "")
+                   + f"Code drew this report from the run's zip, {esc(R['zip'])}"
                    + (f", with Rubicon {esc(R['version'])}" if R.get("version") else "") + ". The zip's fingerprint is "
                    f'<code class="fingerprint">{R["fingerprint"]}</code>. It is the SHA-256 of the zip\'s SHA256SUMS '
                    "file, which lists the SHA-256 of every other file in the zip, so changing any file breaks the match. "
@@ -982,7 +1000,7 @@ def page(R, fragment=False):
   {asked(R)}
   {synthetic(R)}
   <div class="lead">{lead}</div>
-  <p class="meta">{len(R["index"])} interviews in {len(groups)} groups · {nrows} passages coded · {esc(R.get("date",""))}</p>
+  <p class="meta">{len(R["index"])} interviews in {len(groups)} groups · {nrows} passages coded · {esc(R.get("date",""))}{f" · Run {esc(R['run_id'])}" if R.get("run_id") else ""}</p>
   <ul class="checks">{summary(R, a, nrows)}</ul>
 </header>
 <article class="answer rb-block" data-node="asset:answer">{body}</article>
@@ -1028,6 +1046,7 @@ def word(R):
             'h1,h2,h3{font-family:Cambria,Georgia,serif;font-weight:normal;color:#8c1912}h1{font-size:20pt}h2{font-size:14pt}'
             'p.note{font-size:9pt}td,th{border:1px solid #e4dcd0;padding:3pt 5pt;font-size:9pt;vertical-align:top}table{border-collapse:collapse}</style></head><body>'
             f'<p style="color:#8b7f72;font-size:9pt">RUBICON REPORT</p><h1>{esc(heading(R, title))}</h1>'
+            + (f'<p style="color:#8b7f72;font-size:9pt">Run {esc(R["run_id"])}</p>' if R.get("run_id") else "") +
             f'{asked(R, static=True)}{synthetic(R)}{lead}{body}<h2>How this was made</h2>{annex(R, D, static=True)}<h2>Passages cited</h2>{notes}'
             f'<h2>What next</h2>{further(R)}</body></html>')
 
