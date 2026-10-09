@@ -98,7 +98,7 @@ for s in wf.get("steps", []):
         continue
     rec = {"id": sid, "kind": kind, **rec}
     run.out[sid] = rec
-    (out / "steps" / f"{sid}.json").write_text(json.dumps(rec, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
+    (out / "steps" / f"{sid}.json").write_text(json.dumps(rec, indent=1, ensure_ascii=False, default=str), encoding="utf-8", newline="\n")
 
 report["code_steps_without_coded_rows"] = missing_coding
 report["steps_not_recounted"] = skipped
@@ -113,12 +113,12 @@ for sid, rec in run.out.items():
                if rec.get("document_attributes") else {})}
 
 (out / "rows.md").write_text("\n".join(S.row_line(r) for rec in run.out.values() if rec["kind"] == "code"
-                                       for r in rec["rows"]) + "\n", encoding="utf-8")
+                                       for r in rec["rows"]) + "\n", encoding="utf-8", newline="\n")
 tables = [f"## {sid}\n\n" + (S._markdown(rec, sid) if rec["kind"] == "tabulate" else judge_markdown({**rec, "id": sid}, margins=True))
           for sid, rec in run.out.items() if rec["kind"] in ("tabulate", "judge")]
-(out / "tables.md").write_text("\n\n".join(tables) + "\n", encoding="utf-8")
+(out / "tables.md").write_text("\n\n".join(tables) + "\n", encoding="utf-8", newline="\n")
 counts = S.counts_of(run, [sid for sid, rec in run.out.items() if rec["kind"] in ("tabulate", "judge")])
-(out / "counts.json").write_text(json.dumps(counts, indent=1, ensure_ascii=False), encoding="utf-8")
+(out / "counts.json").write_text(json.dumps(counts, indent=1, ensure_ascii=False), encoding="utf-8", newline="\n")
 
 if a.answer:
     text = Path(a.answer).read_text(encoding="utf-8")
@@ -134,7 +134,7 @@ if a.answer:
         "quotations_not_in_what_they_cite": [q for _, scope in S._sentences_with_scope(text)
                                              for q in S.quoted_elsewhere(run, scope, {k: r["document"] for k, r in rows.items()})]}
     resolved = S.readable_citations(resolved, rows)
-    (out / "answer.resolved.md").write_text(resolved, encoding="utf-8")
+    (out / "answer.resolved.md").write_text(resolved, encoding="utf-8", newline="\n")
     # the write step's record as the runner keeps it, with the checks named as the page reads them
     a_ = report["answer"]
     for s in wf.get("steps", []):
@@ -144,12 +144,12 @@ if a.answer:
                 "checks": {"counts": len(used), "counts_to_no_cell": a_["ids_naming_no_count"],
                            "numbers_written_bare": bare, "citations_to_no_row": a_["citations_to_no_row"],
                            "quotations_not_found": a_["quotations_found_in_no_document"]}},
-                indent=1, ensure_ascii=False), encoding="utf-8")
+                indent=1, ensure_ascii=False), encoding="utf-8", newline="\n")
 
-(out / "report.json").write_text(json.dumps(report, indent=1, ensure_ascii=False), encoding="utf-8")
+(out / "report.json").write_text(json.dumps(report, indent=1, ensure_ascii=False), encoding="utf-8", newline="\n")
 chat = earlier or chat_from_env()
 (out / "run.json").write_text(json.dumps({"question": wf.get("question_as_agreed") or "", "recounted_from": "free+w",
-                                          **({"chat": chat} if chat else {})}, indent=1, ensure_ascii=False), encoding="utf-8")
+                                          **({"chat": chat} if chat else {})}, indent=1, ensure_ascii=False), encoding="utf-8", newline="\n")
 print(json.dumps(report, indent=1, ensure_ascii=False))
 if missing_coding:
     print(f"\nNot recounted: {', '.join(f'coded/{m}.json' for m in missing_coding)} missing. A recount counts from the rows "

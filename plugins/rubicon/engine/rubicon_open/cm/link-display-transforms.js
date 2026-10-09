@@ -95,9 +95,12 @@ export function computeLabelByGroupEdgeLabel(edgeLinks, allLinks, filter, option
 }
 
 // Combine Opposites colouring: a link end or a factor runs from the unflipped colour, where none of its links was
-// coded at the opposite pole, to the flipped red, where all were. Together bundling uses this blue; Separate bundling
-// passes the map's main link colour as `unflipped`. The Rubicon report draws its maps with the same colours.
+// coded at the opposite pole, through purple, where half were, to the flipped red, where all were. Going through a
+// purple rather than straight from one end to the other keeps a mix reading as a colour of its own, where a straight
+// blend of blue and red is a muddy grey. Together bundling uses this blue; Separate bundling passes the map's main
+// link colour as `unflipped`. The Rubicon report draws its maps with the same colours.
 export const OPPOSITES_UNFLIPPED_COLOUR = '#6dc4c8'
+export const OPPOSITES_MIXED_COLOUR = '#9b59b6'
 export const OPPOSITES_FLIPPED_COLOUR = '#dc3545'
 
 export function interpolateHexColour(fromHex, toHex, t) {
@@ -111,7 +114,10 @@ export function interpolateHexColour(fromHex, toHex, t) {
 
 /** The colour for a share (0 to 1) of links coded at the opposite pole. */
 export function flippedShareColour(share, unflipped = OPPOSITES_UNFLIPPED_COLOUR) {
-    return interpolateHexColour(unflipped, OPPOSITES_FLIPPED_COLOUR, share)
+    const t = Math.max(0, Math.min(1, Number(share) || 0))
+    return t <= 0.5
+        ? interpolateHexColour(unflipped, OPPOSITES_MIXED_COLOUR, t * 2)
+        : interpolateHexColour(OPPOSITES_MIXED_COLOUR, OPPOSITES_FLIPPED_COLOUR, t * 2 - 1)
 }
 
 export function getRenderedEdgeBundleGroups(links, filters = []) {

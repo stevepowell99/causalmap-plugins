@@ -140,10 +140,27 @@
   pbody.addEventListener('focusout', hideTip);
   // The annex of the run being read: the report's one, or in a combined report the one of the part RUN points at (SCOPE)
   const annexBlock = id => document.querySelector(`.annex${typeof SCOPE === 'string' ? SCOPE : ''} [data-node="step:${CSS.escape(id)}"]`);
-  function rowShort(id) {
+  // Where opposites were combined (filter_links.mjs), a cell holds passages coded at either pole of each end: a
+  // passage's own code for an end is the cell's value, or its opposite written with a leading ~
+  const isOpposite = (code, value) => code != null && String(code) !== String(value)
+    && String(code).replace(/^~/, '') === String(value).replace(/^~/, '');
+  const oppositeEnds = (c, id) => { const r = RUN.rows[id]; return r ? Object.keys(c.values).filter(k => isOpposite(r.codes[k], c.values[k])) : []; };
+  const combined = c => c && c.rows.some(id => oppositeEnds(c, id).length);
+  // What the codebook says a code at the opposite pole means, without its "The opposite pole of X:" lead or its full stop
+  const poleMeans = (k, code) => (RUN.defs[k + '=' + code] || '').replace(/^The opposite pole of [^:]+:\s*/, '').replace(/\.\s*$/, '');
+  // A passage in a combined cell coded at the opposite pole of one end or both, and what that pole means
+  function poles(c, id) {
+    const r = RUN.rows[id], ends = oppositeEnds(c, id);
+    if (!ends.length) return '';
+    return '<p class="poles">Coded with ' + ends.map(k => {
+      const means = poleMeans(k, r.codes[k]);
+      return `<b>the ${esc(label(k).toLowerCase())} at its opposite pole</b>, ${esc(label(r.codes[k]))}` + (means ? `: ${esc(means)}` : '');
+    }).join('; and ') + '</p>';
+  }
+  function rowShort(id, c) {
     const r = RUN.rows[id];
     if (!r) return '';
-    return `<div class="item"><p class="doc-tag">${docLink(r.doc)} · ${esc(group(r.doc))}</p><q>${esc(r.ctx[1])}</q> <button class="rowlink" data-row="${esc(id)}">in context</button> ${wholeLink(id)}</div>`;
+    return `<div class="item"><p class="doc-tag">${docLink(r.doc)} · ${esc(group(r.doc))}</p><q>${esc(r.ctx[1])}</q> <button class="rowlink" data-row="${esc(id)}">in context</button> ${wholeLink(id)}${c ? poles(c, id) : ''}</div>`;
   }
   function open(html) {
     hideTip();
@@ -159,16 +176,23 @@
         c.docs.map(d => `<div class="item"><p class="doc-tag">${docLink(d)} · ${esc(group(d))}</p></div>`).join(''));
     }
     const said = within && within in c.within ? `${c.n} of ${c.within[within]}` : c.said;
+    // with opposites combined, each end that some passage holds at its opposite pole says so, and how many do
+    const flips = k => c.rows.filter(id => oppositeEnds(c, id).includes(k)).length;
     const what = Object.entries(c.values).map(([k, v]) => {
-      const d = RUN.defs[k + '=' + v];
-      return `<li><b>${esc(label(k))}: ${esc(label(v))}</b>${d ? '. ' + esc(d) : ''}</li>`;
+      const d = RUN.defs[k + '=' + v], n = flips(k);
+      const od = n ? poleMeans(k, '~' + String(v).replace(/^~/, '')) : '';
+      return `<li><b>${esc(label(k))}: ${esc(label(v))}</b>${d ? '. ' + esc(d) : ''}` +
+        (n ? ` Or its opposite pole${od ? ', ' + esc(od) : ''}: ${n} of these ${c.rows.length} passages.` : '') + '</li>';
     }).join('');
+    const both = combined(c) ? '<p class="small">Opposites are combined here, so a passage coded at either pole of an end counts towards this link. Passages coded at an opposite pole come first and say so under the quotation; the rest were coded at the poles named above.</p>' : '';
     // a count stands on firm rows; the documents a cell holds only through weak rows are listed apart, after them
     const weakDocs = c.weak_docs || [], firmDocs = c.docs.filter(d => !weakDocs.includes(d));
     const isWeak = id => (RUN.rows[id] || {}).weak;
-    const firmRows = c.rows.filter(id => !isWeak(id)).map(rowShort).join('');
-    const weakRows = c.rows.filter(isWeak).map(rowShort).join('');
-    open(`<h3>${esc(said)}</h3><p class="small">Counted by code from the coded passages: the ${c.base == null ? 'passages' : 'documents'} where</p><ul>${what}</ul>
+    // passages coded at an opposite pole first, since they are the few a reader looks for
+    const listed = c.rows.filter(id => oppositeEnds(c, id).length).concat(c.rows.filter(id => !oppositeEnds(c, id).length));
+    const firmRows = listed.filter(id => !isWeak(id)).map(id => rowShort(id, c)).join('');
+    const weakRows = listed.filter(isWeak).map(id => rowShort(id, c)).join('');
+    open(`<h3>${esc(said)}</h3><p class="small">Counted by code from the coded passages: the ${c.base == null ? 'passages' : 'documents'} where</p><ul>${what}</ul>${both}
       <p class="small">${firmDocs.length ? 'Who: ' + firmDocs.map(docLink).join(', ') : 'Nobody firmly.'}</p>${firmRows}` +
       (weakRows ? `<p class="small">Only hinted at, so left out of the count${weakDocs.length ? ': ' + weakDocs.map(docLink).join(', ') : ''}</p>${weakRows}` : ''));
   }
@@ -182,7 +206,8 @@
     const ids = [...new Set(cells.flatMap(c => c.rows))];
     if (!ids.length) return;
     const text = [...node.querySelectorAll('text')].map(t => t.textContent).join(' ');
-    open(`<h3>${esc(text)}</h3><p class="small">${ids.length} passage${ids.length === 1 ? '' : 's'} behind the ${cells.length} link${cells.length === 1 ? '' : 's'} into and out of this factor</p>` + ids.map(rowShort).join(''));
+    const cellOf = id => cells.find(c => c.rows.includes(id));
+    open(`<h3>${esc(text)}</h3><p class="small">${ids.length} passage${ids.length === 1 ? '' : 's'} behind the ${cells.length} link${cells.length === 1 ? '' : 's'} into and out of this factor</p>` + ids.map(id => rowShort(id, cellOf(id))).join(''));
   }
   // What a finding rests on: the numbers it states, each opening who it counts, the passages it quotes, and the
   // workflow steps they came from, each opening its block under How this was made.
@@ -196,7 +221,7 @@
       return `<div class="item"><button class="n" data-cell="${esc(id)}">${esc(c.said)}</button> ${esc(v || 'documents read')}</div>`; };
     open('<h3>What this rests on</h3>' +
       (cells.length ? `<p class="small">${cells.length} number${cells.length === 1 ? '' : 's'}, counted by code</p>` + cells.map(said).join('') : '') +
-      (rows.length ? `<p class="small">${rows.length} quoted passage${rows.length === 1 ? '' : 's'}</p>` + rows.map(rowShort).join('') : '') +
+      (rows.length ? `<p class="small">${rows.length} quoted passage${rows.length === 1 ? '' : 's'}</p>` + rows.map(id => rowShort(id)).join('') : '') +
       (steps.length ? '<p class="small">From these steps</p><p>' + steps.map(s => `<button class="rowlink" data-step="${esc(s)}">${esc(label(s))}</button>`).join('') + '</p>' : ''));
   }
   function showStep(id) {
@@ -207,25 +232,7 @@
   }
   function showRows(ids) {
     if (ids.length === 1) return open(rowInPlace(ids[0]));
-    open(`<h3>${ids.length} passages</h3>` + ids.map(rowShort).join(''));
-  }
-
-  // Hand the run to the Rubicon page in this browser: the page says it is ready, and this answers
-  // with the zip (webapp/rubicon/js/receive.js). Nothing goes to a server.
-  function openInCausalMap() {
-    const said = document.getElementById('open-in-cm-said');
-    const page = window.open(RUN_ZIP.page + '?receive=1', '_blank');
-    if (!page) {
-      said.hidden = false;
-      said.textContent = 'This viewer cannot open the page. Open this report in your web browser and click again.';
-      return;
-    }
-    const origin = new URL(RUN_ZIP.page, location.href).origin;
-    addEventListener('message', e => {
-      if (e.source === page && e.data && e.data.type === 'rubicon-ready') {
-        page.postMessage({ type: 'rubicon-run', name: RUN_ZIP.name, folder: RUN_ZIP.folder, zip: RUN_ZIP.zip }, origin);
-      }
-    });
+    open(`<h3>${ids.length} passages</h3>` + ids.map(id => rowShort(id)).join(''));
   }
 
   document.addEventListener('click', e => {
@@ -238,7 +245,6 @@
     const b = e.target.closest('button');
     if (!b) return;
     if (b.id === 'panel-close') { panel.hidden = true; return; }
-    if (b.id === 'open-in-cm') return openInCausalMap();
     if (b.dataset.cell) return showCell(b.dataset.cell, b.dataset.within);
     if (b.dataset.row) return open(rowInPlace(b.dataset.row));
     if (b.dataset.rows) return showRows(b.dataset.rows.split(','));

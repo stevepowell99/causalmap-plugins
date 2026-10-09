@@ -1,6 +1,6 @@
 """Draw a Rubicon run folder as a report to read and click through, the same report for Word, and the run as a zip.
 
-    python render_report.py <run folder> [--date "6 October 2026"] [--fragment] [--page <url of rubicon.html>]
+    python render_report.py <run folder> [--date "6 October 2026"] [--fragment]
     python render_report.py <run .zip>   [the same options]
 
 The three files share one name, made from the question, the day and the first eight characters of the run's
@@ -14,10 +14,10 @@ from the zip alone, into a folder beside it named after it (`unpack`), under the
 The report is drawn from the zip and from nothing else: given a folder, this makes the zip first, then reads only the
 zip (`load`), so a report cannot say anything its zip does not hold. The zip is sealed: `SHA256SUMS` lists the SHA-256
 of every other file in it, and the SHA-256 of that list is the run's fingerprint, printed in the report. `render.json`
-in the zip gives the name, date and page the report is drawn under and the engine that drew it, and its files carry a
+in the zip gives the name and date the report is drawn under and the engine that drew it, and its files carry a
 fixed date, so the same run always makes the same zip and the same zip the same report, byte for byte. Nothing is drawn
-from a zip whose seal is broken, or whose recount a fresh recount of its own coded rows and answer would change
-(`problems`). `verify.py` says whether a given report was drawn from a given zip.
+from a zip whose seal is broken, whose recount a fresh recount of its own coded rows and answer would change, or whose
+answer cites a row the recount does not hold (`problems`). `verify.py` says whether a given report was drawn from a given zip.
 
 Reads only what the run already holds (answer.md with its cell ids, recount/steps/*.json, recount/report.json,
 corpus/index.csv and the corpus text for context around each quotation). Makes no model call, so it costs nothing
@@ -27,10 +27,6 @@ In answer.md, a line holding only {{figure <table id>}} draws that table as a ch
 ends of a code step's causal links draws as a causal map: the report carries its DOT (rubicon_open/draw_map.mjs) and
 Graphviz draws it in the reader's browser, loaded at a fixed version from jsDelivr and checked against its hash (`GRAPHVIZ`).
 --fragment writes the page without <html>/<head>/<body>, for publishing as an Artifact.
-
-The report carries its zip, and its "Open in Causal Map" button hands the run to the Rubicon page in the reader's own
-browser (`webapp/rubicon/js/receive.js` says how), so nobody downloads or uploads anything. --page points the button
-at another copy of the page, such as a local one for testing.
 """
 import base64, csv, datetime, gzip, hashlib, html, io, json, re, shutil, subprocess, sys, tempfile, zipfile
 from pathlib import Path
@@ -39,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder
 from rubicon_open import locator, node
 from rubicon_open.corpus import INDEX_FIELDS, as_read
 from rubicon_open.run_id import clean as run_id_of
-from rubicon_open.seal import engine_fingerprint, engine_version, listed, seal_broken
+from rubicon_open.seal import engine_fingerprint, engine_version, seal_broken
 from rubicon_open.steps import ROW_ID, base_of, cited_as, group_ids, stated
 from rubicon_open.workflow import arrow_parts, loop_markers, sign_of, value_key
 
@@ -47,11 +43,6 @@ ENGINE = Path(__file__).resolve().parent
 DRAW_MAP = ENGINE / "rubicon_open" / "draw_map.mjs"
 #: Every file in a zip carries this date, so the same run always makes the same zip, byte for byte
 STAMP = (1980, 1, 1, 0, 0, 0)
-PAGE = "https://app.causalmap.app/rubicon.html"
-#: Whether a report offers to open its run on the Rubicon page (PAGE). Off until the live site, which serves `main`,
-#: has the page that receives a run; `--page <url>` turns it on for one report, such as against the dev site.
-#: `rubicon/plugin/build.py` reads this line, and leaves the skill's hand-over bullet out while it is off.
-HANDOFF = False
 CONTEXT = 420  # characters of the document shown either side of a quotation
 
 
@@ -105,7 +96,8 @@ def same(name, a, b):
             return drop(a) == drop(b)
         except (OSError, ValueError, AttributeError):
             pass
-    return a.read_bytes() == b.read_bytes()
+    # line endings are the platform's that wrote the file (a recount on Windows writes \r\n), never part of a count
+    return a.read_bytes().replace(b"\r\n", b"\n") == b.read_bytes().replace(b"\r\n", b"\n")
 
 
 def bundle(run, out, render):
@@ -190,7 +182,7 @@ def label(v):
 def load(zipped):
     """Everything a report draws, read from the run's sealed zip and from nothing else, so a report can say nothing its
     zip does not hold: the counts, rows and checks of the recount, the answer as written, the documents, the second
-    reading, the revisions, and from `render.json` the name, date and page it is drawn under."""
+    reading, the revisions, and from `render.json` the name and date it is drawn under."""
     with zipfile.ZipFile(zipped) as z:
         names = set(z.namelist())
         text = lambda n: z.read(n).decode("utf-8") if n in names else ""
@@ -215,30 +207,33 @@ def load(zipped):
             "revisions": text("revisions.md"),
             # The files' own name carries the fingerprint's first characters, so a report and its zip are seen to match
             "name": f"{render['name']}-{fingerprint[:8]}", "zip": f"{render['name']}-{fingerprint[:8]}.zip",
-            "date": render["date"], "page": render.get("page"),
-            "folder": render.get("folder", ""), "version": render.get("version"), "engine": render.get("engine"),
+            "date": render["date"], "version": render.get("version"), "engine": render.get("engine"),
             "fingerprint": fingerprint,
-            # The run the report hands to the page: the zip re-made from its own contents in its own order, so how the
-            # zip was packed, by this engine or by any other tool, never changes the report
-            "zip_b64": base64.b64encode(sealed([(n, z.read(n)) for n in listed(z)])).decode("ascii")
-                       if render.get("page") else "",
         }
 
 
 def problems(zipped):
-    """Why no report may be drawn from this zip: its seal is broken, or its recount is not what a fresh recount of its
-    own coded rows and answer gives. Empty means the zip is as it was made and every number in it follows from its
-    coded passages."""
+    """Why no report may be drawn from this zip: its seal is broken, its recount is not what a fresh recount of its
+    own coded rows and answer gives, or its answer cites a row the recount does not hold. Empty means the zip is as it
+    was made, every number in it follows from its coded passages and every citation opens one."""
     with zipfile.ZipFile(zipped) as z:
         broken = seal_broken(z)
+        report = json.loads(z.read("report.json").decode("utf-8")) if "report.json" in z.namelist() and not broken else {}
     if broken:
         return [f"{zipped.name} is not as it was made: " + "; ".join(broken)]
     with tempfile.TemporaryDirectory() as t:
         run = Path(t) / "run"
         unpack(zipped, run)
         differs = recount_differs(run)
-    return ([f"its recount does not follow from its coded rows and its answer: {', '.join(differs)} would change. "
-             "Recount with recount.py <folder> --answer answer.md, then draw again"] if differs else [])
+    if differs:
+        return [f"its recount does not follow from its coded rows and its answer: {', '.join(differs)} would change. "
+                "Recount with recount.py <folder> --answer answer.md, then draw again"]
+    # The recount is the one place that knows which rows exist; a citation it names as no row would draw as a bare id
+    # that opens nothing
+    unknown = (report.get("answer") or {}).get("citations_to_no_row") or []
+    return ([f"the answer cites {', '.join(unknown)}, which no row of the run is called, so a reader would see a bare id "
+             "that opens no passage. Cite each passage by the id recount/rows.md gives it, recount, then draw again"]
+            if unknown else [])
 
 
 def group_column(index):
@@ -358,9 +353,28 @@ def heat(pairs):
     return (lambda n, b: n / (b or top)), note
 
 
+#: what emphasis never reaches into, in escaped text: a quotation, a count or citation in its brackets, code, and a
+#: factor written with a leading ~
+UNEMPHASISED = re.compile(r"“[^”]*”|&quot;.*?&quot;|\{[^{}]*\}|\[[^\[\]]*\]|`[^`]*`|~[^\s,;.]+")
+#: *words*, tight against the asterisks on both sides, so that "3 * 4" or a lone * stays as written
+EMPHASIS = re.compile(r"(?<![\w*])\*(?=[^\s*])([^*\n]*?[^\s*])\*(?![\w*])")
+
+
+def emphasised(out):
+    """Escaped text with each *phrase* in italics, leaving quotations, counts, citations, code and ~labels as written."""
+    kept = UNEMPHASISED.findall(out)
+    return "".join(EMPHASIS.sub(r"<em>\1</em>", part) + (kept[i] if i < len(kept) else "")
+                   for i, part in enumerate(UNEMPHASISED.split(out)))
+
+
+def marked(out):
+    """Escaped text with markdown's **strong** and *emphasis* set, the one place the report reads either, for the
+    answer, the plain records in the annexes and the map's caption alike."""
+    return emphasised(re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", out))
+
+
 def inline(text, R, D, cite_no, static, plain=False):
-    out = esc(text)
-    out = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", out)
+    out = marked(esc(text))
     out = re.sub(r"`([^`]+)`", r"<code>\1</code>", out)
 
     def cell(m):
@@ -551,15 +565,9 @@ def causal_map(s, cells, by):
     edges = [{"id": c["id"], "from": c["values"][a], "to": c["values"][b], "n": c["n"],
               **({"sign": sign_of(c["values"][by[2]])} if len(by) == 3 else {}),
               **({"flipped": {**c["flipped"], "of": len(c["rows"])}} if "flipped" in c else {})} for c in cells if c["n"]]
-    svg = graph(node.call(DRAW_MAP, {"edges": edges}, "map drawing"))
-    signs = (" The sign at each arrowhead says whether the two move the same way (+), opposite ways (\u2212) or the "
-             "source did not say (?).") if len(by) == 3 else ""
-    opposites = (" Opposites are combined: a factor coded as the opposite of another, written with a leading ~, is drawn "
-                 "as that other factor. Each arrow runs from blue to red at its tail as more of its passages concern the "
-                 "opposite of its cause, and at its head as more concern the opposite of its effect; a factor's border "
-                 "is coloured the same way.") if any(e.get("flipped") for e in edges) else ""
-    return (f'<figure class="fig map">{svg}<figcaption>Each arrow is a causal link, numbered by the documents that '
-            f'mention it.{signs}{opposites} Click an arrow or a factor for its passages.</figcaption></figure>')
+    drawn = node.call(DRAW_MAP, {"edges": edges}, "map drawing")
+    # the caption's words are map-dot.js's, which the page's map says too
+    return f'<figure class="fig map">{graph(drawn)}<figcaption>{marked(esc(drawn["caption"]))}</figcaption></figure>'
 
 
 #: The most loops one figure line draws, each as its own small diagram
@@ -786,16 +794,16 @@ def record_html(text):
     def flush():
         nonlocal para, items
         if para:
-            out.append(f"<p>{esc(' '.join(para))}</p>")
+            out.append(f"<p>{marked(esc(' '.join(para)))}</p>")
         if items:
-            out.append("<ul>" + "".join(f"<li>{esc(i)}</li>" for i in items) + "</ul>")
+            out.append("<ul>" + "".join(f"<li>{marked(esc(i))}</li>" for i in items) + "</ul>")
         para, items = [], []
     for ln in text.splitlines():
         t = ln.strip()
         if t.startswith("#"):
             flush()
             if not t.startswith("# "):
-                out.append(f"<h4>{esc(t.lstrip('#').strip())}</h4>")
+                out.append(f"<h4>{marked(esc(t.lstrip('#').strip()))}</h4>")
         elif t.startswith("- "):
             if para:
                 flush()
@@ -952,7 +960,7 @@ def annex(R, D, static=False):
                    "place the two codings differed, and checked every sentence and quotation of the answer against the "
                    "documents, correcting the coding and the answer where they were wrong. The answer above is the "
                    "corrected one, recounted after the check.</p>"
-                   + (f'<p class="small">{esc(counts)}</p>' if static and counts else "" if static else
+                   + (record_html(counts) if static and counts else "" if static else
                       '<div class="rb-block" data-node="asset:check"><details><summary>The check\'s record '
                       f'<span class="small">check.md</span></summary><div class="record">{record_html(R["check"])}</div></details></div>')
                    + "</section>")
@@ -973,7 +981,7 @@ def annex(R, D, static=False):
     if revised:
         out.append("<h3>Revisions</h3><p>Changes made after the first report, each recounted and checked before this "
                    "version was drawn. Earlier versions keep their own files.</p><ul>"
-                   + "".join(f"<li>{esc(l)}</li>" for l in revised) + "</ul>")
+                   + "".join(f"<li>{marked(esc(l))}</li>" for l in revised) + "</ul>")
     return "\n".join(out)
 
 
@@ -985,7 +993,7 @@ def further(R):
                   'workshops and consultancy on analysing qualitative evidence for evaluation: '
                   '<a href="https://causalmap.app/contact/?utm_source=rubicon-plugin&amp;utm_medium=report">get in touch</a>, '
                   'or follow <a href="https://www.linkedin.com/company/causalmap/">Causal Map on LinkedIn</a>.'
-                  + ('' if R.get("page") else ' Coming soon: continue your Rubicon work at the Rubicon website.') + '</p>')
+                  ' Coming soon: continue your Rubicon work at the Rubicon website.</p>')
     if test:
         return ('<p>This report is one half of a test of the workflow on made-up documents, and what it says about them '
                 'matters only as a result of that test. Compare its verdict, and the other test set\'s, with the verdicts '
@@ -994,8 +1002,7 @@ def further(R):
                 'documents were written from or the workflow went wrong, and correct that before testing again.</p>'
                 f'<p><b>{esc(R["zip"])}</b>, saved beside this report, holds the whole run: the documents, the coded '
                 'passages and the workflow that recounts every number. Keep it with the test\'s plan as the record of '
-                'what was tested.</p>'
-                + (handoff(R) if R.get("page") else '') + causal_map)
+                'what was tested.</p>' + causal_map)
     return ('<p><b>For the evaluator:</b> Treat this report as a draft. Before it is final, make sense of it with the '
             'people it concerns, such as programme staff and participants: whether the findings ring true, what they '
             'leave out, and what to do about them. You can then use the Rubicon plugin to work their responses back into a '
@@ -1006,8 +1013,7 @@ def further(R):
             'either and they no longer match. With it, anyone can check every number against the coded passages, and code the '
             'documents again to the same definitions without Rubicon or any other particular software. A fresh coding '
             'will not reproduce this report word for word, because AI models are unpredictable, but it should come '
-            'close.</p>'
-            + (handoff(R) if R.get("page") else '') + causal_map)
+            'close.</p>' + causal_map)
 
 
 #: Characters of documents a report carries for reading them whole; above this a reader opens them from the run's zip
@@ -1026,26 +1032,6 @@ def packed_texts(R):
 
 def texts(R):
     return f' const TEXTS = "{packed_texts(R)}";'
-
-
-def run_zip(R):
-    """The run itself, for the button to hand over (report.js), only where the report offers it."""
-    if not R.get("page"):
-        return ""
-    folder = json.dumps(R.get("folder", "")).replace("</", "<\\/")
-    return (f' const RUN_ZIP = {{name: {json.dumps(R["zip"])}, folder: {folder}, page: {json.dumps(R["page"])}, '
-            f'zip: "{R.get("zip_b64", "")}"}};')
-
-
-def handoff(R):
-    """The button that opens the run on the Rubicon page, and what the report records so it can."""
-    return ('<p><button class="open-cm" id="open-in-cm">Open in Causal Map</button> to explore the run in your browser, '
-            'with every document in full and the workflow drawn. It needs a free Causal Map account. The run goes '
-            'straight from this report to the page and is not saved to Causal Map.</p>'
-            '<p class="small">This report also records where the run sits on this computer, '
-            f'<code>{esc(R.get("folder", ""))}</code>, so that the page can offer to ask Claude about it. Anyone you '
-            'send the report to can read that path, which may include your user name.</p>'
-            '<p id="open-in-cm-said" class="small" hidden></p>')
 
 
 def margin_map(R):
@@ -1150,7 +1136,7 @@ def page(R, fragment=False):
 </main>
 <aside class="panel" id="panel" hidden><button class="close" id="panel-close" aria-label="Close">×</button><div id="panel-body"></div></aside>
 </div>
-<script>const RUN = {data};{texts(R)}{run_zip(R)}</script>
+<script>const RUN = {data};{texts(R)}</script>
 {GRAPHVIZ if '<pre class="dot"' in body + map_js else ""}<script>{js}</script>
 <script>{map_js}</script>
 """
@@ -1198,11 +1184,8 @@ if __name__ == "__main__":
         if not frag and runs.is_file() and re.search(rf"{re.escape(name)}-[0-9a-f]{{8}}\.html", runs.read_text(encoding="utf-8")):
             sys.exit(f"{name}-….html is already listed in {runs.name} as handed over, so it is not overwritten. A revision "
                      "adds its line to revisions.md first, and the report is then written under a new -revision- name.")
-        page_url = sys.argv[sys.argv.index("--page") + 1] if "--page" in sys.argv else PAGE if HANDOFF else None
         render = {"name": name, "date": sys.argv[sys.argv.index("--date") + 1] if "--date" in sys.argv else "",
-                  "page": page_url, "engine": engine_fingerprint(ENGINE), "version": engine_version(ENGINE)}
-        if page_url:
-            render["folder"] = str(folder.resolve())
+                  "engine": engine_fingerprint(ENGINE), "version": engine_version(ENGINE)}
         zipped = folder / f"{name}.zip.part"  # named once its fingerprint is known
         bundle(folder, zipped, render)
     refused = problems(zipped)
@@ -1221,8 +1204,8 @@ if __name__ == "__main__":
         sys.exit("No report is drawn: the answer writes " + ", ".join("{" + u + "}" for u in R["unfilled"])
                  + ", which no count in the run is called, so a reader would see the braces. Write a count's id as the "
                  "answer's tables give it, or the number in words.")
-    out.write_text(drawn, encoding="utf-8")
-    (folder / f"{R['name']}.doc").write_text(doc, encoding="utf-8")
+    out.write_text(drawn, encoding="utf-8", newline="\n")
+    (folder / f"{R['name']}.doc").write_text(doc, encoding="utf-8", newline="\n")
     print(f"wrote {out.name}, {R['name']}.doc and {R['zip']} in {folder}")
     if R.get("missing_sections"):
         print("[§ ] references naming no section of the answer: " + ", ".join(sorted(set(R["missing_sections"]))))

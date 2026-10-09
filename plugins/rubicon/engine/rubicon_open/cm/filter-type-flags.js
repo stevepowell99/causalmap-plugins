@@ -1,6 +1,6 @@
 // Behavioural flags for filter types. Deliberately a leaf module with no
 // imports, so Node test harnesses can read it without pulling in the browser
-// -only filter pipeline (supabase, DataService, AIManager and the rest).
+// -only filter pipeline.
 // Display metadata for the same types lives in FILTER_TYPE_META
 // (filter-pipeline-ui.js); this file is only about how they compose.
 

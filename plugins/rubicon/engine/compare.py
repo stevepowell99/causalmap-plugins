@@ -83,9 +83,9 @@ def compare(a: Path, b: Path) -> dict:
                 out["tables"][sid] = {"verdict": [ta.get("verdict"), tb.get("verdict")],
                                       "criteria": {c["id"]: [c.get("level"), d.get("level")]
                                                    for c, d in zip(ta.get("criteria") or [], tb.get("criteria") or [])}}
-    (b / "compare.json").write_text(json.dumps(out, indent=1, ensure_ascii=False), encoding="utf-8")
+    (b / "compare.json").write_text(json.dumps(out, indent=1, ensure_ascii=False), encoding="utf-8", newline="\n")
     (b / "disagreements.md").write_text("\n".join(disagreements) + "\n" if disagreements
-                                        else "The two coders placed every document and value alike.\n", encoding="utf-8")
+                                        else "The two coders placed every document and value alike.\n", encoding="utf-8", newline="\n")
     return out
 
 

@@ -82,7 +82,7 @@ def remember(data, *documents):
     new = [str(d.resolve()) for d in documents if str(d.resolve()) not in known]
     if new:
         data.mkdir(parents=True, exist_ok=True)
-        (data / FOLDERS).write_text("".join(f"{f}\n" for f in known + new), encoding="utf-8")
+        (data / FOLDERS).write_text("".join(f"{f}\n" for f in known + new), encoding="utf-8", newline="\n")
     return new
 
 
@@ -101,7 +101,7 @@ def add(report, data):
         link = lambda kind, label: f"[{label}]({urllib.parse.quote(report.with_suffix(kind).relative_to(documents).as_posix())})"
         text = text.rstrip("\n") + ("\n" if "\n- " in text else "\n\n") + (f"- {run['date']}: {q} {link('.html', 'report')}, {link('.doc', 'Word')}, "
                                            f"{link('.zip', 'zip')}, fingerprint {run['fingerprint'][:8]}\n")
-        runs.write_text(text, encoding="utf-8")
+        runs.write_text(text, encoding="utf-8", newline="\n")
     print(f"listed {report.name} in {runs}")
     if not data:
         print("No plugin data folder was given, so the folder is not added to the list of every folder Rubicon has "
@@ -223,7 +223,7 @@ if __name__ == "__main__":
             remember(data, *here)
         listed = list(dict.fromkeys((folders(data) if data else []) + [str(h) for h in here]))
         out = Path(opt("--out"))
-        out.write_text(page(listed), encoding="utf-8")
+        out.write_text(page(listed), encoding="utf-8", newline="\n")
         print(f"wrote {out}: {n(len(listed), 'documents folder')}"
               + (f", from {data / FOLDERS}" if data else ", with no plugin data folder, so only the folder given"))
     elif "--find" in args:

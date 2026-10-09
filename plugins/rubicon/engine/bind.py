@@ -274,8 +274,8 @@ def main(argv):
     date = opt("--date") or f"{datetime.date.today().day} {datetime.date.today():%B %Y}"
     out = Path(opt("--out")).resolve() if opt("--out") else folders[0]
     name = name_for(title, [p["R"]["fingerprint"] for p in parts])
-    (out / f"{name}.html").write_text(binder_html(parts, title, date, documents), encoding="utf-8")
-    (out / f"{name}.doc").write_text(binder_word(parts, title, date, documents), encoding="utf-8")
+    (out / f"{name}.html").write_text(binder_html(parts, title, date, documents), encoding="utf-8", newline="\n")
+    (out / f"{name}.doc").write_text(binder_word(parts, title, date, documents), encoding="utf-8", newline="\n")
     print(f"wrote {name}.html and {name}.doc in {out}, binding:\n"
           + "\n".join(f"{p['k']}. {p['heading']} ({p['report'].name})" for p in parts))
 

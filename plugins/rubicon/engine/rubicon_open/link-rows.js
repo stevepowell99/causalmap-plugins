@@ -59,7 +59,33 @@ export function filterRows(apply, rows, ends, filters, attributes = {}) {
              filtered: { links_in: links.length, links_out: got.rows.length, rows_out: new Set(out.map(r => r.row)).size } }
 }
 
-/** The links the rows make, each with the documents that mention it and its rows: `n` counts documents. */
+/**
+ * Causal Map's Combine Opposites as a map applies it by default: Together bundling, counts as
+ * the link labels, and both kinds of opposite on, as the app sets them when the filter is added.
+ */
+export const OPPOSITES = { type: 'combine-opposites', useNumericOpposites: true, useTildeOpposites: true,
+                           bundleStrategy: 'together', labelDetail: 'simple' }
+
+/**
+ * The filters a map applies: a Combine Opposites filter that leaves a setting out takes the
+ * app's default for it (the engine reads a missing `useTildeOpposites` as off), and a map
+ * (`map` true: a table by two unsigned link ends, not paths, told sequences or loops) without
+ * one gets one, placed where the caller's `place` puts it, which is Causal Map's
+ * `suggestFilterPosition` from `filter-type-flags.js`.
+ */
+export function chainFor(filters = [], map = false, place = chain => chain.length) {
+    const chain = filters.map(f => (f?.type === 'combine-opposites' ? { ...OPPOSITES, ...f } : f))
+    if (map && !chain.some(f => f?.type === 'combine-opposites')) {
+        chain.splice(place(chain, 'combine-opposites'), 0, { ...OPPOSITES })
+    }
+    return chain
+}
+
+/**
+ * The links the rows make, each with the documents that mention it and its rows: `n` counts
+ * documents. Where any row had an end flipped by Combine Opposites, each link also says how
+ * many of its `of` rows had the cause, and the effect, flipped.
+ */
 export function edgesOf(rows, ends) {
     const at = new Map()
     for (const r of rows) {
@@ -73,7 +99,10 @@ export function edgesOf(rows, ends) {
             }
         }
     }
-    return [...at.values()].map(e => ({ ...e, documents: [...e.documents].sort(), n: e.documents.size }))
+    const flips = rows.some(r => r.flipped_cause || r.flipped_effect)
+    return [...at.values()].map(e => ({ ...e, documents: [...e.documents].sort(), n: e.documents.size,
+        ...(flips ? { flipped: { cause: e.rows.filter(r => r.flipped_cause).length,
+                                 effect: e.rows.filter(r => r.flipped_effect).length, of: e.rows.length } } : {}) }))
 }
 
 /** The filters a map's controls set, which replace any of the same kind in the step's own list. */
