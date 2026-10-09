@@ -60,10 +60,12 @@ a.see { color: var(--quiet); font-size: .85em; white-space: nowrap; }
 
 .fig { margin: 1.2rem 0; padding: 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
 .map svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
-.map text { fill: var(--ink); }
-.map .node path, .map .node polygon { stroke: var(--ink); fill: var(--paper); }
-.map .edge path { stroke: var(--ink); }
-.map .edge polygon { stroke: var(--ink); fill: var(--ink); }
+/* combined opposites (class opp) keep the colours Graphviz gives them (rubicon_open/map-dot.js) */
+.map :not(.edge.opp) > text { fill: var(--ink); }
+.map .node path, .map .node polygon { fill: var(--paper); }
+.map .node:not(.opp) path, .map .node:not(.opp) polygon { stroke: var(--ink); }
+.map .edge:not(.opp) path { stroke: var(--ink); }
+.map .edge:not(.opp) polygon { stroke: var(--ink); fill: var(--ink); }
 .map g.edge { cursor: pointer; }
 .map g.edge:hover path, .map g.edge:hover polygon { stroke: var(--red); }
 .map g.node { cursor: pointer; }

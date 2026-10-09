@@ -5,7 +5,10 @@
  * `tests/rubicon-open-map-dot-twin.test.mjs` keeps identical), and the page draws it in the browser.
  *
  * `edges` is [{id, from, to, n, sign}]: `id` becomes the arrow's id in the drawing, so a click on it can open the cell,
- * and `sign`, where a causal loop diagram's link has one, is `+`, `-` or `?`, drawn at the arrowhead.
+ * and `sign`, where a causal loop diagram's link has one, is `+`, `-` or `?`, drawn at the arrowhead. Where opposites
+ * were combined, `colour` is {tail, head, mid}: the arrow runs from its tail colour to its head colour and its count is
+ * written in the colour between, and `borders` gives each factor's border colour, as Causal Map draws Together bundling.
+ * Each such arrow and factor carries the class `opp`, so a stylesheet that inks the map leaves their colours alone.
  *
  * `loopDot` draws one feedback loop as causal loop diagrams draw one: its variables round a circle, each arrow's sign at
  * its head, the loop's marker (R1, B1) in the middle, and the links into it from outside drawn in from beyond the circle.
@@ -29,7 +32,7 @@ export function wrapLabel(text, width = 22) {
     return lines.join('\n')
 }
 
-export function mapDot(edges, { rankdir = 'LR' } = {}) {
+export function mapDot(edges, { rankdir = 'LR', borders = {} } = {}) {
     const names = [...new Set(edges.flatMap(e => [String(e.from), String(e.to)]))]
     const node = new Map(names.map((name, i) => [name, `f${i}`]))
     const most = Math.max(1, ...edges.map(e => Number(e.n) || 0))
@@ -39,11 +42,14 @@ export function mapDot(edges, { rankdir = 'LR' } = {}) {
         '  node [shape=box, style="rounded", fontname="Helvetica", fontsize=11, margin="0.12,0.06"];',
         '  edge [fontname="Helvetica", fontsize=10, arrowsize=0.7];',
     ]
-    for (const name of names) out.push(`  ${node.get(name)} [label=${quote(wrapLabel(name))}];`)
+    const border = name => (borders[name] ? `, color=${quote(borders[name])}, penwidth=1.5, class="opp"` : '')
+    const coloured = e => (e.colour
+        ? `, color=${quote(`${e.colour.tail};0.5:${e.colour.head}`)}, fontcolor=${quote(e.colour.mid)}, class="opp"` : '')
+    for (const name of names) out.push(`  ${node.get(name)} [label=${quote(wrapLabel(name))}${border(name)}];`)
     for (const e of edges) {
         const n = Number(e.n) || 0
         out.push(`  ${node.get(String(e.from))} -> ${node.get(String(e.to))} [id=${quote(e.id)}, label=${quote(n)}, ` +
-            `penwidth=${(1 + 4 * n / most).toFixed(2)}, tooltip=${quote(`${e.from} → ${e.to}: ${n}`)}${signed(e)}];`)
+            `penwidth=${(1 + 4 * n / most).toFixed(2)}, tooltip=${quote(`${e.from} → ${e.to}: ${n}`)}${signed(e)}${coloured(e)}];`)
     }
     out.push('}')
     return out.join('\n')

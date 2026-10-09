@@ -94,6 +94,26 @@ export function computeLabelByGroupEdgeLabel(edgeLinks, allLinks, filter, option
     return label || String(bundleCount)
 }
 
+// Combine Opposites colouring: a link end or a factor runs from the unflipped colour, where none of its links was
+// coded at the opposite pole, to the flipped red, where all were. Together bundling uses this blue; Separate bundling
+// passes the map's main link colour as `unflipped`. The Rubicon report draws its maps with the same colours.
+export const OPPOSITES_UNFLIPPED_COLOUR = '#6dc4c8'
+export const OPPOSITES_FLIPPED_COLOUR = '#dc3545'
+
+export function interpolateHexColour(fromHex, toHex, t) {
+    const parse = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
+    const [r1, g1, b1] = parse(fromHex)
+    const [r2, g2, b2] = parse(toHex)
+    const tt = Math.max(0, Math.min(1, Number(t) || 0))
+    const hex = (a, b) => Math.round(a + (b - a) * tt).toString(16).padStart(2, '0')
+    return `#${hex(r1, r2)}${hex(g1, g2)}${hex(b1, b2)}`
+}
+
+/** The colour for a share (0 to 1) of links coded at the opposite pole. */
+export function flippedShareColour(share, unflipped = OPPOSITES_UNFLIPPED_COLOUR) {
+    return interpolateHexColour(unflipped, OPPOSITES_FLIPPED_COLOUR, share)
+}
+
 export function getRenderedEdgeBundleGroups(links, filters = []) {
     const combineOppFilter = Array.isArray(filters)
         ? filters.find(f => f?.type === 'combine-opposites' && f.enabled !== false)

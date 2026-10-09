@@ -35,7 +35,9 @@ export function linksOfRows(rows, ends) {
 /**
  * The rows put through `filters` in order, and back as rows: a surviving link comes back as its
  * row with the two ends as the filters left them, since a filter such as zoom renames a factor,
- * and once only where a renaming made two of a row's links one.
+ * and once only where a renaming made two of a row's links one. Where Combine Opposites rewrote
+ * an end, the row says so in `flipped_cause` or `flipped_effect`: that end was coded at the
+ * opposite pole, as a `~` label, and is now counted with its plain partner.
  */
 export function filterRows(apply, rows, ends, filters, attributes = {}) {
     const links = linksOfRows(rows, ends)
@@ -50,7 +52,8 @@ export function filterRows(apply, rows, ends, filters, attributes = {}) {
         const key = JSON.stringify([row, link.cause, link.effect])
         if (seen.has(key)) continue
         seen.add(key)
-        out.push({ ...byRow.get(row), [ends.from]: link.cause, [ends.to]: link.effect })
+        const flips = { ...(link.flipped_cause ? { flipped_cause: true } : {}), ...(link.flipped_effect ? { flipped_effect: true } : {}) }
+        out.push({ ...byRow.get(row), [ends.from]: link.cause, [ends.to]: link.effect, ...flips })
     }
     return { rows: out, unsupported: got.unsupported || [],
              filtered: { links_in: links.length, links_out: got.rows.length, rows_out: new Set(out.map(r => r.row)).size } }

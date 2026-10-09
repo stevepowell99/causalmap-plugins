@@ -275,8 +275,13 @@ def tabulate(run: Run, s: dict) -> dict:
         rec = run.out[src]  # "of" is the documents the coding read, including those that gave no row
         read = rec.get("documents") or run.out.get(rec.get("input"), {}).get("documents") or {r["document"] for r in rows}
     filtered = None
-    if s["filters"]:
-        rows, filtered = filter_links(run, src, rows, s["filters"])
+    filters = s["filters"]
+    if filters or is_map(run, src, s):
+        # a map of causal links combines opposites by default; where no end was flipped and the step set no filters
+        # of its own, the rows are counted as they were coded, so a table without opposites is unchanged
+        got, applied, did = filter_links(run, src, rows, filters, map=is_map(run, src, s))
+        if filters or any(r.get("flipped_cause") or r.get("flipped_effect") for r in got):
+            rows, filtered, filters = got, did, applied
     by, count = s["by"], s["count"]
     if s["loops"]:
         ends = next(st.get("links") for st in run.steps if st.get("id") == src)
@@ -288,7 +293,7 @@ def tabulate(run: Run, s: dict) -> dict:
     # every combination the columns allow is a cell, so a count of none is stated as 0 rather than left out; a sparse
     # table, such as causal links from one factor list crossed with itself, lists only the combinations that occur
     in_rows = {k for r in rows for k in r}
-    sparse = s["sparse"] or s["paths"] or s["loops"] or s.get("sequences") or bool(s["filters"])  # a filter can rename a factor, so no codebook lists its values
+    sparse = s["sparse"] or s["paths"] or s["loops"] or s.get("sequences") or bool(filtered)  # a filter can rename a factor, so no codebook lists its values
     if not sparse:
         domains = [_domain(run, src, c, read, c in in_rows) or sorted({k[i] for k in cells} - {"(blank)"}) for i, c in enumerate(by)]
         for cmb in itertools.product(*domains):
@@ -325,35 +330,52 @@ def tabulate(run: Run, s: dict) -> dict:
 
     def within(cmb):
         return {by[i]: sum(all(of_doc(d, by[j]) == cmb[j] for j in whole) for d in marginal[(i, cmb[i])]) for i in coded}
+    # where opposites were combined, a cell says how many of its rows had each end coded at the opposite pole, which
+    # the map colours the arrow's tail and head by
+    flips = {(r["row"], *(str(r.get(c)) for c in by)): r for r in rows if r.get("flipped_cause") or r.get("flipped_effect")} if filtered else {}
+
+    def flipped(k, v):
+        hit = [flips.get((x, *k), {}) for x in v["rows"]]
+        return {"flipped": {"cause": sum(bool(f.get("flipped_cause")) for f in hit),
+                            "effect": sum(bool(f.get("flipped_effect")) for f in hit)}} if flips else {}
     out = [{"values": dict(zip(by, k)), "n": len(firm(v)), "base": base(k), "within": within(k),
             **({"weak": len(v["documents"] if count == "documents" else v["rows"]) - len(firm(v))} if weak else {}),
-            "documents": sorted(v["documents"]), "rows": v["rows"]} for k, v in cells.items()]
+            **flipped(k, v), "documents": sorted(v["documents"]), "rows": v["rows"]} for k, v in cells.items()]
     if not s["loops"]:  # a loop's cells stay together, the loop's own first, in the order the loops were ranked
         out.sort(key=lambda c: (-c["n"], list(c["values"].values())))
     for k, c in enumerate(out, 1):  # an id per count, which the answer writes in place of the number
         c["id"] = f"{s['id']}.c{k}"
     return {"input": src, "by": by, "count": count, "of": len(read), "sparse": sparse, "paths": s["paths"],
             **({"loops": True} if s["loops"] else {}), **({"sequences": True} if s.get("sequences") else {}),
-            **({"filters": s["filters"], "filtered": filtered} if filtered else {}), "cells": out}
+            **({"filters": filters, "filtered": filtered} if filtered else {}), "cells": out}
 
 
 FILTER_SHIM = Path(__file__).resolve().parent / "filter_links.mjs"
 
 
-def filter_links(run: Run, src: str, rows: list[dict], filters: list[dict]) -> tuple[list[dict], dict]:
+def is_map(run: Run, src: str, s: dict) -> bool:
+    """Whether a tabulation is a causal map: counted by the two ends of a code step's unsigned links and nothing else.
+    A causal loop diagram's links carry a sign instead, and paths, told sequences and loops trace the links as coded."""
+    ends = next((st.get("links") for st in run.steps if st.get("id") == src), None)
+    return bool(ends and not ends.get("sign") and list(s["by"]) == [ends["from"], ends["to"]]
+                and not (s["paths"] or s["loops"] or s.get("sequences")))
+
+
+def filter_links(run: Run, src: str, rows: list[dict], filters: list[dict], map: bool = False) -> tuple[list[dict], list[dict], dict]:
     """A code step's rows as Causal Map links, put through Causal Map's own filters in order (`cm/`, run under Node),
     and back as rows with the two ends as the filters left them. The conversion is `link-rows.js`, which the Rubicon
     page refilters a map with too: each row gives a link for every pair of its two link-end values (the code step's
     `links`), with its document as the link's source and the document's facts on the source, so a filter reads
-    `s_<fact>` for one. Returns the rows and what the filtering did."""
+    `s_<fact>` for one. With `map`, opposites are combined unless the filters already say how (`filter_links.mjs`).
+    Returns the rows, the filters applied and what the filtering did."""
     ends = next(st.get("links") for st in run.steps if st.get("id") == src)
     docs = sorted({r["document"] for r in rows})
     attributes = {d: dict(run.corpus.documents.get(d, {}).get("columns") or {}) for d in docs}
-    got = node.call(FILTER_SHIM, {"rows": rows, "ends": ends, "filters": filters, "attributes": attributes},
+    got = node.call(FILTER_SHIM, {"rows": rows, "ends": ends, "filters": filters, "attributes": attributes, "map": map},
                     "link filters")
     if got["unsupported"]:
         raise ValueError(f"{', '.join(got['unsupported'])}: not a filter Causal Map's filter engine applies")
-    return got["rows"], got["filtered"]
+    return got["rows"], got["filters"], got["filtered"]
 
 
 def _combinations(run: Run, rows: list[dict], by: list[str]) -> dict[tuple, dict]:

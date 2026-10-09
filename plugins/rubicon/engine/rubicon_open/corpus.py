@@ -10,6 +10,14 @@ CORPUS = "corpus"
 BACKGROUND = "background"
 
 
+def as_read(text: str) -> str:
+    """A document as every offset in the open format counts it: each Windows (CRLF) or old Mac (CR) line ending made
+    one newline, the same as reading the file in text mode. The rule is written here once; the Rubicon page's bundle
+    reader and writer mirror it in `webapp/rubicon/js/model.js` (`asRead`), and `tests/rubicon-open-as-read-twin.test.mjs`
+    holds the two together."""
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 class RecordError(ValueError):
     """A count or a record file that cannot be read as written."""
 
@@ -31,7 +39,8 @@ class Corpus:
                 path = self.folder / self.documents[doc]["file"]
             else:
                 path = self.folder.parent / BACKGROUND / self.background[doc]["file"]
-            self._texts[doc] = path.read_text(encoding="utf-8")
+            with path.open(encoding="utf-8", newline="") as fh:
+                self._texts[doc] = as_read(fh.read())
         return self._texts[doc]
 
     def background_texts(self) -> dict[str, str]:

@@ -37,7 +37,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
 from rubicon_open import locator, node
-from rubicon_open.corpus import INDEX_FIELDS
+from rubicon_open.corpus import INDEX_FIELDS, as_read
 from rubicon_open.run_id import clean as run_id_of
 from rubicon_open.seal import engine_fingerprint, engine_version, listed, seal_broken
 from rubicon_open.steps import ROW_ID, base_of, cited_as, group_ids, stated
@@ -185,13 +185,6 @@ def label(v):
     an acronym such as AI keeps its capitals."""
     s = str(v).replace("_", " ").strip()
     return s[:1].upper() + s[1:]
-
-
-def as_read(text):
-    """A document as the recount read it: `corpus.py` opens it in text mode, which turns Windows and old Mac line
-    endings into one newline, and every passage's offsets count that text, so a document drawn with its CRLF kept
-    marks each passage one character early for every line break above it."""
-    return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 def load(zipped):
@@ -556,12 +549,17 @@ def graph(drawn):
 def causal_map(s, cells, by):
     a, b = by[:2]
     edges = [{"id": c["id"], "from": c["values"][a], "to": c["values"][b], "n": c["n"],
-              **({"sign": sign_of(c["values"][by[2]])} if len(by) == 3 else {})} for c in cells if c["n"]]
+              **({"sign": sign_of(c["values"][by[2]])} if len(by) == 3 else {}),
+              **({"flipped": {**c["flipped"], "of": len(c["rows"])}} if "flipped" in c else {})} for c in cells if c["n"]]
     svg = graph(node.call(DRAW_MAP, {"edges": edges}, "map drawing"))
     signs = (" The sign at each arrowhead says whether the two move the same way (+), opposite ways (\u2212) or the "
              "source did not say (?).") if len(by) == 3 else ""
+    opposites = (" Opposites are combined: a factor coded as the opposite of another, written with a leading ~, is drawn "
+                 "as that other factor. Each arrow runs from blue to red at its tail as more of its passages concern the "
+                 "opposite of its cause, and at its head as more concern the opposite of its effect; a factor's border "
+                 "is coloured the same way.") if any(e.get("flipped") for e in edges) else ""
     return (f'<figure class="fig map">{svg}<figcaption>Each arrow is a causal link, numbered by the documents that '
-            f'mention it.{signs} Click an arrow or a factor for its passages.</figcaption></figure>')
+            f'mention it.{signs}{opposites} Click an arrow or a factor for its passages.</figcaption></figure>')
 
 
 #: The most loops one figure line draws, each as its own small diagram

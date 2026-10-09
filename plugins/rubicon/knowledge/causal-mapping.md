@@ -45,7 +45,7 @@ The garden splits the work into three tasks: gather the material, code the claim
 Two structures in the labels carry most of the later analysis:
 
 - **Hierarchy.** `General concept; specific concept` means the coder is content for the specific link to count, in summary, as evidence for the general one, so a map can be zoomed out to the first level. A parent must itself be a causal factor, not a theme, and must not mix desirability within it (page `zoom-filter`).
-- **Opposites.** A `~` prefix marks a factor as the opposite of another (`~Smoking`), so the two can later be shown as one factor with the flipped links marked. Nothing is lost by combining them; "We don't have evidence for an aggregated strength; we have aggregated evidence for a strength" (page `combine-opposites-filter`).
+- **Opposites.** A `~` prefix marks a factor as the opposite of another (`~Smoking`), so the two can later be shown as one factor with the flipped links marked. Nothing is lost by combining them; "We don't have evidence for an aggregated strength; we have aggregated evidence for a strength" (page `combine-opposites-filter`). So a codebook gives a factor's other pole as its `~` form rather than as a separate factor (`~Employment`, not `Unemployment`), except where a factor has no other pole anybody would name, such as an event or a disease. The `~` marks the opposite pole, not a bad one.
 
 **With a codebook or without.** Coding against a theory of change's factors tests that theory; coding in the respondents' words finds what nobody anticipated. The garden's practice is mostly to code first without a codebook, since a codebook frames what a coder sees, and there are settings in between: a fixed first level with free detail beneath it is the usual compromise (pages `labels-creative`, `ai-coding`). Free labels leave a vocabulary problem, with one idea under many names, so open coding moves the hard work into recoding rather than removing it.
 
@@ -79,7 +79,7 @@ Where a coding uses a catch-all value for what fits nowhere, a single "other" fa
 - **Counts that depend on granularity.** How many links a factor has depends on how finely it was coded, so network statistics are fragile and comparisons across codings mislead.
 - **Selection.** Choosing which map to show, or cutting to the most frequent links, can drop the negative story or the unintended consequence. Say what was cut.
 - **Filters in the wrong order**, especially frequency before tracing, and combining opposites after the labels have been replaced, which fails silently.
-- **Opposites merged by clustering.** Similarity measures treat employment and unemployment as near neighbours, so a clustering can put opposed factors in one group unless it is told not to.
+- **Opposites merged by clustering.** Similarity measures treat employment and unemployment as near neighbours, so a clustering can put opposed factors in one group unless it is told not to. Naming the other pole with `~` keeps the two apart in the coding and together on the map.
 - **Invented intermediate steps**, added to one source's story because another source told a longer one.
 
 ## What good looks like
