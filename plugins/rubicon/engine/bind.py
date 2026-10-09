@@ -13,7 +13,7 @@ so every number and quotation in the combined report is one its run's report alr
 Each part names the run it came from: its ID, its zip and fingerprint, and the chat that first recounted it where the
 run recorded one.
 
-The combined report's two files are written beside the documents (or into `--out`), named from its title, the day and the
+The combined report is titled `--title`, else from its parts' headings (`default_title`). Its two files are written beside the documents (or into `--out`), named from its title, the day and the
 first eight characters of its own fingerprint, the SHA-256 of its parts' fingerprints in order, so a combined report of the same
 runs always carries the same name for the day. Makes no model call. Standard library and Node only.
 """
@@ -96,7 +96,7 @@ def part(k, report):
 
 
 #: A group of citations as `render_report.inline` draws one, and a finding's "based on" button: left out of the index
-CHIPS = re.compile(r'\s*\((?:<button class="cite"[^>]*>.*?</button>(?:; )?)+\)|<button class="based"[^>]*>.*?</button>')
+CHIPS = re.compile(r'\s*\((?:<button class="cite"[^>]*>.*?</button>(?:, |; )?)+\)|<button class="based"[^>]*>.*?</button>')
 
 
 def plain(markup):
@@ -223,6 +223,14 @@ BINDER_CSS = """
 """
 
 
+def default_title(headings):
+    """The title a combined report takes when the evaluator gives none: its parts' own headings, the first three in turn
+    and a count of the rest. Never the folder's name, which is the file system's word for the work rather than the reader's."""
+    shown = [h.strip() for h in headings if h.strip()][:3]
+    rest = len([h for h in headings if h.strip()]) - len(shown)
+    return " · ".join(shown) + (f" · and {rest} more question{'s' if rest > 1 else ''}" if rest > 0 else "")
+
+
 def name_for(title, fingerprints):
     words, slug = re.findall(r"[a-z0-9]+", re.sub(r"['’]", "", title.lower())), ""
     for w in words:
@@ -262,7 +270,7 @@ def main(argv):
     folders = list(dict.fromkeys(f.parent for f in run_folders))  # each documents folder, the one holding corpus/
     # The folders by name alone: a combined report is sent on, and a whole path can carry the user's name
     documents = [f.name for f in folders]
-    title = opt("--title") or f"Findings from {documents[0]}" + (" and other folders" if len(documents) > 1 else "")
+    title = opt("--title") or default_title([p["heading"] for p in parts])
     date = opt("--date") or f"{datetime.date.today().day} {datetime.date.today():%B %Y}"
     out = Path(opt("--out")).resolve() if opt("--out") else folders[0]
     name = name_for(title, [p["R"]["fingerprint"] for p in parts])

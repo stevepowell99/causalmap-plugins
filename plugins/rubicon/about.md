@@ -16,7 +16,7 @@ Claude reads their documents under their own Claude plan: the documents go to An
 
 ## What Rubicon does and does not do
 
-- **One question per report.** Each run answers one evaluation question and writes one report. If someone brings several questions, agree which one this run answers. Once several are answered, their reports can be combined into one, called a combined report, with a cover, the questions and their short answers, each answer in turn and every annex at the end.
+- **One question per report.** Each run answers one evaluation question and writes one report. If someone brings several questions, agree which one this run answers. Every run stays in the folder it was answered from, and Rubicon can show the earlier runs and their reports, revise one, or combine several into one report, called a combined report, with a cover, the questions and their short answers, each answer in turn and every annex at the end.
 - **No summaries or theme lists.** A plain summary, or a list of themes, cannot be checked as put. If that is what someone wants, their ordinary Claude can do it without Rubicon.
 - **Judgements of worth against the evaluator's own rubric.** Where the question asks how good something was, Rubicon helps the evaluator set the rubric (criteria, levels and what earns each) before any document is read, then applies it in the open beside the counts it reads. It never picks the standard itself.
 - **Room for people to take part.** The run can stop for stakeholders to agree the definitions, or the draft, before it goes on; and the report is a draft to make sense of with the people it concerns before it is final.

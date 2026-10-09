@@ -114,7 +114,7 @@ for sid, rec in run.out.items():
 
 (out / "rows.md").write_text("\n".join(S.row_line(r) for rec in run.out.values() if rec["kind"] == "code"
                                        for r in rec["rows"]) + "\n", encoding="utf-8")
-tables = [f"## {sid}\n\n" + (S._markdown(rec, sid) if rec["kind"] == "tabulate" else judge_markdown({**rec, "id": sid}))
+tables = [f"## {sid}\n\n" + (S._markdown(rec, sid) if rec["kind"] == "tabulate" else judge_markdown({**rec, "id": sid}, margins=True))
           for sid, rec in run.out.items() if rec["kind"] in ("tabulate", "judge")]
 (out / "tables.md").write_text("\n\n".join(tables) + "\n", encoding="utf-8")
 counts = S.counts_of(run, [sid for sid, rec in run.out.items() if rec["kind"] in ("tabulate", "judge")])

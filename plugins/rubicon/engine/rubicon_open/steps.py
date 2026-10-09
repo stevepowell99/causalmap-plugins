@@ -597,6 +597,8 @@ def counts_of(run: Run, inputs: list[str]) -> dict[str, int | str]:
                 if c.get("kind") == "rule":
                     for k, x in level_counts(i, c).items():
                         out[k], out[f"{k}.of"] = f"{x['n']} of {x['base']}", x["base"]
+                    # how many documents coded the other way would move the level, for an answer that says how near it is
+                    out.update({f"{i}.{c['id']}.margin.{side}": str(m["documents"]) for side, m in (c.get("margin") or {}).items()})
                 elif c.get("kind") == "stated" and c.get("start") is not None:
                     out[f"{i}.{c['id']}"], out[f"{i}.{c['id']}.of"] = f"{c['n']} of {c['base']}", c["base"]
     return out
@@ -671,11 +673,28 @@ def cited_document(run: Run, ref: str) -> str | None:
     return None
 
 
-def cited_as(document: str, quote: str, words: int = 5) -> str:
+def cited_as(document: str, quote: str, words: int = 5, before: str | None = None, after: str = "") -> str:
     """A cited row as a reader sees it: its document and the opening words of its quotation, so the citation says where
-    to look without the row id, which stays behind it as the link."""
+    to look without the row id, which stays behind it as the link. Given the document's text either side of the
+    passage (`before`, `after`), the words start and end on whole words (`whole_words`)."""
+    cut = False
+    if before is not None:
+        quote, cut = whole_words(quote, before, after)
     w = quote.split()
-    return f"{document}, “{' '.join(w[:words]).rstrip(',.;:')}{'…' if len(w) > words else ''}”"
+    return f"{document}, “{' '.join(w[:words]).rstrip(',.;:')}{'…' if len(w) > words or cut else ''}”"
+
+
+def whole_words(quote: str, before: str, after: str) -> tuple[str, bool]:
+    """A passage as a citation shows it: without the part-word its span starts or ends inside, which the document's
+    text either side shows to be one, nor the stops and spaces it opens with; and whether its end was cut. The
+    passage itself, and so the run, are unchanged."""
+    q, cut = quote, False
+    if before[-1:].isalnum() and q[:1].isalnum():
+        q = re.sub(r"^\w+", "", q, count=1)
+    if after[:1].isalnum() and q[-1:].isalnum():
+        q, cut = re.sub(r"\w+$", "", q, count=1), True
+    q = re.sub(r"^\W+", "", q)
+    return (q, cut) if q.strip() else (quote, False)
 
 
 def readable_citations(text: str, rows: dict[str, dict]) -> str:

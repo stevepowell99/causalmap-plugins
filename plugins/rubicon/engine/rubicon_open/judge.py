@@ -285,41 +285,76 @@ def _base(run, base: dict | None) -> list[str]:
     return docs
 
 
-def _cells(tab: dict, where: dict | None) -> tuple[set[str], list[str]]:
-    """The documents, and the rows, in a tabulation's cells matching `where` ({column: value or list})."""
+def _cells(tab: dict, where: dict | None, weak: set[str] = frozenset(), of_row: dict | None = None) -> tuple[set[str], list[str], set[str]]:
+    """The documents, and the rows, in a tabulation's cells matching `where` ({column: value or list}), and the
+    documents those cells hold only through rows marked weak (`weak`, with `of_row` giving each row's document), which a
+    count keeps apart as the tables do."""
     want = {k: {value_key(x) for x in (v if isinstance(v, list) else [v])} for k, v in (where or {}).items()}
-    docs, rows = set(), []
+    docs, rows, firm = set(), [], set()
     for cell in tab["cells"]:
         if all(value_key(cell["values"].get(k)) in vs for k, vs in want.items()):
             docs |= set(cell["documents"])
             rows += cell["rows"]
-    return docs, rows
+            firm |= ({of_row[r] for r in cell["rows"] if r not in weak and r in (of_row or {})} if cell.get("weak")
+                     else set(cell["documents"]))
+    return firm, rows, docs - firm
+
+
+def _first_met(levels: list[dict], ns: list[int], base: int) -> int | None:
+    """Which of the levels is the first met, each tested on its own count."""
+    return next((i for i, (lv, n) in enumerate(zip(levels, ns)) if _level([lv], n, base, "")[0] is not None), None)
+
+
+def _margin(levels: list[dict], ns: list[int], base: int) -> dict:
+    """How close a rule's level is to moving: the fewest documents that, coded the other way, would put it on another
+    level, counting fewer documents and counting more, with the level each would give. The base is held. Where every
+    level counts the same cells, a document moves every count together; where levels count cells of their own, a
+    document may move one level's count alone, so both are tried and the fewer documents taken."""
+    now = _first_met(levels, ns, base)
+    own = len(set(map(str, ns))) > 1 or any("where" in lv for lv in levels)
+    out = {}
+    for side, sign in (("fewer", -1), ("more", 1)):
+        for k in range(1, base + 1):
+            tries = [[n + sign * k for n in ns]] + ([[n + sign * k if j == i else n for j, n in enumerate(ns)]
+                                                     for i in range(len(ns))] if own else [])
+            moved = [_first_met(levels, t, base) for t in tries if all(0 <= n <= base for n in t)]
+            moved = [m for m in moved if m != now]
+            if moved:
+                out[side] = {"documents": k, "verdict": levels[moved[0]]["verdict"] if moved[0] is not None else None}
+                break
+    return out
 
 
 def _rule(run, c: dict) -> dict:
     """A rule's levels tried in order, each on its own cells where it names them and otherwise the criterion's, every
-    count tested kept, and the verdict, count and documents of the first level met."""
+    count tested kept, and the verdict, count and documents of the first level met. A count is of the documents its
+    cells hold through firm rows; those held only through weak rows are listed apart, as the tables list them. Every
+    level's count is made, the untried ones too, so that the margin can say how many documents would move the level."""
     tab = run.out[c["table"]]
+    rows_of = [r for rec in run.out.values() if rec.get("kind") == "code" for r in rec.get("rows") or []]
+    weak, of_row = {r["row"] for r in rows_of if r.get("weak")}, {r["row"]: r["document"] for r in rows_of}
     base = set(_base(run, c.get("base")))
     if c.get("base_where") is not None:
-        base &= _cells(tab, c["base_where"])[0]
-    tested, met = [], None
+        base &= _cells(tab, c["base_where"], weak, of_row)[0]
+    every, met = [], None
     for lv in c["levels"]:
-        docs, rows = _cells(tab, lv.get("where", c.get("where")))
+        docs, rows, only_weak = _cells(tab, lv.get("where", c.get("where")), weak, of_row)
         hit = sorted(docs & base)
         got, _ = _level([lv], len(hit), len(base), "documents")
-        tested.append({"verdict": lv["verdict"], "n": len(hit), "base": len(base), "met": got is not None,
-                       "documents": hit, "rows": rows})
-        if got:
-            met = tested[-1]
-            break
+        every.append({"verdict": lv["verdict"], "n": len(hit), "base": len(base), "met": got is not None,
+                      "documents": hit, "rows": rows, "weak": sorted(only_weak & base)})
+        if got and met is None:
+            met = every[-1]
+    tested = every[:every.index(met) + 1] if met else every
     use = met or tested[-1]
     said = "; ".join(f"{x['verdict'] or NO_RATING}: {x['n']} of {x['base']} documents, {'met' if x['met'] else 'not met'}" for x in tested)
     why = (f"the first level met is {met['verdict']} ({said})" if met and met["verdict"] is not None
            else f"not placed: the first level met says no rating can be given ({said})" if met else f"no level is met ({said})")
     return {"verdict": met["verdict"] if met else None, "n": use["n"], "base": use["base"], "documents": use["documents"],
             "rows": use["rows"], "why": why,
-            "tested": [{k: x[k] for k in ("verdict", "n", "base", "met")} for x in tested]}
+            "tested": [{k: x[k] for k in ("verdict", "n", "base", "met")} for x in tested],
+            "margin": _margin(c["levels"], [x["n"] for x in every], len(base)),
+            **({"weak": use["weak"]} if use["weak"] else {})}
 
 
 def level_counts(rec_id: str, c: dict) -> dict[str, dict]:
@@ -387,12 +422,51 @@ def judge(run, s: dict) -> dict:
         results.append({"id": c["id"], "question": c["question"], "kind": c["kind"], "levels": c["levels"],
                         **({"scale": c["scale"]} if c.get("scale") is not None else {}), **counted, **got})
     combine = s["combine"] if isinstance(s["combine"], list) else {"all": "weakest", "none": "weakest"}.get(s["combine"], s["combine"])
+    turns_on = []
     if combine == "separate":
         overall, why = None, "the rubric keeps its criteria apart"
     else:
-        overall, why = _by_rules(as_rules(combine, order, [c["id"] for c in s["criteria"]]), {r["id"]: r["verdict"] for r in results})
+        rules = as_rules(combine, order, [c["id"] for c in s["criteria"]])
+        overall, why = _by_rules(rules, {r["id"]: r["verdict"] for r in results})
+        turns_on = _turns_on(rules, results, {c["id"]: scale(s, c) for c in s["criteria"]}, overall)
     return {"source": s["source"], "verdicts": s["verdicts"], "criteria": results, "combine": combine,
-            "overall": overall, "overall_why": why, "accepted": s.get("accepted")}
+            "overall": overall, "overall_why": why, "accepted": s.get("accepted"),
+            **({"turns_on": turns_on} if turns_on else {})}
+
+
+def _turns_on(rules: list[dict], results: list[dict], scales: dict, overall) -> list[dict]:
+    """The judgements the overall verdict turns on, for the evaluator to weigh: each criterion whose moving to the
+    next level, one way or the other, would change the overall verdict, and each pair that would change it only by
+    moving together. A rule's next levels are those its margin reaches, with how many documents it takes; any other
+    criterion's are its neighbours on its scale, since no count says how near they are. Reported only: nothing here
+    changes a verdict."""
+    got = {r["id"]: r["verdict"] for r in results}
+    moves = {}
+    for r in results:
+        if r["kind"] == "rule":
+            moves[r["id"]] = [{"to": m["verdict"], "documents": m["documents"], "side": side}
+                              for side, m in (r.get("margin") or {}).items()]
+        elif r["verdict"] in scales[r["id"]]:
+            sc, i = scales[r["id"]], scales[r["id"]].index(r["verdict"])
+            moves[r["id"]] = [{"to": sc[j]} for j in (i - 1, i + 1) if 0 <= j < len(sc)]
+    out, alone = [], set()
+    for cid, ms in moves.items():
+        for m in ms:
+            then = _by_rules(rules, {**got, cid: m["to"]})[0]
+            if then != overall:
+                out.append({"criteria": [{"id": cid, **m}], "overall": then})
+                alone.add((cid, m["to"]))
+    ids = list(moves)
+    for a in range(len(ids)):
+        for b in range(a + 1, len(ids)):
+            for ma in moves[ids[a]]:
+                for mb in moves[ids[b]]:
+                    if (ids[a], ma["to"]) in alone or (ids[b], mb["to"]) in alone:
+                        continue
+                    then = _by_rules(rules, {**got, ids[a]: ma["to"], ids[b]: mb["to"]})[0]
+                    if then != overall:
+                        out.append({"criteria": [{"id": ids[a], **ma}, {"id": ids[b], **mb}], "overall": then})
+    return out
 
 
 def as_rules(combine, verdicts: list[str], criteria: list[str]) -> list[dict]:
@@ -573,8 +647,30 @@ def counted_in_words(r: dict) -> str:
     return counts + (", out of the documents " + " and ".join(of) if of else ", out of all the documents") + "."
 
 
-def markdown(rec: dict) -> str:
-    """The verdict table the write step is given, to put beside the verdict."""
+def margin_in_words(rec_id: str, r: dict) -> str:
+    """How near a rule's level is to moving, each number by the id an answer writes for it: how many documents coded
+    the other way would give which level, and which documents its cells hold only weakly."""
+    said = [f"{{{rec_id}.{r['id']}.margin.{side}}} ({m['documents']}) {side} document{'' if m['documents'] == 1 else 's'} "
+            f"would make it {m['verdict'] or NO_RATING.lower()}" for side, m in (r.get("margin") or {}).items()]
+    weak = f"held only weakly: {', '.join(r['weak'])}" if r.get("weak") else ""
+    return "; ".join(said + ([weak] if weak else []))
+
+
+def turns_on_in_words(rec: dict) -> list[str]:
+    """Each judgement the overall verdict turns on, one line each, nearest first."""
+    rid = rec.get("id", "judge")
+
+    def part(c):
+        how = (f"{{{rid}.{c['id']}.margin.{c['side']}}} ({c['documents']}) {c['side']} document{'' if c['documents'] == 1 else 's'}"
+               if "documents" in c else "a reading")
+        return f"{c['id']} moved to {c['to'] or NO_RATING.lower()} by {how}"
+    near = sorted(rec.get("turns_on") or [], key=lambda t: (len(t["criteria"]), sum(c.get("documents", 99) for c in t["criteria"])))
+    return [f"- {' and '.join(part(c) for c in t['criteria'])} would make the overall {t['overall'] or 'open'}" for t in near]
+
+
+def markdown(rec: dict, margins: bool = False) -> str:
+    """The verdict table the write step is given, to put beside the verdict. With `margins`, as a recount writes it for
+    the check, each rule also says how near its level is to moving, and the overall what it turns on."""
     lines = [f"Standard: {reader_words(str(rec['source']))}. Verdicts, best first: " + "; ".join(f"{v['name']} ({v.get('means', '')})" for v in rec["verdicts"]),
              f"Whose levels: {provenance(rec)}",
              "| Criterion | Kind | Verdict | Evidence |", "|---|---|---|---|"]
@@ -585,6 +681,10 @@ def markdown(rec: dict) -> str:
               else f"{{{cid}}} ({r['n']} of {r['base']}), as \"{r['quote']}\" [{r['document']}]" if r["kind"] == "stated"
               else f"rows {', '.join(r['rows'])}; against {', '.join(r['against']) or 'none'}")
         placed = r["verdict"] or (f"between {' and '.join(r['between'])}, for the evaluator" if r.get("between") else "not placed")
-        lines.append(f"| {r['id']}: {r['question']} | {r['kind']} | {placed} | {ev}. {r['why']} |")
+        near = margin_in_words(rec.get("id", "judge"), r) if margins and r["kind"] == "rule" else ""
+        lines.append(f"| {r['id']}: {r['question']} | {r['kind']} | {placed} | {ev}. {r['why']}{'. Margin: ' + near if near else ''} |")
     lines.append(f"Overall: {rec['overall'] or 'no verdict'}; {rec['overall_why']}. {combine_in_words(rec['combine'])}")
+    if margins and rec.get("turns_on"):
+        lines += ["", "What the overall verdict turns on, nearest first (each a judgement that, moved as said, would change it):",
+                  *turns_on_in_words(rec)]
     return "\n".join(lines)

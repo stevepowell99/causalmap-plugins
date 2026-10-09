@@ -5,14 +5,37 @@
   const label = v => { const s = String(v).replace(/_/g, ' ').trim(); return s.charAt(0).toUpperCase() + s.slice(1); };
   const group = d => (RUN.docs[d] && RUN.docs[d].group) ? label(RUN.docs[d].group) : '';
 
+  const coded = codes => Object.entries(codes).filter(([, v]) => v != null && v !== '');
   function codes(r) {
-    return '<div class="codes">' + Object.entries(r.codes).map(([k, v]) => `<span title="${esc(RUN.defs[k + '=' + v] || '')}">${esc(label(k))}: ${esc(label(v))}</span>`).join('') + '</div>';
+    return '<div class="codes">' + coded(r.codes).map(([k, v]) => `<span title="${esc(RUN.defs[k + '=' + v] || '')}">${esc(label(k))}: ${esc(label(v))}</span>`).join('') + '</div>';
   }
+  // How one passage was coded: the step, whether it counts or was only hinted at, its codes, and what the second
+  // coder, coding blind, made of the same place: agreed, did not code it, or only the codes they gave it otherwise
+  // (render_report.second_reading, which compares the values)
+  function coding(id) {
+    const r = RUN.rows[id];
+    if (!r) return '';
+    const s = r.second;
+    let second = '';
+    if (s) {
+      const differ = Object.entries(s.differ);
+      const said = !s.coded ? 'did not code this passage'
+        : !differ.length ? 'agreed'
+        : differ.map(([c, theirs]) => `${label(c)}: ${theirs.length ? theirs.map(label).join(' or ') : 'not coded'} instead of ${label(r.codes[c])}`).join('; ');
+      second = `<p class="second"><b>Second coder</b> (blind): ${esc(said)}.</p>`;
+    }
+    return `<div class="coding"><p class="doc-tag">Coding: ${esc(label(r.step.replace(/^c_/, '')))} · ${r.weak ?'only hinted at, so left out of the counts' : 'counted'}</p>${codes(r)}${second}</div>`;
+  }
+  const wholeLink = (id, words = 'whole interview') => {
+    const r = RUN.rows[id];
+    return r && r.at ? `<button class="rowlink" data-doc="${esc(r.doc)}" data-from="${esc(id)}">${words}</button>` : '';
+  };
+  const docLink = d => RUN.docs[d] ? `<button class="doclink" data-doc="${esc(d)}" title="Read ${esc(d)} whole">${esc(d)}</button>` : esc(d);
   function rowInPlace(id) {
     const r = RUN.rows[id];
     if (!r) return `<p>No passage ${esc(id)}.</p>`;
-    return `<p class="doc-tag">${esc(r.doc)} · ${esc(group(r.doc))}</p>${codes(r)}<p class="ctx">${esc(r.ctx[0])}<mark>${esc(r.ctx[1])}</mark>${esc(r.ctx[2])}</p>` +
-      (r.at ? `<p><button class="rowlink" data-doc="${esc(r.doc)}" data-from="${esc(id)}">whole interview</button></p>` : '');
+    return `<p class="doc-tag">${docLink(r.doc)} · ${esc(group(r.doc))}</p>${coding(id)}<p class="ctx">${esc(r.ctx[0])}<mark>${esc(r.ctx[1])}</mark>${esc(r.ctx[2])}</p>` +
+      (r.at ? `<p>${wholeLink(id)}</p>` : '');
   }
 
   // A document read whole, with every passage this run coded in it marked: a colour for each coding step, stripes
@@ -68,7 +91,8 @@
   async function showDoc(doc, from) {
     let text;
     if (TEXTS) text = await carriedText(doc);
-    else if (zipped && zippedFor === RUN) text = await zipText(RUN.docs[doc].file);
+    // read as the recount read it, line endings made one newline, since every passage's offsets count that text
+    else if (zipped && zippedFor === RUN) text = (await zipText(RUN.docs[doc].file))?.replace(/\r\n?/g, '\n');
     else return chooseZip(doc, from);
     if (text == null) return open(`<p>${esc(doc)} is not in ${TEXTS ? 'this report' : 'that zip'}.</p>`);
     const marks = Object.entries(RUN.rows).filter(([, r]) => r.doc === doc && r.at);
@@ -88,17 +112,41 @@
     const used = stepsOf().filter(s => marks.some(([, r]) => r.step === s));
     open(`<p class="doc-tag">${esc(doc)} · ${esc(group(doc))}</p><h3>${esc(RUN.docs[doc].title || doc)}</h3>` +
       `<p class="layers">${used.map(s => `<span><i style="background:${layer(s)}"></i>${esc(label(s))}</span>`).join('')}</p>` +
-      `<p class="small">${marks.length} coded passage${marks.length === 1 ? '' : 's'}. Click one to see how it was coded.</p><div class="whole">${body}</div>`);
-    pbody.querySelector('.span.from')?.scrollIntoView({ block: 'center' });
+      `<p class="small">${marks.length} coded passage${marks.length === 1 ? '' : 's'}. Point at one, or tab to it, to see how it was coded; click it for the passage.</p><div class="whole">${body}</div>`);
+    const at = pbody.querySelector('.span.from');
+    if (at) { at.scrollIntoView({ block: 'center' }); at.classList.add('rb-found'); }
   }
+  // Pointing at a coded stretch of a whole interview, or tabbing to it, says how each passage under it was coded; a
+  // tap or Enter opens the passages, which say the same, so touch and keyboard reach it too
+  const tip = document.createElement('div');
+  tip.className = 'tip';
+  tip.setAttribute('role', 'tooltip');
+  tip.hidden = true;
+  panel.appendChild(tip);
+  const MOST_SHOWN = 4;
+  function showTip(span) {
+    const ids = span.dataset.rows.split(',');
+    tip.innerHTML = ids.slice(0, MOST_SHOWN).map(coding).join('') +
+      (ids.length > MOST_SHOWN ? `<p class="small">and ${ids.length - MOST_SHOWN} more; click for all of them</p>` : '');
+    tip.hidden = false;
+    const p = panel.getBoundingClientRect(), s = span.getBoundingClientRect();
+    const below = s.bottom - p.top + panel.scrollTop + 6;
+    tip.style.top = (s.bottom + tip.offsetHeight + 12 > innerHeight ? s.top - p.top + panel.scrollTop - tip.offsetHeight - 6 : below) + 'px';
+  }
+  const hideTip = () => { tip.hidden = true; };
+  pbody.addEventListener('mouseover', e => { const s = e.target.closest('.whole .span'); if (s) showTip(s); });
+  pbody.addEventListener('mouseout', e => { if (e.target.closest('.whole .span')) hideTip(); });
+  pbody.addEventListener('focusin', e => { const s = e.target.closest('.whole .span'); if (s) showTip(s); });
+  pbody.addEventListener('focusout', hideTip);
   // The annex of the run being read: the report's one, or in a combined report the one of the part RUN points at (SCOPE)
   const annexBlock = id => document.querySelector(`.annex${typeof SCOPE === 'string' ? SCOPE : ''} [data-node="step:${CSS.escape(id)}"]`);
   function rowShort(id) {
     const r = RUN.rows[id];
     if (!r) return '';
-    return `<div class="item"><p class="doc-tag">${esc(r.doc)} · ${esc(group(r.doc))}</p><q>${esc(r.ctx[1])}</q> <button class="rowlink" data-row="${esc(id)}">in context</button></div>`;
+    return `<div class="item"><p class="doc-tag">${docLink(r.doc)} · ${esc(group(r.doc))}</p><q>${esc(r.ctx[1])}</q> <button class="rowlink" data-row="${esc(id)}">in context</button> ${wholeLink(id)}</div>`;
   }
   function open(html) {
+    hideTip();
     pbody.innerHTML = html;
     panel.hidden = false;
     panel.scrollTop = 0;
@@ -108,7 +156,7 @@
     if (!c) return;
     if (!Object.keys(c.values).length) {
       return open(`<h3>${c.n} documents</h3><p class="small">Every document this count was made from:</p>` +
-        c.docs.map(d => `<div class="item"><p class="doc-tag">${esc(d)} · ${esc(group(d))}</p></div>`).join(''));
+        c.docs.map(d => `<div class="item"><p class="doc-tag">${docLink(d)} · ${esc(group(d))}</p></div>`).join(''));
     }
     const said = within && within in c.within ? `${c.n} of ${c.within[within]}` : c.said;
     const what = Object.entries(c.values).map(([k, v]) => {
@@ -121,8 +169,8 @@
     const firmRows = c.rows.filter(id => !isWeak(id)).map(rowShort).join('');
     const weakRows = c.rows.filter(isWeak).map(rowShort).join('');
     open(`<h3>${esc(said)}</h3><p class="small">Counted by code from the coded passages: the ${c.base == null ? 'passages' : 'documents'} where</p><ul>${what}</ul>
-      <p class="small">${firmDocs.length ? 'Who: ' + firmDocs.map(esc).join(', ') : 'Nobody firmly.'}</p>${firmRows}` +
-      (weakRows ? `<p class="small">Only hinted at, so left out of the count${weakDocs.length ? ': ' + weakDocs.map(esc).join(', ') : ''}</p>${weakRows}` : ''));
+      <p class="small">${firmDocs.length ? 'Who: ' + firmDocs.map(docLink).join(', ') : 'Nobody firmly.'}</p>${firmRows}` +
+      (weakRows ? `<p class="small">Only hinted at, so left out of the count${weakDocs.length ? ': ' + weakDocs.map(docLink).join(', ') : ''}</p>${weakRows}` : ''));
   }
   // A factor in a map opens the passages behind every link into and out of it, each once: the cells of the arrows
   // Graphviz drew to or from it, whose titles read "from->to" with the node's own title at either end.
@@ -198,7 +246,12 @@
     if (b.dataset.doc) return showDoc(b.dataset.doc, b.dataset.from);
     if (b.dataset.step) return showStep(b.dataset.step);
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') panel.hidden = true; });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') panel.hidden = true;
+    // a coded stretch is a span, which a browser does not press on Enter or Space as it presses a button
+    const span = e.target.closest && e.target.closest('.whole .span');
+    if (span && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); showRows(span.dataset.rows.split(',')); }
+  });
 
   // Each map is carried as DOT and drawn here by Graphviz (Viz.js), which the page loads at a fixed version
   // (`GRAPHVIZ` in render_report.py); a reader offline sees the words under each figure and its counts, and no map.

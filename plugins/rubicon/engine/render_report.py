@@ -36,12 +36,12 @@ import base64, csv, datetime, gzip, hashlib, html, io, json, re, shutil, subproc
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
-from rubicon_open import node
+from rubicon_open import locator, node
 from rubicon_open.corpus import INDEX_FIELDS
 from rubicon_open.run_id import clean as run_id_of
 from rubicon_open.seal import engine_fingerprint, engine_version, listed, seal_broken
 from rubicon_open.steps import ROW_ID, base_of, cited_as, group_ids, stated
-from rubicon_open.workflow import arrow_parts, loop_markers, sign_of
+from rubicon_open.workflow import arrow_parts, loop_markers, sign_of, value_key
 
 ENGINE = Path(__file__).resolve().parent
 DRAW_MAP = ENGINE / "rubicon_open" / "draw_map.mjs"
@@ -187,6 +187,13 @@ def label(v):
     return s[:1].upper() + s[1:]
 
 
+def as_read(text):
+    """A document as the recount read it: `corpus.py` opens it in text mode, which turns Windows and old Mac line
+    endings into one newline, and every passage's offsets count that text, so a document drawn with its CRLF kept
+    marks each passage one character early for every line break above it."""
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def load(zipped):
     """Everything a report draws, read from the run's sealed zip and from nothing else, so a report can say nothing its
     zip does not hold: the counts, rows and checks of the recount, the answer as written, the documents, the second
@@ -208,7 +215,7 @@ def load(zipped):
             "report": json.loads(text("report.json")),
             "answer": text("answer.md"),
             "index": index,
-            "texts": {d["id"]: text("corpus/" + (d.get("file") or f"{d['id']}.txt")) for d in index},
+            "texts": {d["id"]: as_read(text("corpus/" + (d.get("file") or f"{d['id']}.txt"))) for d in index},
             "check": text("check/check.md"),
             "recoded": {n[len("check/coded/"):-len(".json")]: json.loads(text(n)) for n in sorted(names)
                         if re.fullmatch(r"check/coded/[^/]+\.json", n)},
@@ -246,6 +253,33 @@ def group_column(index):
     return cols[0] if cols else None
 
 
+def second_reading(step, recoded, texts, rows):
+    """What the second coder, coding blind, made of each of this step's passages: whether any passage of theirs
+    overlaps it in the document, placed by the engine's quote matcher, and for each of its codes they did not give that
+    place, compared through `value_key`, the values they gave it instead. Read from the zip's `check/coded/`."""
+    cols = [c["name"] for c in step.get("columns", []) if c.get("type") != "free_text"]
+    by_doc = {}
+    for r in recoded:
+        by_doc.setdefault(r.get("document"), []).append(r)
+    for doc, theirs in by_doc.items():
+        text = texts.get(doc, "")
+        placed = locator.locate_all(text, [str(r.get("quote", "")) for r in theirs]) if text else []
+        spans = [(p.start, p.end, r) for p, r in zip(placed, theirs) if p and p.start is not None]
+        for x in step.get("rows", []):
+            if x["document"] != doc or x["row"] not in rows:
+                continue
+            overlap = [r for a, b, r in spans if x.get("start") is not None and a < x["end"] and b > x["start"]]
+            at_place = {(c, value_key(r.get(c))) for r in overlap for c in cols if r.get(c) not in (None, "")}
+            # only the codes the second coder gave this place otherwise: for each, what they gave it instead
+            differ = {c: list(dict.fromkeys(r.get(c) for r in overlap if r.get(c) not in (None, "")))
+                      for c in cols if x.get(c) not in (None, "") and (c, value_key(x.get(c))) not in at_place}
+            rows[x["row"]]["second"] = {"coded": bool(overlap), "differ": differ if overlap else {}}
+    # A passage in a document the second coder gave no passage at all is one they did not code
+    for x in step.get("rows", []):
+        if x["row"] in rows and "second" not in rows[x["row"]]:
+            rows[x["row"]]["second"] = {"coded": False, "differ": {}}
+
+
 def build_data(R):
     """Everything the page's script needs: rows with context, cells, documents."""
     gcol = group_column(R["index"])
@@ -270,6 +304,8 @@ def build_data(R):
                                   **({"weak": True} if r.get("weak") else {})}
                 if a is not None and t:
                     rows[r["row"]]["at"] = [a, b]
+            if sid in R.get("recoded", {}):
+                second_reading(s, R["recoded"][sid], R["texts"], rows)
         elif s.get("kind") == "tabulate":
             weak = {x: r["doc"] for x, r in rows.items() if r.get("weak")}
             for c in s.get("cells", []):
@@ -352,19 +388,27 @@ def inline(text, R, D, cite_no, static, plain=False):
         return f'<button class="n" data-cell="{esc(base)}"{within}>{esc(txt)}</button>'
 
     def cite(m):
-        # each row cited by its document and the opening words of its quotation, the row id kept behind it
+        # On the page, each document cited once by its id, opening its passages in the side panel, where the quotation
+        # and the way into the whole interview are; for Word, with the opening words of each quotation
         ids = group_ids(m.group(1))
         if not ids or not all(ROW_ID.fullmatch(i) for i in ids):
             return m.group(0)
-        chips = []
+        by_doc = {}
         for i in ids:
             cite_no.setdefault(i, len(cite_no) + 1)
             if R.get("finding") is not None:
                 R["finding"].setdefault("rows", []).append(i)
-            r = D["rows"].get(i, {})
-            said = esc(cited_as(r.get("doc", i), r.get("ctx", ["", "", ""])[1]))
-            chips.append(said if static else f'<button class="cite" data-row="{esc(i)}" title="{esc(i)}">{said}</button>')
-        return "(" + "; ".join(chips) + ")"
+            by_doc.setdefault(D["rows"].get(i, {}).get("doc", i), []).append(i)
+        if static:
+            def said(i):
+                r = D["rows"].get(i, {})
+                ctx = r.get("ctx", ["", "", ""])
+                return esc(cited_as(r.get("doc", i), ctx[1], before=ctx[0], after=ctx[2]))
+            return "(" + "; ".join(said(i) for i in ids) + ")"
+        chips = [f'<button class="cite" data-row="{esc(rs[0])}"' if len(rs) == 1 else
+                 f'<button class="cite" data-rows="{esc(",".join(rs))}"' for rs in by_doc.values()]
+        return "(" + ", ".join(f'{c} title="{esc(quoted(d, rs, D))}">{esc(d)}</button>'
+                                for c, (d, rs) in zip(chips, by_doc.items())) + ")"
 
     def see(m):
         h = html.unescape(m.group(1)).strip()
@@ -374,9 +418,47 @@ def inline(text, R, D, cite_no, static, plain=False):
         return f"(see “{esc(shown)}”)" if static else f'<a class="see" href="#{anchor(h)}">§ {esc(shown)}</a>'
 
     out = CELL.sub(cell, out)
+    while (merged := ADJACENT.sub(joined, out)) != out:
+        out = merged
     out = CITE.sub(cite, out)
     out = SEE.sub(see, out)
-    return out
+    return out if static else linked_sources(out, D)
+
+
+#: Two groups of row ids side by side, which a reader sees as one citation
+ADJACENT = re.compile(r"\[([^\[\]]+)\]\s*\[([^\[\]]+)\]")
+
+
+def joined(m):
+    """Two groups of row ids written side by side, as one group; anything else as written."""
+    a, b = group_ids(m.group(1)), group_ids(m.group(2))
+    if a and b and all(ROW_ID.fullmatch(i) for i in a + b):
+        return f"[{', '.join(a + b)}]"
+    return m.group(0)
+
+
+def quoted(doc, rows, D):
+    """What a citation's id says when pointed at: the opening words of the passages it opens."""
+    def one(i):
+        ctx = D["rows"].get(i, {}).get("ctx", ["", "", ""])
+        return cited_as(doc, ctx[1], before=ctx[0], after=ctx[2]).split(", ", 1)[1]
+    return "; ".join(one(i) for i in rows)
+
+
+#: Markup a source's id is never linked inside: a button or link, or a tag itself
+MARKUP = re.compile(r"(<button\b[^>]*>.*?</button>|<a\b[^>]*>.*?</a>|<[^>]+>)", re.S)
+
+
+def linked_sources(out, D):
+    """The answer's text with every id of a whole source that it names outside a citation, such as a list of who fell
+    in a group, a link to that source read whole. Only ids holding a digit are read as ids, so a source named with a
+    plain word is never mistaken in running prose."""
+    ids = sorted((d for d in D.get("docs", {}) if re.search(r"\d", d)), key=len, reverse=True)
+    if not ids:
+        return out
+    named = re.compile(r"(?<![\w-])(" + "|".join(re.escape(esc(d)) for d in ids) + r")(?![\w-])")
+    link = lambda m: (f'<button class="src" data-doc="{m.group(1)}" title="Read {m.group(1)} whole">{m.group(1)}</button>')
+    return "".join(p if k % 2 else named.sub(link, p) for k, p in enumerate(MARKUP.split(out)))
 
 
 def figure(tid, R, D):
@@ -685,7 +767,8 @@ def matrix(R, D):
                 tds += (f'<td><button class="dot {"own" if own else "raised"}" data-rows="{esc(rid)}" '
                         f'aria-label="{esc(did)}: {esc(label(v))}, {len(rs)} passage{"s" if len(rs) > 1 else ""}">'
                         f'{len(rs) if len(rs) > 1 else ""}</button></td>')
-            body += f"<tr><th class=\"doc\">{esc(did)}</th>{tds}</tr>"
+            body += (f'<tr><th class="doc"><button class="doclink" data-doc="{esc(did)}" title="Read {esc(did)} whole">'
+                     f'{esc(did)}</button></th>{tds}</tr>')
     key = (f'<span class="dot own k"></span>{esc(label(binary["name"]))} for this reason'
            ' <span class="dot raised k"></span>Raised, not tied to that') if binary else ""
     return (f'<div class="legend small">{key}</div><div class="scroll"><table class="matrix"><thead><tr><th></th>{head}</tr></thead>'
@@ -990,7 +1073,7 @@ def summary(R, a, nrows):
            f"<li><b>{a.get('counts_written_by_id', 0)}</b> numbers, every one counted by code."
            '<span class="click"> Click any number to see who it counts.</span></li>',
            f"<li><b>{nrows}</b> quotations, every one found word for word in its interview."
-           '<span class="click"> Click a numbered marker to read it in place.</span></li>']
+           '<span class="click"> Click an interview\'s ID beside a quotation to read it in place.</span></li>']
     if R.get("check"):
         heads = sum(1 for l in R["answer"].splitlines() if l.startswith("## "))
         out.append(f"<li><b>{len(sentences(R['answer']))}</b> findings and <b>{heads}</b> high-level findings, every one "
