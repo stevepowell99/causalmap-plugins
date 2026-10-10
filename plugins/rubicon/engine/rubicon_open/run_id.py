@@ -8,16 +8,18 @@ has none, and nothing is drawn for it.
 from __future__ import annotations
 
 import datetime
+import random
 import re
-import secrets
 
 #: Letters and digits that cannot be mistaken for each other when read aloud or copied by eye.
 ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
+#: The operating system's randomness, unseeded, so runs started together still draw different characters.
+_DRAW = random.SystemRandom()
 ID = re.compile(r"\d{4}-\d{2}-\d{2}-[a-z0-9]{4}")
 
 
 def new_run_id(today: datetime.date | None = None) -> str:
-    return f"{(today or datetime.date.today()).isoformat()}-" + "".join(secrets.choice(ALPHABET) for _ in range(4))
+    return f"{(today or datetime.date.today()).isoformat()}-" + "".join(_DRAW.choice(ALPHABET) for _ in range(4))
 
 
 def clean(value) -> str:
