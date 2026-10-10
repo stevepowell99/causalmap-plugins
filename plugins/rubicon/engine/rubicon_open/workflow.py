@@ -173,7 +173,9 @@ def resolve_step(s: dict, kind: str | None = None) -> dict:
         # loops: the cells are the feedback loops of up to loop_links links that all documents' signed links make
         # together, through one of the variables `through` names where it names any; sequences: the cells are the chains
         # the speakers tell, each built from the rows one document gives one "sequence", in the order of their "step"
-        return fill({"by": [], "count": "documents", "sparse": False, "paths": False, "filters": [], "loops": False,
+        # count: what a cell counts, "cases" (`Corpus.case_of`), "documents", "rows" (passages) or a column of the
+        # document list whose values are its cases; unit: the plural name a reader is given for it
+        return fill({"by": [], "count": "cases", "unit": None, "sparse": False, "paths": False, "filters": [], "loops": False,
                      "loop_links": 4, "through": [], "sequences": False}, s)
     if k == "judge":
         return fill({"model": C.JUDGE, "combine": "weakest"}, s)
@@ -411,6 +413,18 @@ def table_sizes(wf: dict, attributes, n_documents: int | None = None,
     return out
 
 
+def count_faults(sid: str, s: dict, attrs) -> list[str]:
+    """What is wrong with what a tabulation counts: a count that is none of cases, documents, rows or a column of the
+    document list, or a count by such a column that does not name its unit for a reader."""
+    from .units import COUNTS
+    count = s.get("count", "cases")
+    if not isinstance(count, str) or (count not in COUNTS and count.lower() not in attrs):
+        return [f"{sid}: count {count!r} is not cases, documents, rows or a column of the document list"]
+    if count not in COUNTS and not s.get("unit"):
+        return [f"{sid}: counts by {count!r}, so it names its unit for a reader, such as \"unit\": \"{count}s\""]
+    return []
+
+
 def check_against(wf: dict, corpus, standard_text: str | None = None) -> list[str]:
     """`check` against a run's corpus: its columns with their sizes, its documents, and its background documents."""
     return check(wf, attribute_sizes(corpus), len(corpus.documents), standard_text, corpus.background_texts(),
@@ -544,6 +558,7 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
             for c in s.get("by") or []:
                 if c.lower() not in attrs and c != "document":
                     faults.append(f"{sid}: counts the documents by {c!r}, which the document list does not have")
+            faults += count_faults(sid, s, attrs)
             made[sid] = {"kind": kind, "by": s.get("by") or [], "cells": table_cells.get(sid),
                          "values": {str(c).lower(): coded.get(str(c).lower()) for c in s.get("by") or []}}
         elif kind == "tabulate":
@@ -555,8 +570,7 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
                           or c.lower() in attrs or c == "document")
                     if not ok:
                         faults.append(f"{sid}: counts by {c!r}, which its input does not have")
-            if s.get("count", "documents") not in ("documents", "rows"):
-                faults.append(f"{sid}: count {s.get('count')!r}")
+            faults += count_faults(sid, s, attrs)
             if s.get("paths"):
                 by = s.get("by") or []
                 ends = src[0]["columns"] if len(src) == 1 and src[0]["kind"] == "code" else {}
@@ -564,8 +578,8 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
                     faults.append(f"{sid}: traces paths, so its first two by columns are the two ends of a link its input coded")
                 faults += [f"{sid}: traces paths, so {c!r} after a link's two ends must describe a document"
                            for c in by[2:] if c != "document" and (c.lower() not in attrs or c in ends)]
-                if s.get("count", "documents") != "documents":
-                    faults.append(f"{sid}: traces paths, which are counted by the documents whose links make them")
+                if s.get("count", "cases") not in ("cases", "documents"):
+                    faults.append(f"{sid}: traces paths, which are counted by the cases or documents whose links make them")
             if s.get("sequences"):
                 links = src[0].get("links") if len(src) == 1 and src[0]["kind"] == "code" else None
                 if not links:
@@ -574,8 +588,8 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
                     faults.append(f"{sid}: lists told sequences, so it counts by its links' two ends, {links['from']!r} and {links['to']!r}, and nothing else")
                 if s.get("paths") or s.get("loops"):
                     faults.append(f"{sid}: lists told sequences, so it neither traces paths nor finds loops")
-                if s.get("count", "documents") != "documents":
-                    faults.append(f"{sid}: lists told sequences, which are counted by the documents that tell them")
+                if s.get("count", "cases") not in ("cases", "documents"):
+                    faults.append(f"{sid}: lists told sequences, which are counted by the cases or documents that tell them")
             if s.get("filters") and not (len(src) == 1 and src[0]["kind"] == "code" and src[0].get("links")):
                 faults.append(f"{sid}: filters links, so its input must be a code step that names its links' two ends")
             own = src[0].get("values", {}) if len(src) == 1 and src[0] else {}  # a row's own value first, as the counting takes it
@@ -590,8 +604,8 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
                     faults.append(f"{sid}: finds loops, so it counts by its links' two ends, {links['from']!r} and {links['to']!r}, and nothing else")
                 if s.get("paths"):
                     faults.append(f"{sid}: finds loops or traces paths, not both")
-                if s.get("count", "documents") != "documents":
-                    faults.append(f"{sid}: finds loops, which are counted by documents")
+                if s.get("count", "cases") not in ("cases", "documents"):
+                    faults.append(f"{sid}: finds loops, which are counted by cases or documents")
                 if not (isinstance(s.get("loop_links", 4), int) and 2 <= s.get("loop_links", 4) <= 6):
                     faults.append(f"{sid}: loop_links {s.get('loop_links')!r}; a loop has between 2 and 6 links")
                 made[sid].update({"by": list(LOOP_COLUMNS), "values": {"polarity": list(POLARITIES), "part": list(PARTS)}})

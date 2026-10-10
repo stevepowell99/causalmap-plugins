@@ -20,6 +20,7 @@ from typing import Callable
 from . import locator, node
 from .corpus import Corpus
 from .judge import level_counts
+from .units import COUNTS, count_said, unit_noun
 from .workflow import LOOP_COLUMNS, SEQUENCE_COLUMNS, arrow, canonical, codebook_of, column_values, loop_markers, resolve_step, sign_of, value_key
 
 
@@ -263,6 +264,36 @@ def in_context(run: Run, r: dict, width: int = 700) -> str:
             + locator._utf16_slice(text, b, b + width) + "…")
 
 
+def _unit_of_row(run: Run, count: str, r: dict):
+    """The unit a row belongs to, for a tabulation counting `count`: its document, its case (`Corpus.case_of`), or for
+    a count by a column of the document list that column's value for its document, None where it has none."""
+    if count == "documents":
+        return r["document"]
+    if count in ("cases", "rows"):
+        # a run given no document list (a test's, say) has no cases but its documents
+        return run.corpus.case_of(r["document"], r.get("case")) if hasattr(run.corpus, "case_of") else r["document"]
+    v = run.attribute(r["document"], count)
+    return None if v in (None, "") else str(v)
+
+
+def units(run: Run, count: str, read, rows: list[dict]) -> tuple[dict[str, set[str]], dict[str, str]]:
+    """The units a tabulation counts among the documents `read`, each with the documents it appears in, and the unit
+    of each of `rows` (the input code step's, by row id). Cases come from `Corpus.cases_held`; a count by a column of
+    the document list has a case for each of its values among the documents read, a document with none in none."""
+    unit_of = {r["row"]: _unit_of_row(run, count, r) for r in rows}
+    if count == "documents" or count == "rows":
+        return {d: {d} for d in read}, unit_of
+    if count == "cases" and hasattr(run.corpus, "cases_held"):
+        return run.corpus.cases_held(read, rows), unit_of
+    if count == "cases":
+        return {d: {d} for d in read}, unit_of
+    held: dict[str, set[str]] = {}
+    for d in read:
+        if (u := _unit_of_row(run, count, {"document": d})) is not None:
+            held.setdefault(u, set()).add(d)
+    return held, unit_of
+
+
 def tabulate(run: Run, s: dict) -> dict:
     s = resolve_step(s, "tabulate")
     src = s["inputs"][0]
@@ -274,6 +305,7 @@ def tabulate(run: Run, s: dict) -> dict:
         rows = run.table(src)
         rec = run.out[src]  # "of" is the documents the coding read, including those that gave no row
         read = rec.get("documents") or run.out.get(rec.get("input"), {}).get("documents") or {r["document"] for r in rows}
+    coded_rows = rows  # every row the input coded, before any filter: the cases read are worked out from them
     filtered = None
     filters = s["filters"]
     if filters or is_map(run, src, s):
@@ -298,38 +330,47 @@ def tabulate(run: Run, s: dict) -> dict:
         domains = [_domain(run, src, c, read, c in in_rows) or sorted({k[i] for k in cells} - {"(blank)"}) for i, c in enumerate(by)]
         for cmb in itertools.product(*domains):
             cells.setdefault(cmb, {"documents": set(), "rows": []})
-    # a cell's base is the documents read that share its values on every column describing a document, so a count by
-    # kind of submitter is out of that kind; counting the document list itself, every cell is out of all those read
+    # what the table counts (`units`): a cell's count is of the units its rows belong to, and its base the units among
+    # those read that share its values on every column describing a document, so a count by kind of submitter is out of
+    # that kind; counting the document list itself, every cell is out of all those read
     listing = src == "documents" or run.out.get(src, {}).get("kind") == "sample"
     whole = [] if listing or s["loops"] or s.get("sequences") else [i for i, c in enumerate(by) if c == "document" or (c not in in_rows and run.is_attribute(c))]
+    held, unit_of = units(run, count, read, [] if listing else coded_rows)
+    unit_of.update({r["row"]: unit_of.get(r["row"], _unit_of_row(run, count, r)) for r in rows})
 
-    def of_doc(d, c):
-        v = d if c == "document" else run.attribute(d, c)
-        return "(blank)" if v in (None, "") else str(v)
+    def of_unit(u, c):
+        docs = held[u]
+        if c == "document":
+            return docs
+        vs = {run.attribute(d, c) for d in docs}
+        v = vs.pop() if len(vs) == 1 else None
+        return {"(blank)" if v in (None, "") else str(v)}
+
+    def matches(u, cmb, cols):
+        return all(cmb[i] in of_unit(u, by[i]) for i in cols)
 
     def base(cmb):
-        return sum(all(of_doc(d, by[i]) == cmb[i] for i in whole) for d in read) if count == "documents" else None
+        return None if count == "rows" else sum(matches(u, cmb, whole) for u in held)
 
-    # a cell counts its firm rows, or the documents with one; rows the coder marked weak are counted beside them, as the
-    # documents (or rows) the cell holds only through weak rows, and never folded into the count
+    # a cell counts its firm rows, or the units with one; rows the coder marked weak are counted beside them, as the
+    # units (or rows) the cell holds only through weak rows, and never folded into the count
     weak = {r["row"] for r in rows if r.get("weak")}
-    doc_of = {r["row"]: r["document"] for r in rows}
+
+    def of_rows(ids):
+        return list(ids) if count == "rows" else {unit_of[x] for x in ids if unit_of.get(x) is not None}
 
     def firm(v):
-        if not weak:
-            return v["documents"] if count == "documents" else v["rows"]
-        kept = [x for x in v["rows"] if x not in weak]
-        return {doc_of[x] for x in kept if x in doc_of} if count == "documents" else kept
+        return of_rows([x for x in v["rows"] if x not in weak])
 
     # a count can also be stated within the group a coded column defines ("of those improved, 13 of 15"): its base is
-    # then the documents with that value in that column, as well as the cell's values on the columns describing a document
-    def docs_with(i, v):
-        return {d for (k, c) in cells.items() if k[i] == v for d in firm(c)}
-    coded = [i for i, c in enumerate(by) if i not in whole and re.fullmatch(r"[\w-]+", c)] if count == "documents" and len(by) > 1 and not s["loops"] else []
-    marginal = {(i, k[i]): docs_with(i, k[i]) for k in cells for i in coded}
+    # then the units with that value in that column, as well as the cell's values on the columns describing a document
+    def units_with(i, v):
+        return {u for (k, c) in cells.items() if k[i] == v for u in firm(c)}
+    coded = [i for i, c in enumerate(by) if i not in whole and re.fullmatch(r"[\w-]+", c)] if count != "rows" and len(by) > 1 and not s["loops"] else []
+    marginal = {(i, k[i]): units_with(i, k[i]) for k in cells for i in coded}
 
     def within(cmb):
-        return {by[i]: sum(all(of_doc(d, by[j]) == cmb[j] for j in whole) for d in marginal[(i, cmb[i])]) for i in coded}
+        return {by[i]: sum(matches(u, cmb, whole) for u in marginal[(i, cmb[i])]) for i in coded}
     # where opposites were combined, a cell says how many of its rows had each end coded at the opposite pole, which
     # the map colours the arrow's tail and head by
     flips = {(r["row"], *(str(r.get(c)) for c in by)): r for r in rows if r.get("flipped_cause") or r.get("flipped_effect")} if filtered else {}
@@ -339,13 +380,18 @@ def tabulate(run: Run, s: dict) -> dict:
         return {"flipped": {"cause": sum(bool(f.get("flipped_cause")) for f in hit),
                             "effect": sum(bool(f.get("flipped_effect")) for f in hit)}} if flips else {}
     out = [{"values": dict(zip(by, k)), "n": len(firm(v)), "base": base(k), "within": within(k),
-            **({"weak": len(v["documents"] if count == "documents" else v["rows"]) - len(firm(v))} if weak else {}),
-            **flipped(k, v), "documents": sorted(v["documents"]), "rows": v["rows"]} for k, v in cells.items()]
+            **({"weak": len(of_rows(v["rows"])) - len(firm(v))} if weak else {}),
+            **flipped(k, v), "documents": sorted(v["documents"]),
+            **({"cases": sorted(of_rows(v["rows"]))} if count not in ("documents", "rows") else {}), "rows": v["rows"]}
+           for k, v in cells.items()]
     if not s["loops"]:  # a loop's cells stay together, the loop's own first, in the order the loops were ranked
         out.sort(key=lambda c: (-c["n"], list(c["values"].values())))
     for k, c in enumerate(out, 1):  # an id per count, which the answer writes in place of the number
         c["id"] = f"{s['id']}.c{k}"
-    return {"input": src, "by": by, "count": count, "of": len(read), "sparse": sparse, "paths": s["paths"],
+    alone = count == "documents" or all(len(ds) == 1 for ds in held.values()) and len(held) == len(read)
+    return {"input": src, "by": by, "count": count, "unit": unit_noun(count, s.get("unit"), alone),
+            **({"cases_are_documents": alone} if count == "cases" else {}),
+            "of": len(held) if count != "rows" else len(read), "sparse": sparse, "paths": s["paths"],
             **({"loops": True} if s["loops"] else {}), **({"sequences": True} if s.get("sequences") else {}),
             **({"filters": filters, "filtered": filtered} if filtered else {}), "cells": out}
 
@@ -561,12 +607,15 @@ def _markdown(tab: dict, sid: str) -> str:
                "documents that tell it; nothing is joined across speakers, so a chain here is a story somebody told.\n")
               if tab.get("sequences") else "") + traced
     by_document = "document" in tab["by"]  # the documents behind a cell are then its own, so not listed again
-    head = (traced + f"Documents read: {tab['of']}, written {{{sid}.of}}, which reads \"{tab['of']}\"\n" + _within_said(tab)
+    unit = unit_of_table(tab)
+    counted = (f"Each count is of {unit}" + ("" if tab.get("count", "documents") == "rows" else f", out of the {unit} read")
+               + "; the sentence that cites one names the unit.\n")
+    head = (traced + counted + f"{unit[:1].upper() + unit[1:]} read: {tab['of']}, written {{{sid}.of}}, which reads \"{tab['of']}\"\n" + _within_said(tab)
             + "| id | " + " | ".join(tab["by"]) + " | reads as |" + ("" if by_document else " which |") + "\n|"
             + "---|" * (len(tab["by"]) + (2 if by_document else 3)))
     return head + "\n" + "\n".join(f"| {{{c['id']}}} | " + " | ".join(c["values"].values()) + f" | \"{stated(tab, c)}\""
                                    + (f", and {{{c['id']}.weak}} more only weakly, \"{c['weak']}\"" if c.get("weak") else "") + " |"
-                                   + ("" if by_document else f" {', '.join(c['documents'])} |") for c in tab["cells"])
+                                   + ("" if by_document else f" {', '.join(c.get('cases', c['documents']))} |") for c in tab["cells"])
 
 
 def _within_said(tab: dict) -> str:
@@ -584,15 +633,26 @@ def _within_said(tab: dict) -> str:
                 key = " and ".join(f"{b} {c['values'][b]}" for b in [col, *whole])
                 bases.setdefault(key, c["within"][col])
         out.append(f"- within its {col}: write {{<id>.within.{col}}}, such as {{{tab['cells'][0]['id']}.within.{col}}}, which "
-                   f"reads as the cell's count out of the documents with its {' and '.join([col, *whole])}: "
+                   f"reads as the cell's count out of the {unit_of_table(tab)} with its {' and '.join([col, *whole])}: "
                    + "; ".join(f"{k}, of {b}" for k, b in bases.items()))
     return "A count within a group one column defines:\n" + "\n".join(out) + "\n"
 
 
 def base_of(tab: dict, cell: dict) -> int | None:
-    """What a cell's count is out of: its own base, or for a record made before cells carried one, the documents read.
-    None where the count is of passages rather than documents."""
-    return cell.get("base", tab["of"] if tab.get("count", "documents") == "documents" else None)
+    """What a cell's count is out of: its own base, or for a record made before cells carried one, the units read.
+    None where the count is of passages."""
+    return cell.get("base", tab["of"] if tab.get("count", "documents") != "rows" else None)
+
+
+def unit_of_table(tab: dict) -> str:
+    """The plural name of what a tabulation's counts count, as its record gives it or, for a record made before
+    records carried one, as its count implies."""
+    return tab.get("unit") or unit_noun(tab.get("count", "documents"), None, tab.get("cases_are_documents", True))
+
+
+def said_with_unit(tab: dict, cell: dict) -> str:
+    """A cell's count as a reader sees it outside the answer's sentences, with its unit: "2 of 18 households"."""
+    return count_said(cell["n"], base_of(tab, cell), unit_of_table(tab))
 
 
 def stated(tab: dict, cell: dict) -> str:

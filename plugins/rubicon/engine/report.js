@@ -2,6 +2,12 @@
   const panel = document.getElementById('panel');
   const pbody = document.getElementById('panel-body');
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // A count with its unit, "2 of 18 households", or "1 passage" where it has no base: the twin of count_said in
+  // rubicon_open/units.py, which tests/rubicon-open-units-twin.test.mjs holds it to
+  function countSaid(n, base, noun) {
+    const one = k => (k === 1 && ['cases', 'documents', 'passages'].includes(noun) ? noun.slice(0, -1) : noun);
+    return base == null ? `${n} ${one(n)}` : `${n} of ${base} ${one(base)}`;
+  }
   // A value as a reader sees it (render_report.label says the same). A factor's opposite pole keeps its leading ~, as
   // Causal Map writes it ("~Hygiene and sanitation"), and `named` marks that ~ wherever a page names a coded value; the
   // leading # Causal Map's export puts on a document's column is dropped
@@ -279,16 +285,16 @@
     const c = RUN.cells[id];
     if (!c) return;
     if (!Object.keys(c.values).length) {
-      return open(head(`${c.n} documents`, 'Every document this count was made from') +
+      return open(head(c.said, `Every one of the ${c.unit || 'documents'} this count was made from, by document`) +
         c.docs.map(d => `<div class="item">${docTag(d)}</div>`).join(''));
     }
-    const said = within && within in c.within ? `${c.n} of ${c.within[within]}` : c.said;
+    const said = within && within in c.within ? countSaid(c.n, c.within[within], c.unit || 'documents') : c.said;
     const both = combined(c) ? '<p class="small">Opposites are combined here, so a passage coded as a factor or as its opposite counts towards this link. Passages coded as an opposite come first, their codes marked ~; the rest were coded as labelled.</p>' : '';
     // passages coded at an opposite pole first, since they are the few a reader looks for
     const listed = c.rows.filter(id => oppositeEnds(c, id).length).concat(c.rows.filter(id => !oppositeEnds(c, id).length));
     open(head(said, c.question ? `Judged by rule: ${c.question}` : '') +
-      (c.told ? `<p class="small">Counted by code from the coded passages: the documents ${esc(c.told)}.</p>`
-        : `<p class="small">Counted by code from the coded passages: the ${c.base == null ? 'passages' : 'documents'} where</p>${meaning(c.values, c)}`) + both +
+      (c.told ? `<p class="small">Counted by code from the coded passages: the ${esc(c.unit || 'documents')} ${esc(c.told)}.</p>`
+        : `<p class="small">Counted by code from the coded passages: the ${c.base == null ? 'passages' : esc(c.unit || 'documents')} where</p>${meaning(c.values, c)}`) + both +
       listing(listed, c.docs, c.weak_docs || []));
   }
   // A code's chip: what the code means and every passage given it in its step. Where a table counts that code alone,

@@ -36,7 +36,8 @@ from rubicon_open import locator, node
 from rubicon_open.corpus import INDEX_FIELDS, as_read
 from rubicon_open.run_id import clean as run_id_of
 from rubicon_open.seal import engine_fingerprint, engine_version, seal_broken
-from rubicon_open.steps import ROW_ID, base_of, cited_as, group_ids, stated
+from rubicon_open.steps import ROW_ID, base_of, cited_as, group_ids, said_with_unit, unit_of_table
+from rubicon_open.units import base_said, count_said
 from rubicon_open.workflow import arrow_parts, loop_markers, sign_of, value_key
 
 ENGINE = Path(__file__).resolve().parent
@@ -100,7 +101,12 @@ def same(name, a, b):
         # A newer engine records more about the same run (a judgement's margin, say), so a recount it makes may add
         # fields the run's own recount never had; it may not change or drop any it has, which is what a report reads
         try:
-            return kept(json.loads(a.read_text(encoding="utf-8")), json.loads(b.read_text(encoding="utf-8")))
+            old, new = json.loads(a.read_text(encoding="utf-8")), json.loads(b.read_text(encoding="utf-8"))
+            # a tabulation recounted before cases were counted says it counted documents; where each case is one
+            # document, counting cases is the same count
+            if isinstance(old, dict) and old.get("count") == "documents" and isinstance(new, dict) and new.get("count") == "cases"                     and new.get("cases_are_documents"):
+                old = {**old, "count": "cases"}
+            return kept(old, new)
         except (OSError, ValueError):
             pass
     # line endings are the platform's that wrote the file (a recount on Windows writes \r\n), never part of a count
@@ -370,7 +376,8 @@ def build_data(R):
             for c in s.get("cells", []):
                 # the documents a cell holds only through weak rows, which its count leaves out (steps.tabulate)
                 firm = {rows[x]["doc"] for x in c.get("rows", []) if x in rows and x not in weak}
-                cells[c["id"]] = {"values": c["values"], "n": c["n"], "base": base_of(s, c), "said": stated(s, c),
+                cells[c["id"]] = {"values": c["values"], "n": c["n"], "base": base_of(s, c), "said": said_with_unit(s, c),
+                                  "unit": unit_of_table(s),
                                   "within": c.get("within") or {}, "docs": c.get("documents", []),
                                   "weak_docs": sorted({weak[x] for x in c.get("rows", []) if x in weak} - firm),
                                   "rows": c.get("rows", []), "step": sid}
@@ -384,7 +391,8 @@ def build_data(R):
             # {<step>.of}, the documents the tabulation read, as the engine takes them from its input step
             src = R["steps"].get(s.get("input"), {})
             read = src.get("documents") or R["steps"].get(src.get("input"), {}).get("documents") or sorted(docs)
-            cells[f"{sid}.of"] = {"values": {}, "n": s.get("of"), "base": s.get("of"), "said": f'{s.get("of")} of {s.get("of")}', "within": {},
+            cells[f"{sid}.of"] = {"values": {}, "n": s.get("of"), "base": s.get("of"), "unit": unit_of_table(s),
+                                  "said": f'{s.get("of")} {unit_of_table(s)} read', "within": {},
                                   "docs": sorted(read), "rows": [], "step": sid}
         elif s.get("kind") == "judge":
             # a rule's count opens the passages it was counted from, as a table's cell does, with the rule's question
@@ -395,7 +403,8 @@ def build_data(R):
                 where = (c.get("counted") or {}).get("where") or {}
                 weak = set(c.get("weak") or [])
                 cells[cid] = {"values": {k: " or ".join(map(str, v)) if isinstance(v, list) else v for k, v in where.items()},
-                              "n": c.get("n"), "base": c.get("base"), "said": R["counts"][cid], "within": {},
+                              "n": c.get("n"), "base": c.get("base"), "unit": c.get("unit") or "documents",
+                              "said": count_said(c.get("n"), c.get("base"), c.get("unit") or "documents"), "within": {},
                               "docs": [d for d in c.get("documents", []) if d not in weak] + sorted(weak),
                               "weak_docs": sorted(weak), "rows": c["rows"], "step": sid, "question": c.get("question", "")}
     steps = {st["id"]: step_said(st["id"], st.get("kind", "")) for st in R.get("workflow", {}).get("steps", [])}
@@ -431,7 +440,7 @@ def anchor(heading):
 SAID = re.compile(r"(\d+) (?:of (\d+)|passages?)")
 
 
-def heat(pairs):
+def heat(pairs, unit="documents"):
     """How a table shows its counts, from each count's (n, base), base None for a count of passages: a shade for each
     count, and the line said once beneath where every count shares one base (plain numbers, shaded by share) or none
     has one (plain numbers, shaded against the largest); the line is None where the bases differ, and each count then
@@ -441,7 +450,7 @@ def heat(pairs):
     note = None
     if len(pairs) > 1 and len(bases) == 1:
         b = bases.pop()
-        note = f"Each number is out of {b}." if b else "Each number counts coded passages, not documents."
+        note = f"Each number is out of {b} {unit}." if b else "Each number counts coded passages, not documents."
     return (lambda n, b: n / (b or top)), note
 
 
@@ -609,7 +618,7 @@ def figure(tid, R, D):
     avals.sort(key=lambda v: -sum(look.get((v, x), {"n": 0})["n"] for x in bvals))
     head = "".join(f"<th>{named(x, b)}</th>" for x in bvals)
     body = ""
-    shade, note = heat([(c["n"], base_of(s, c)) for c in cells if c["n"]])
+    shade, note = heat([(c["n"], base_of(s, c)) for c in cells if c["n"]], unit_of_table(s))
     for v in avals:
         tds = ""
         for x in bvals:
@@ -617,7 +626,7 @@ def figure(tid, R, D):
             if c and c["n"]:
                 n, base = c["n"], base_of(s, c)
                 tds += (f'<td><button class="cellbtn" data-cell="{esc(c["id"])}" style="--a:{shade(n, base):.2f}">{n}'
-                        f'{"" if note else f"<small> of {base}</small>"}</button></td>')
+                        f'{"" if note else f"<small> {esc(base_said(base, unit_of_table(s)))}</small>"}</button></td>')
             else:
                 tds += '<td class="zero">0</td>'
         body += f"<tr><th>{named(v, a)}</th>{tds}</tr>"
@@ -627,8 +636,9 @@ def figure(tid, R, D):
 
 def caption(s):
     """What a figure's counts are, and the base they all share where they share one."""
-    note = heat([(c["n"], base_of(s, c)) for c in s["cells"] if c["n"]])[1]
-    what = "Documents in each group" if s.get("count", "documents") == "documents" else "Coded passages in each group"
+    unit = unit_of_table(s)
+    note = heat([(c["n"], base_of(s, c)) for c in s["cells"] if c["n"]], unit)[1]
+    what = f"{unit[:1].upper() + unit[1:]} in each group" if s.get("count", "documents") != "rows" else "Coded passages in each group"
     return f"{what}. {note}" if note else f"{what}."
 
 
@@ -688,10 +698,11 @@ def loop_diagrams(tid, s, R):
         loop = {"marker": markers[lp], "links": [edge(c) for c in cs if c["values"]["part"] == "link"],
                 "drivers": [edge(c) for c in cs if c["values"]["part"] == "driver"]}
         svg = graph(node.call(DRAW_MAP, {"loop": loop}, "loop drawing"))
+        unit = esc(unit_of_table(s))
         told = f'<button class="n" data-cell="{esc(whole["id"])}">{whole["n"]} of {s["of"]}</button>'
         out.append(f'<figure class="fig map loop">{svg}<figcaption>{esc(markers[lp])}: '
-                   f'{esc(POLARITY_SAID[whole["values"]["polarity"]])}, told whole in {told} documents. Each arrow is '
-                   f'numbered by the documents telling that link; a dashed box is a variable outside the loop that drives '
+                   f'{esc(POLARITY_SAID[whole["values"]["polarity"]])}, told whole in {told} {unit}. Each arrow is '
+                   f'numbered by the {unit} telling that link; a dashed box is a variable outside the loop that drives '
                    f'it. Click an arrow or a factor for its passages.</figcaption></figure>')
     if len(chosen) > MOST_LOOPS:
         R.setdefault("loops_left_out", []).append(f"{tid} ({len(chosen) - MOST_LOOPS} more)")
@@ -989,7 +1000,7 @@ def table_of(sid, s, static=False):
                      f'style="--a:{shade(c["n"], base_of(s, c)):.2f}">{c["n"]}</button>')
                   + (f' of {b}' if (b := base_of(s, c)) is not None else '') + '</td></tr>'
                   for c in s.get("cells", []))
-    return (f'<div class="scroll"><table class="codebook"><thead><tr>{head}<th>{esc(label(s.get("count", "documents")))}</th>'
+    return (f'<div class="scroll"><table class="codebook"><thead><tr>{head}<th>{esc(label(unit_of_table(s)))}</th>'
             f'</tr></thead><tbody>{trs}</tbody></table></div>')
 
 
@@ -998,7 +1009,9 @@ def judged(sid, s, D, static=False):
     (opening the passages it was counted from) and the level it reached, the verdict and why, and the levels in full."""
     def count(c):
         cid = f"{sid}.{c.get('id')}"
-        said = f"{c['n']} of {c['base']}" if c.get("n") is not None else ""
+        said = ("" if c.get("n") is None
+                else f"{c['n']} of {c['base']}, as {c.get('document')} states it" if c.get("kind") == "stated"
+                else count_said(c["n"], c["base"], c.get("unit") or "documents"))
         return said if static or cid not in D["cells"] else f'<button class="num" data-cell="{esc(cid)}">{esc(said)}</button>'
     crits = "".join(f'<li>{esc(c.get("question", c.get("id", "")))} {count(c)}'
                     + (f' <span class="small">· level met: {esc(c["verdict"])}</span>' if c.get("verdict") not in (None, "") else "") + "</li>"
@@ -1043,7 +1056,7 @@ def annex(R, D, static=False):
                 body.append(f'<div class="rb-block" data-node="asset:{esc(sid)}"><details><summary>The coded passages '
                             f'<span class="small">{len(s["rows"])} rows</span></summary>{passages_of(s)}</details></div>')
         elif kind == "tabulate":
-            body.append(f'<h3>{esc(step_said(sid, kind))}</h3><p class="small">{esc(label(s.get("count", st.get("count", "documents"))))} by '
+            body.append(f'<h3>{esc(step_said(sid, kind))}</h3><p class="small">{esc(label(unit_of_table(s if s.get("count") else {"count": st.get("count", "cases"), "unit": st.get("unit")})))} by '
                         f'{esc(" and ".join(label(b).lower() for b in st.get("by", [])))}</p>')
             if s.get("cells"):
                 body.append(f'<div class="rb-block" data-node="asset:{esc(sid)}"><details><summary>The table '

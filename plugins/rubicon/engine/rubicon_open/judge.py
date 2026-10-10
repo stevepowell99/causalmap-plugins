@@ -286,18 +286,19 @@ def _base(run, base: dict | None) -> list[str]:
 
 
 def _cells(tab: dict, where: dict | None, weak: set[str] = frozenset(), of_row: dict | None = None) -> tuple[set[str], list[str], set[str]]:
-    """The documents, and the rows, in a tabulation's cells matching `where` ({column: value or list}), and the
-    documents those cells hold only through rows marked weak (`weak`, with `of_row` giving each row's document), which a
-    count keeps apart as the tables do."""
+    """The units (the table's cases, or its documents for a table that counts documents or passages), and the rows, in
+    a tabulation's cells matching `where` ({column: value or list}), and the units those cells hold only through rows
+    marked weak (`weak`, with `of_row` giving each row's unit), which a count keeps apart as the tables do."""
     want = {k: {value_key(x) for x in (v if isinstance(v, list) else [v])} for k, v in (where or {}).items()}
-    docs, rows, firm = set(), [], set()
+    units, rows, firm = set(), [], set()
     for cell in tab["cells"]:
         if all(value_key(cell["values"].get(k)) in vs for k, vs in want.items()):
-            docs |= set(cell["documents"])
+            held = cell.get("cases", cell["documents"])
+            units |= set(held)
             rows += cell["rows"]
             firm |= ({of_row[r] for r in cell["rows"] if r not in weak and r in (of_row or {})} if cell.get("weak")
-                     else set(cell["documents"]))
-    return firm, rows, docs - firm
+                     else set(held))
+    return firm, rows, units - firm
 
 
 def _first_met(levels: list[dict], ns: list[int], base: int) -> int | None:
@@ -330,28 +331,37 @@ def _rule(run, c: dict) -> dict:
     count tested kept, and the verdict, count and documents of the first level met. A count is of the documents its
     cells hold through firm rows; those held only through weak rows are listed apart, as the tables list them. Every
     level's count is made, the untried ones too, so that the margin can say how many documents would move the level."""
+    from .steps import _unit_of_row, units, unit_of_table
     tab = run.out[c["table"]]
+    count = tab.get("count", "documents")
+    by_cases = "cases" in (tab["cells"][0] if tab.get("cells") else {}) or count not in ("documents", "rows")
     rows_of = [r for rec in run.out.values() if rec.get("kind") == "code" for r in rec.get("rows") or []]
-    weak, of_row = {r["row"] for r in rows_of if r.get("weak")}, {r["row"]: r["document"] for r in rows_of}
-    base = set(_base(run, c.get("base")))
+    weak = {r["row"] for r in rows_of if r.get("weak")}
+    of_row = {r["row"]: (_unit_of_row(run, count, r) if by_cases else r["document"]) for r in rows_of}
+    base_docs = _base(run, c.get("base"))
+    src = run.out.get(tab.get("input"), {})
+    held = units(run, count, base_docs, run.table(tab["input"]) if by_cases and src.get("kind") in ("code", "group") else [])[0]         if by_cases else {d: {d} for d in base_docs}
+    base = set(held)
+    noun = unit_of_table(tab) if by_cases else "documents"
     if c.get("base_where") is not None:
         base &= _cells(tab, c["base_where"], weak, of_row)[0]
     every, met = [], None
     for lv in c["levels"]:
         docs, rows, only_weak = _cells(tab, lv.get("where", c.get("where")), weak, of_row)
         hit = sorted(docs & base)
-        got, _ = _level([lv], len(hit), len(base), "documents")
+        got, _ = _level([lv], len(hit), len(base), noun)
         every.append({"verdict": lv["verdict"], "n": len(hit), "base": len(base), "met": got is not None,
-                      "documents": hit, "rows": rows, "weak": sorted(only_weak & base)})
+                      "documents": sorted({d for u in hit for d in held[u]}) if by_cases else hit,
+                      **({"cases": hit} if by_cases else {}), "rows": rows, "weak": sorted(only_weak & base)})
         if got and met is None:
             met = every[-1]
     tested = every[:every.index(met) + 1] if met else every
     use = met or tested[-1]
-    said = "; ".join(f"{x['verdict'] or NO_RATING}: {x['n']} of {x['base']} documents, {'met' if x['met'] else 'not met'}" for x in tested)
+    said = "; ".join(f"{x['verdict'] or NO_RATING}: {x['n']} of {x['base']} {noun}, {'met' if x['met'] else 'not met'}" for x in tested)
     why = (f"the first level met is {met['verdict']} ({said})" if met and met["verdict"] is not None
            else f"not placed: the first level met says no rating can be given ({said})" if met else f"no level is met ({said})")
     return {"verdict": met["verdict"] if met else None, "n": use["n"], "base": use["base"], "documents": use["documents"],
-            "rows": use["rows"], "why": why,
+            **({"cases": use["cases"], "unit": noun} if by_cases else {}), "rows": use["rows"], "why": why,
             "tested": [{k: x[k] for k in ("verdict", "n", "base", "met")} for x in tested],
             "margin": _margin(c["levels"], [x["n"] for x in every], len(base)),
             **({"weak": use["weak"]} if use["weak"] else {})}

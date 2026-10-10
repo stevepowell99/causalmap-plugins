@@ -46,8 +46,32 @@ class Corpus:
     def background_texts(self) -> dict[str, str]:
         return {d: self.text(d) for d in self.background}
 
-    def case_of(self, doc: str) -> str:
-        return self.documents[doc].get("case") or doc
+    def case_of(self, doc: str, row_case=None) -> str:
+        """The case a passage belongs to: the one its row names, within its document's case, so that "Participant 1"
+        of two focus groups are two cases and one person across two documents of one case is one; else its document's
+        case, the index's `case` column where it gives one, else the document itself."""
+        own = self.documents[doc].get("case") or doc
+        named = "" if row_case is None else str(row_case).strip()
+        return f"{own} / {named}" if named else own
+
+    def cases_held(self, docs, rows=()) -> dict[str, set[str]]:
+        """Every case among the documents `docs`, with the documents each appears in, for a count made from `rows`
+        (one code step's; a `case` on a row attributes it). A document holds the cases its rows name, and its own case
+        as well where one of its rows names none or none of them names one. The cases of different code steps are
+        never pooled: each may attribute passages to a different kind of case."""
+        named: dict[str, set[str]] = {}
+        unnamed: set[str] = set()
+        for r in rows:
+            c = self.case_of(r["document"], r.get("case"))
+            if c == self.case_of(r["document"]):
+                unnamed.add(r["document"])
+            else:
+                named.setdefault(r["document"], set()).add(c)
+        out: dict[str, set[str]] = {}
+        for d in docs:
+            for c in named.get(d, set()) | ({self.case_of(d)} if d in unnamed or d not in named else set()):
+                out.setdefault(c, set()).add(d)
+        return out
 
     @property
     def cases(self) -> dict[str, list[str]]:
@@ -56,9 +80,9 @@ class Corpus:
             out.setdefault(self.case_of(d), []).append(d)
         return out
 
-    def case_column(self, case: str, column: str) -> str | None:
-        """A case's value of a document column, where all its documents agree on it."""
-        values = {self.documents[d]["columns"].get(column) for d in self.cases.get(case, [])}
+    def case_column(self, case: str, column: str, docs=None) -> str | None:
+        """A case's value of a document column, where all its documents (`docs`, else the index's grouping) agree."""
+        values = {self.documents[d]["columns"].get(column) for d in (docs if docs is not None else self.cases.get(case, []))}
         return values.pop() if len(values) == 1 else None
 
 
