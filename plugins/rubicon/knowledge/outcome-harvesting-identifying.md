@@ -10,7 +10,7 @@ Back to [outcome harvesting](outcome-harvesting.md).
 
 Four things have to be present. An actor you can name. An act, in the past. A date. A source that could verify it. If any one is absent the statement is not yet usable, whatever else it says.
 
-The working definition of an outcome in this method is a change in the behaviour, relationships, actions, activities, policies or practices of an individual, group, community, organisation or institution. The operative word throughout is behaviour. A change in what somebody thinks, knows, feels or is capable of counts only when it has surfaced as something they did.
+The working definition of an outcome in this method is a change in the behaviour, relationships, actions, activities, policies or practices of an individual, group, community, organisation or institution (Wilson-Grau and Britt, 2012, taking it from Outcome Mapping; see the [main page](outcome-harvesting.md#sources)). The operative word throughout is behaviour. A change in what somebody thinks, knows, feels or is capable of counts only when it has surfaced as something they did.
 
 ## What counts
 
@@ -33,7 +33,7 @@ The working definition of an outcome in this method is a change in the behaviour
 
 ## Edge cases worth settling in advance
 
-- **The absence of an expected change is not an outcome.** It may be an important finding. It also has nowhere to live in an outcome set. Record non-occurrence separately, in the analysis notes, or it will be lost. This matters more than it sounds: a set that contains only occurrences and an analysis that never mentions non-occurrence reads as a much better programme than the evidence supports.
+- **The absence of an expected change is not an outcome.** It may be an important finding. It also has nowhere to live in an outcome set. Record non-occurrence separately, in the analysis notes, or it will be lost. This matters more than it sounds: a set that contains only occurrences and an analysis that never mentions non-occurrence reads as a much better programme than the evidence supports. Keep this apart from influencing an actor not to act, which prevents something undesirable: Wilson-Grau and Britt treat that as a possible significant outcome, though an awkward one to state as a change.
 - **One-off versus established.** A single instance of new behaviour is weaker evidence than a practice sustained over several cycles. Carry it as a field (`first_instance`, `repeated`, `institutionalised`) rather than arguing case by case. Then the analysis can use it.
 - **Where the actor sits.** A direct partner (first order), somebody the partner influenced (second order), somebody beyond that (third order). Record the order at drafting. It is close to impossible to reconstruct later and it is one of the more informative fields.
 - **Anticipated but unplanned.** Intended and unintended are worth separating from positive and negative, because the four combinations behave differently in analysis. An unintended positive is usually the most valuable thing in a harvest.
@@ -79,7 +79,7 @@ Some practitioners fold significance and contribution into a three-part statemen
 
 ## Worked rewrites
 
-The most useful thing on this page. Each shows the diagnosis, because the diagnosis is what transfers to the next case.
+The examples below are constructed for illustration. None comes from a real harvest, and none is evidence about any programme. The most useful thing on this page. Each shows the diagnosis, because the diagnosis is what transfers to the next case.
 
 ---
 

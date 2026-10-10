@@ -86,7 +86,7 @@ The worked strategy for a contribution question: a code step reading every docum
 
 ## Sources
 
-Scriven, M. (2008). 'A Summative Evaluation of RCT Methodology: & An Alternative Approach to Causal Research'. *Journal of MultiDisciplinary Evaluation* 5(9): 11-24. The modus operandi list and the footprints quotation. The method's name goes back to Scriven, M. (1976), 'Maximizing the power of causal investigations: the modus operandi method', in G. V. Glass (ed.), *Evaluation Studies Review Annual*, vol. 1, Sage.
+Scriven, M. (2008). 'A Summative Evaluation of RCT Methodology: & An Alternative Approach to Causal Research'. *Journal of MultiDisciplinary Evaluation* 5(9): 11-24. The modus operandi list and the footprints quotation. The method's name goes back to Scriven, M. (1976), 'Maximizing the power of causal investigations: the modus operandi method', in G. V. Glass (ed.), *Evaluation Studies Review Annual*, vol. 1, Sage: 101-118.
 
 Yao, Y., Ye, D., Li, P., Han, X., Lin, Y., Liu, Z., Liu, Z., Huang, L., Zhou, J. and Sun, M. (2019). 'DocRED: A Large-Scale Document-Level Relation Extraction Dataset'. *Proceedings of ACL 2019*: 764-777.
 

@@ -10,7 +10,7 @@ MSC is a participatory process for collecting stories of change and choosing amo
 
 So MSC is not an analysis method. Its product is a conversation about values, held by the people involved, and its one analytic act, selection, belongs to the panels. An analyst or a model choosing the most significant stories replaces their values with its own.
 
-What people usually want from documents is something else: an analysis of the whole set of stories collected, not only the ones chosen. The guide allows for this as secondary analysis (its step 9), and it is often the most useful thing a set of stories can give. It is ordinary qualitative analysis of a story corpus, and the rest of this page is about doing it well.
+What people usually want from documents is something else: an analysis of the whole set of stories collected, not only the ones chosen. The guide covers this as secondary analysis (its step 9, which it calls not critical but, in its authors' experience, very useful). It is ordinary qualitative analysis of a story corpus, and the rest of this page is about doing it well.
 
 ## What analysing the whole corpus can establish
 
@@ -68,4 +68,4 @@ The report opens with what the stories show: the kinds of change told, each defi
 
 ## Sources
 
-Davies, R. and Dart, J. (2005). *The 'Most Significant Change' (MSC) Technique: A Guide to Its Use*. Published by the authors, Melbourne. Freely available, including through [GSDRC](https://gsdrc.org/document-library/the-most-significant-change-msc-technique-a-guide-to-its-use/). Its ten steps run from raising interest and defining domains of change, through collecting and selecting stories and feeding back the results, to verification, quantification, secondary analysis and meta-monitoring, and revising the system.
+Davies, R. and Dart, J. (2005). *The 'Most Significant Change' (MSC) Technique: A Guide to Its Use*. Version 1.00, April 2005, published by the authors. Freely available, including through [GSDRC](https://gsdrc.org/document-library/the-most-significant-change-msc-technique-a-guide-to-its-use/) and from [MandE News](https://www.mande.co.uk/wp-content/uploads/2018/01/MSCGuide.pdf). Its ten steps run from raising interest and defining domains of change, through collecting and selecting stories and feeding back the results, to verification, quantification, secondary analysis and meta-monitoring, and revising the system.

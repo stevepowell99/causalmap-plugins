@@ -6,7 +6,7 @@ Ask for this page when planning where a run should look hardest, when deciding w
 
 ## What probative value is
 
-A piece of evidence is worth as much as it discriminates. Two probabilities decide that: how likely the evidence is if the claim is true, and how likely it is if the claim is false. Befani and colleagues call the first the sensitivity and the second the type I error, borrowing the terms from diagnostic testing (CECAN note; Befani and Stedman-Bryce 2017). Their ratio, the likelihood ratio, is the probative value. Bennett puts it plainly: "It is the relative likelihood of the evidence under the alternative explanations, or the 'likelihood ratio,' that matters, not the absolute likelihood" (Bennett 2022). Fairfield and Charman take its logarithm, following Good, and call that the weight of evidence, which "describes the probative value of the evidence", that is, "how strongly it discriminates between two rival hypotheses" (Fairfield and Charman 2017).
+A piece of evidence is worth as much as it discriminates. Two probabilities decide that: how likely the evidence is if the claim is true, and how likely it is if the claim is false. Befani and colleagues call the first the sensitivity and the second the type I error, borrowing the terms from diagnostic testing (CECAN note; Befani 2020). Their ratio, the likelihood ratio, is the probative value. Bennett puts it plainly: "It is the relative likelihood of the evidence under the alternative explanations, or the 'likelihood ratio,' that matters, not the absolute likelihood" (Bennett 2022). Fairfield and Charman take its logarithm, following Good, and call that the weight of evidence, which "describes the probative value of the evidence", that is, "how strongly it discriminates between two rival hypotheses" (Fairfield and Charman 2017).
 
 Three consequences hold even where nobody writes a number down.
 
@@ -76,16 +76,16 @@ A check has a sensitivity and a type I error of its own. A second reading whose 
 ## The limits
 
 - **Priors are arbitrary in this material.** Fairfield and Charman advise equal priors across the named hypotheses, or reporting likelihood ratios and letting readers supply their own (Fairfield and Charman 2017); IIED set every prior at 0.5, "equivalent to 'no information'" (IIED 2017). Either is a convention, not knowledge, and a posterior inherits it.
-- **Precise numbers can be false precision.** Fairfield and Charman: "quantification may simply disguise that ambiguity with false precision" (Fairfield and Charman 2017). The CECAN note lists the biases expert estimates carry, anchoring and a preference for a good story among them, and names probability estimation as the method's main weakness in both its case studies.
-- **Independence usually fails.** Likelihood ratios multiply only across independent evidence, and interviews from one office, or passages from one talkative respondent, are not independent. Befani treats this under evidence packages, which she calls one of the most troublesome practical issues (Befani 2020).
-- **The practice has run ahead of the principle.** Zaks examines the claims made for Bayesian process tracing, that it enables inference from iterative research and guards against confirmation bias, and finds gaps between principle and practice (Zaks 2021).
+- **Precise numbers can be false precision.** Fairfield and Charman: "quantification may simply disguise that ambiguity with false precision" (Fairfield and Charman 2017). The CECAN note lists the biases expert estimates carry, anchoring and a preference for a good story among them, and names probability estimation as the method's main weakness in two of its three case studies, and as its main critical issue overall.
+- **Independence usually fails.** Likelihood ratios multiply only across independent evidence, and interviews from one office, or passages from one talkative respondent, are not independent. Befani treats this under evidence packages, which she calls one of the most problematical practical issues (Befani 2020).
+- **The practice has run ahead of the principle.** Zaks examines the claims made for Bayesian process tracing, that it enables inference from iterative research and guards against confirmation bias, and finds that the method as currently practised introduces more bias than it corrects for (Zaks 2021).
 - **The margin is not a significance test.** It says how many placements a wording turns on, given an error rate measured on a bench corpus that may not match this one. It does not say whether a difference between groups would hold in another draw, which is a question for a test of chance, with the caveats on the [equity page](generic-evaluation-equity-and-differential-reach.md#whether-a-difference-could-be-chance).
 
 ## Sources
 
-Befani, B. and Stedman-Bryce, G. (2017). 'Process Tracing and Bayesian updating for impact evaluation'. *Evaluation* 23(1): 42-60. [SAGE](https://journals.sagepub.com/doi/abs/10.1177/1356389016654584). Read through its abstract and the two notes below; the article itself was not read.
+Befani, B. and Stedman-Bryce, G. (2017). 'Process Tracing and Bayesian Updating for impact evaluation'. *Evaluation* 23(1): 42-60. DOI 10.1177/1356389016654584. [SAGE](https://journals.sagepub.com/doi/abs/10.1177/1356389016654584). Read through its abstract and the two notes below; the article itself was not read.
 
-Befani, B., Rees, C., Varga, L. and Hills, D. (2016). *Testing Contribution Claims with Bayesian Updating*. CECAN Evaluation and Policy Practice Note 2.1. [PDF](https://www.cecan.ac.uk/wp-content/uploads/2020/08/EPPN-No-02-Testing-Contribution-Claims-with-Bayesian-Updating-.pdf). Sensitivity and type I error, expert elicitation and its biases, the IPCC scale, the weakest-link rule for a mechanism.
+Befani, B., Rees, C., Varga, L. and Hills, D. (2016). *Testing Contribution Claims with Bayesian Updating*. CECAN Evaluation and Policy Practice Note 2.1. [PDF](https://www.cecan.ac.uk/wp-content/uploads/2020/08/EPPN-No-02-Testing-Contribution-Claims-with-Bayesian-Updating-.pdf). Written by Befani, Rees, Varga and Hills. Sensitivity and type I error, expert elicitation and its biases, the IPCC scale, the weakest-link rule for a mechanism.
 
 IIED (2017). *Process tracing with Bayesian updating*. Better Evidence in Action brief 17402IIED. [PDF](https://www.iied.org/sites/default/files/pdfs/migrate/17402IIED.pdf). The confidence table credited to Befani and Stedman-Bryce, priors at 0.5, the Bwindi application. No author is named on the brief.
 
@@ -97,7 +97,7 @@ Fairfield, T. and Charman, A. E. (2017). 'Explicit Bayesian Analysis for Process
 
 Bennett, A. (2022). 'Process Tracing for Program Evaluation'. In J. Widner, M. Woolcock and D. Ortega Nieto (eds), *The Case for Case Studies: Methods and Applications in International Development*, Cambridge University Press, chapter 9: 195-218. The likelihood ratio, and the asymmetry of hoop and smoking-gun tests.
 
-Humphreys, M. and Jacobs, A. M. (2015). 'Mixing Methods: A Bayesian Approach'. *American Political Science Review* 109(4): 653-673. Generalises Van Evera's tests by letting a clue's probative value be continuous and uncertain. Read through summaries only.
+Humphreys, M. and Jacobs, A. M. (2015). 'Mixing Methods: A Bayesian Approach'. *American Political Science Review* 109(4): 653-673. Generalises Van Evera's tests by letting a clue's probative value lie along a continuum.
 
 Zaks, S. (2021). 'Updating Bayesian(s): A Critical Evaluation of Bayesian Process Tracing'. *Political Analysis* 29(1): 58-74. Read through its abstract only.
 

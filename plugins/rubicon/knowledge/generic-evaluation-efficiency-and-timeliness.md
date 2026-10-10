@@ -47,7 +47,7 @@ Evaluators routinely meet what might be called exogenous excuse bias, where an i
 
 ## Sources
 
-The works cited for all the criterion pages are on [generic evaluation questions](generic-evaluation.md#works-cited). This page cites two OECD documents by page. The 2019 definition, its note and their page were checked against the copy the New Zealand Ministry of Foreign Affairs and Trade hosts, and the quotations are from that copy; the 2021 section and table pages were checked against that report's printed table of contents.
+The works cited for all the criterion pages are on [generic evaluation questions](generic-evaluation.md#works-cited). This page cites two OECD documents by page. The 2019 quotations and their printed pages were checked word for word against the PDF the New Zealand Ministry of Foreign Affairs and Trade hosts; the 2021 section and table pages were checked against the printed table of contents and the pages themselves in the PDF on oecd.org.
 
 OECD DAC Network on Development Evaluation (2019). *Better Criteria for Better Evaluation: Revised Evaluation Criteria Definitions and Principles for Use*. OECD. The definition of efficiency, its note and Box 5 are on p. 10. Listed as [1] in the works cited.
 

@@ -8,7 +8,7 @@ Back to [generic evaluation questions](generic-evaluation.md), for what the crit
 
 The 2019 definition asks "Is the intervention doing the right things?": "The extent to which the intervention objectives and design respond to beneficiaries', global, country, and partner/institution needs, policies, and priorities, and continue to do so if circumstances change" (OECD DAC 2019, p. 7). Its note adds that relevance "requires analysing any changes in the context to assess the extent to which the intervention can be (or has been) adapted to remain relevant" (OECD DAC 2019, p. 7).
 
-Adaptability is not a DAC criterion. It is asked for under that name often enough to get a page, and it rests on those two phrases in the relevance definition and its note, together with the efficiency note's "timeframe reasonably adjusted to the demands of the evolving context" (OECD DAC 2019, p. 10). Where a terms of reference asks how well an intervention learned and changed course as it went, rather than whether it stayed relevant, developmental evaluation is the fuller account of that question (Patton 2011). The 2021 guidance takes relevance from p. 38, with its table of challenges on p. 42 (OECD 2021), and discusses the time dimension of the criteria in general on p. 26.
+Adaptability is not a DAC criterion. It is asked for under that name often enough to get a page, and it rests on those two phrases in the relevance definition and its note, together with the efficiency note's "timeframe reasonably adjusted to the demands of the evolving context" (OECD DAC 2019, p. 10). Where a terms of reference asks how well an intervention learned and changed course as it went, rather than whether it stayed relevant, developmental evaluation, which applies complexity concepts to innovation and adaptation, is where to look (Patton 2011). The 2021 guidance takes relevance from p. 38, with its table of challenges on p. 42 (OECD 2021), and discusses the time dimension of the criteria in general on p. 26.
 
 Terms of reference organise the question around three lines of inquiry.
 
@@ -48,7 +48,7 @@ The main weakness in evaluating relevance is what might be called donor-mandate 
 
 ## Sources
 
-The works cited for all the criterion pages are on [generic evaluation questions](generic-evaluation.md#works-cited). This page cites two OECD documents by page and Patton as a whole work. The 2019 definition, its note, Box 2 and their page were checked against the copy the New Zealand Ministry of Foreign Affairs and Trade hosts, and the quotations are from that copy; the 2021 section, table and chapter pages were checked against that report's printed table of contents.
+The works cited for all the criterion pages are on [generic evaluation questions](generic-evaluation.md#works-cited). This page cites two OECD documents by page and Patton as a whole work. The 2019 quotations and their printed pages were checked word for word against the PDF the New Zealand Ministry of Foreign Affairs and Trade hosts; the 2021 section, table and chapter pages were checked against the PDF on oecd.org, by printed page number. Patton's book was not read for this check.
 
 OECD DAC Network on Development Evaluation (2019). *Better Criteria for Better Evaluation: Revised Evaluation Criteria Definitions and Principles for Use*. OECD. The definition of relevance, its note and Box 2 are on p. 7; the efficiency note is on p. 10. Listed as [1] in the works cited.
 

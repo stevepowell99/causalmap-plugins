@@ -55,5 +55,5 @@ The test uses the real workflow and nothing else: the same code, tabulate and ju
 
 ## Sources
 
-- Haven and Van Grootel (2019), "Preregistering qualitative research", *Accountability in Research*, on why and how qualitative studies can fix their analysis in advance.
+- Haven, T. L. and Van Grootel, L. (2019). Preregistering qualitative research. *Accountability in Research*, 26(3), 229-244. DOI 10.1080/08989621.2019.1580147. On whether preregistration suits qualitative studies and how the Open Science Framework form could be adapted for them.
 - The practice of planting known positive and negative cases to check an instrument before trusting its results is old across the sciences, as positive and negative controls in laboratory work and as test cases with known answers in software; this page carries it over to coding qualitative documents.

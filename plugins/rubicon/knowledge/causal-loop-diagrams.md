@@ -12,7 +12,7 @@ Built from documents, a causal loop diagram establishes the same kind of claim a
 
 What it cannot establish:
 
-- **Which loop dominates.** Whether a reinforcing loop outruns the balancing loop that limits it depends on strengths and delays that narrative does not give. Richardson's critique of causal loop diagrams argues that a loop diagram does not show what the system will do over time. That takes a simulation model built and calibrated with stakeholders, which is system dynamics, not this.
+- **Which loop dominates.** Whether a reinforcing loop outruns the balancing loop that limits it depends on strengths and delays that narrative does not give. Richardson's critique of causal loop diagrams (1986) is that they leave out how flows change stocks, which is part of why a loop diagram cannot be read off as a forecast of what the system will do over time. That takes a simulation model built and calibrated with stakeholders, which is system dynamics, not this.
 - **How fast or how strong.** A thick arrow is still much said, not a strong effect. A delay can be recorded where a source states one, but its length is the source's estimate.
 - **That a loop linked up from several sources operates as one loop anywhere.** This is often exactly how loops come to light, since one group of people sees one side of a loop and another group sees the other side. But each link was true for somebody, perhaps in a different place or time, so a loop nobody told whole is a hypothesis for the evaluator and the people involved to check.
 - **A counterfactual.** As for any map.

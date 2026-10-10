@@ -91,7 +91,7 @@ A process tracing whose predictions cannot be shown to predate the evidence is a
 
 ## Combining it with other methods
 
-It is the natural partner to QCA, and the pairing is well developed. QCA gives cross-case patterns and no mechanism; process tracing gives mechanism in one case and no generalisation. Schneider and Rohlfing set out how to select cases for tracing from a truth table rather than by convenience: a typical case of a path tests whether the mechanism the path implies is really there, and a deviant case asks what the model left out.
+It is the natural partner to QCA, and the pairing is well developed. QCA gives cross-case patterns and no mechanism; process tracing gives mechanism in one case and no generalisation. Schneider and Rohlfing (2013) set out how to select cases for tracing from a QCA model rather than by convenience: a typical case of a path tests whether the mechanism the path implies is really there, and a deviant case asks what the model left out.
 
 Contribution analysis is close kin and often the better fit for evaluation work, because it accommodates a mechanism running alongside other causes rather than requiring the analyst to adjudicate between rivals. Process tracing is the better instrument where rivals really do compete.
 
@@ -101,16 +101,18 @@ Beach, D. and Pedersen, R. B. (2019). *Process-Tracing Methods: Foundations and 
 
 George, A. and Bennett, A. (2005). *Case Studies and Theory Development in the Social Sciences*. MIT Press.
 
-Bennett, A. and Checkel, J. (eds) (2015). *Process Tracing: From Metaphor to Analytic Tool*. Cambridge University Press. Its ten best-practice criteria are the closest thing the method has to a checklist.
+Bennett, A. and Checkel, J. (eds) (2015). *Process Tracing: From Metaphor to Analytic Tool*. Cambridge University Press. Its ten best practices are the closest thing the method has to a checklist.
 
-Collier, D. (2011). Understanding process tracing. *PS: Political Science and Politics*. The accessible treatment of the four tests.
+Schneider, C. Q. and Rohlfing, I. (2013). 'Combining QCA and Process Tracing in Set-Theoretic Multi-Method Research'. *Sociological Methods & Research* 42(4): 559-597. DOI 10.1177/0049124113481341.
+
+Collier, D. (2011). 'Understanding Process Tracing'. *PS: Political Science & Politics* 44(4): 823-830. The accessible treatment of the four tests.
 
 Van Evera, S. (1997). *Guide to Methods for Students of Political Science*. Cornell University Press. Where the four tests come from.
 
-Fairfield, T. and Charman, A. (2017). Explicit Bayesian analysis for process tracing. *Political Analysis*.
+Fairfield, T. and Charman, A. E. (2017). 'Explicit Bayesian Analysis for Process Tracing: Guidelines, Opportunities, and Caveats'. *Political Analysis* 25(3): 363-380.
 
-Punton, M. and Welle, K., on process tracing in evaluation, for the Centre for Development Impact. Year not verified here.
+Punton, M. and Welle, K. (2015). 'Straws-in-the-wind, Hoops and Smoking Guns: What can Process Tracing Offer to Impact Evaluation?'. Centre for Development Impact Practice Paper 10. Brighton: Institute of Development Studies.
 
-Befani, B. and Stedman-Bryce, G., on Bayesian updating applied to evaluation. Year not verified here.
+Befani, B. and Stedman-Bryce, G. (2017). 'Process Tracing and Bayesian Updating for impact evaluation'. *Evaluation* 23(1): 42-60. DOI 10.1177/1356389016654584.
 
-Wadeson, A., Monzani, B. and Aston, T., on comparative learning from six process tracing evaluations, which is the frankest published account of what the method costs in practice. Year not verified here.
+Wadeson, A., Monzani, B. and Aston, T. (2020). 'Process Tracing as a Practical Evaluation Method: Comparative Learning from Six Evaluations'. Unpublished paper, March 2020, [PDF](https://www.mande.co.uk/wp-content/uploads/2020/03/Process-Tracing-as-a-Practical-Evaluation-Method_23March-Final-1.pdf). Compares six evaluations that used process tracing and gives the staff time, cost and duration it took in practice.

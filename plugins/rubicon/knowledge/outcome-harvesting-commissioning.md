@@ -4,17 +4,17 @@ What commissioners ask an outcome harvest, taken from the terms of reference of 
 
 Back to [outcome harvesting](outcome-harvesting.md). The analysis machinery is on [answering questions with a harvest](outcome-harvesting-analysis.md); this page sits in front of it and decides which question is being answered at all.
 
-## The nine questions, and what is missing from them
+## The thirteen questions, and what is missing from them
 
-Three published harvests, nine commissioned questions between them.
+Three published harvests, thirteen top-level evaluation questions between them (four, three and six), setting aside the sub-questions under some of them.
 
-**Oxfam Novib, global programme, Wilson-Grau's own harvest.** To what extent counterparts achieved outcomes and contributed to policy and practice changes. Whether the programme responded effectively to a changing global context. Whether counterparts added value to Oxfam's campaigning. And "How has GloPro contributed to the achievements of outcomes by counterparts".
+**Oxfam Novib, global programme, an evaluation co-authored by Wilson-Grau.** To what extent counterparts achieved outcomes and contributed to policy and practice changes. To what extent the programme responded effectively to a changing global context. Whether counterparts added value to Oxfam's campaigning. And "How has GloPro contributed to the achievements of outcomes by counterparts in Aim 1 and Aim 4?"
 
-**NIMD, across Mali, Mozambique, Tunisia and Colombia.** Whether the outcomes "represent patterns of progress towards their respective programme objectives". How well the outcomes "match country-level ToCs". How suitable outcome harvesting was as a method.
+**NIMD, across Mali, Mozambique, Tunisia and Colombia.** Whether the outcomes "represent patterns of progress towards their respective SP and DfS programme objectives". How well the outcomes "match country-level ToCs". How suitable outcome harvesting was as a method.
 
-**ActionAid Denmark, Tax Justice programme.** Six, one of which the report says may not be answerable by an outcome evaluation at all.
+**ActionAid Denmark, Tax Justice programme.** Six, one of which (whether the outcomes show a link between progressive taxation and improved social services) the report calls questionable to demonstrate in an outcome evaluation.
 
-**Not one of the nine asks how much of the change was attributable to the funder.** That is worth knowing before refusing the question, because it means the refusal is usually a correction to one commissioner rather than a fight with the field.
+**Not one of the thirteen asks how much of the change was attributable to the funder.** That is worth knowing before refusing the question, because it means the refusal is usually a correction to one commissioner rather than a fight with the field.
 
 Five recurring shapes:
 
@@ -47,23 +47,23 @@ The pattern in each: name the question as asked, say what was answered instead, 
 
 A harvest is a search rather than a sample, so a count from it has no base. The published reports say so more plainly than most secondary accounts.
 
-Oxfam: the outcomes "are not exhaustive. They are a sampling of what the 38 counterparts consider to be amongst their ten most significant outcomes", with a warning that "Caution should be taken ... in making quantitative comparisons and contrasts between outcomes".
+Oxfam: the outcomes "are not exhaustive. They are a sampling of what the 38 counterparts consider to be amongst their ten most significant outcomes", and the report warns that "Caution should be taken" in "making quantitative comparisons and contrasts between outcomes and outcomes that are PPCs" (policy and practice changes), because fewer simple outcomes and more policy and practice changes is not necessarily positive.
 
-ActionAid is the more useful case, because it shows what replaces sampling. Representativeness is claimed through a **gap-filling round**: at the end of the harvesting workshop the participants read the whole set, named change areas they thought missing or under-represented, and added outcomes in those areas the following week. The report also flags two biases in the counts, that most outcomes are recent, and that a first harvest skews large, only 6 per cent being rated minor.
+ActionAid is the more useful case, because it shows what replaces sampling. Representativeness is claimed through a **gap-filling round**: at the end of the harvesting workshop the participants reflected on the whole set of outcomes, identified change areas they thought missing or under-represented, and a few outcomes were added in those areas the week after. The change agents then agreed the set was representative of the changes the programme achieved in the period. The report also flags two biases in the counts, that most outcomes are recent, and that a first harvest skews large, only 6 per cent being rated minor.
 
 So the answer to "how representative is this" is a description of the search and its gap-filling, never a proportion.
 
 ## One harvest that reported a contribution percentage
 
-Worth knowing because it contradicts the orthodoxy this page has just stated. ActionAid asked change agents to **rate their own contribution to each outcome as a percentage**, recorded it as a formal classification field beside year, country, social actor and significance, and produced a number of outcomes by contribution percentage. Ratings clustered above 60 per cent, nineteen outcomes at 80 and three at 90. The evaluator adjusted percentages down where documentation was thin, and substantiators rated independently: of eighteen substantiated outcomes only three were rated lower than the change agent's own number, the largest gap 90 against 50.
+Worth knowing because it contradicts the orthodoxy this page has just stated. ActionAid asked change agents to **rate their own contribution to each outcome as a percentage**, recorded it as a formal classification field beside year, country, social actor and significance, and produced a number of outcomes by contribution percentage. Ratings clustered above 60 per cent, nineteen outcomes at 80 and three at 90. The evaluator verified the supporting documents and adjusted percentages where there was not enough proof, and the substantiators were asked to rate the contribution independently of the change agent: of eighteen substantiated outcomes only three were rated lower than the change agent's own number, the largest gap 90 against 50.
 
-So refusing the attribution question is a position practitioners take, not a rule the method enforces. Where a commissioner insists, this is what they get, and its provenance has to travel with the number: a self-rating by an interested party, adjusted by an evaluator, checked by a substantiator that party nominated.
+So refusing the attribution question is a position practitioners take, not a rule the method enforces. Where a commissioner insists, this is what they get, and its provenance has to travel with the number: a self-rating by an interested party, adjusted by an evaluator, and checked on a subset (18 of 53 outcomes) by third parties the report describes as independent but knowledgeable about the outcomes.
 
 ## What substantiation actually changes
 
-Oxfam substantiated every other outcome: 112 attempted, 95 people responded covering 66 outcomes, 30 fully substantiated, 21 partially, 12 mixed. **Three drew a disagreement.** Forty-six attempts failed because no substantiator could be reached.
+Oxfam agreed to substantiate every other outcome (of 196) and attempted 112. Ninety-five independent people responded, covering 66 outcomes: 30 fully substantiated, 21 partially, and 12 where two substantiators answered, one fully and one partially. **Three drew a disagreement.** For the other 46 attempts the evaluators could not communicate with the person the counterpart had recommended.
 
-Two readings and the data cannot separate them. Either the descriptions were accurate, or substantiation rarely overturns anything because the substantiator is nominated by the person being checked. The number that would settle it, how often a substantiator nominated by somebody else disagrees, is not reported anywhere found.
+Two readings and the data cannot separate them. Either the descriptions were accurate, or substantiation rarely overturns anything because the substantiator is recommended by the counterpart whose outcome is being checked (Oxfam asked each counterpart to recommend two independent people). The number that would settle it, how often a substantiator nominated by somebody else disagrees, is not reported anywhere found.
 
 Tell a commissioner what substantiation buys: corroboration by a named third party, not independent verification. And record the nomination, because it is what the reading turns on.
 
@@ -85,12 +85,12 @@ The answer reports the pattern of progress as a proposal the evaluator can dispu
 
 ## Sources
 
-Wilson-Grau, R. and Britt, H. *Outcome Harvesting*. Ford Foundation. The method statement; the 2013 revision is the one ActionAid cites for the recommendations point.
+Wilson-Grau, R. and Britt, H. (2012, revised November 2013). *Outcome Harvesting*. Cairo: Ford Foundation, Middle East and North Africa Office. The method statement; ActionAid cites the 2013 revision, at its page 25, for the recommendations point.
 
 The three harvests read for this page:
 
-- Oxfam Novib, Global Programme evaluation, at `outcomeharvesting.net`.
-- ActionAid Denmark, Tax Justice Programme outcome harvest, August 2017, harvested by Goele Scheers, published via Globalt Fokus.
-- NIMD, outcome harvesting evaluation of programmes in Mali, Mozambique, Tunisia and Colombia, September 2018.
+- Majot, J., Richert, W. and Wilson-Grau, R. (March 2010). *Outcome "Harvesting": Evaluation of Oxfam Novib's Global Programme 2005-2008*. Read at `outcomeharvesting.net`; the report's own tables are quoted above.
+- Scheers, G. (August 2017). *Outcome Harvesting Evaluation: ActionAid Denmark Tax Justice Programme evaluation report*, published via Globalt Fokus.
+- Scheers, G. and Wilson-Grau, R. (September 2018). *Outcome Harvesting Mid-Term Evaluation of NIMD Country Programmes in Colombia, Mali, Mozambique and Tunisia*. The NIMD quotations above are from its executive summary.
 
 The working paper behind this page is [Outcome harvesting](https://garden.causalmap.app/outcome-harvesting/) on the Causal Map garden. The research reached these three reports and did not reach the wider question of whether pre-registration damages participatory evaluation, which is unanswered.

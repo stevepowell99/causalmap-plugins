@@ -16,7 +16,7 @@ A case sitting at exactly 0.5 cannot be assigned at all. Move it, then say in th
 
 A crisp set takes 0 or 1 only. Membership is a yes or a no, which suits conditions that really are binary: the law passed or it did not, the post was filled or it was vacant. Crisp sets make truth tables easy to read at the cost of every gradation.
 
-A fuzzy set takes any value in between, and in practice most analysts use a small number of anchors rather than a continuum. A four-value set uses 0, 0.33, 0.67 and 1. Ragin's six-value set uses 0, 0.1, 0.4, 0.6, 0.9 and 1: fully out, mostly out, more or less out, more or less in, mostly in, fully in. Both give the analyst somewhere to put "mostly in but with reservations" without pretending to a precision the evidence will not support.
+A fuzzy set takes any value in between, and in practice most analysts use a small number of anchors rather than a continuum. A four-value set has two levels between the extremes, one either side of the crossover. A six-value set has four; in his worked example of the indirect method, Ragin (2008, 'Measurement versus calibration') uses 0, 0.2, 0.4, 0.6, 0.8 and 1: out of the set, mostly but not fully out, more out than in, more in than out, mostly but not fully in, in the set. Other presentations place the outer levels at 0.1 and 0.9; what matters is that the levels are written down before cases are scored. Both give the analyst somewhere to put "mostly in but with reservations" without pretending to a precision the evidence will not support.
 
 Take the four-value or six-value route for anything calibrated from text. A continuous score derived from qualitative material implies a resolution the material does not have, and it invites the reader to compare 0.71 with 0.68 as though the difference meant something.
 
@@ -24,7 +24,7 @@ Take the four-value or six-value route for anything calibrated from text. A cont
 
 The direct method fixes three anchors on an underlying measure and interpolates between them: the value at which a case is fully in, the value at which it is fully out, and the crossover. Ragin's implementation uses a log-odds transformation between the anchors. It suits conditions with a numeric base, such as GDP per head or the share of a budget disbursed.
 
-The indirect method assigns cases to qualitative levels first and fits a function to those assignments afterwards. It suits conditions calibrated from judgement.
+The indirect method assigns cases to qualitative levels first (Ragin uses six) and then refines those scores against an interval-scale measure, with a fractional logit model. It starts from judgement, and needs an interval-scale measure to refine it against.
 
 For evaluation work over interviews and documents, neither of those is quite what happens. What happens is that somebody reads each case and decides which level it belongs to against a description of what each level looks like. That is a rubric, and calling it one changes what can be asked of it.
 
@@ -45,10 +45,10 @@ The condition is local political backing, across district partnerships, calibrat
 | Value | Descriptor |
 |---|---|
 | 1.0 | The district head has made a public commitment, budget has been allocated from district funds, and senior officials attend routinely. |
-| 0.9 | Senior officials attend and act on what is agreed. No district money, but no obstruction either. |
+| 0.8 | Senior officials attend and act on what is agreed. No district money, but no obstruction either. |
 | 0.6 | Officials attend when invited and the partnership is referred to approvingly in district documents. Attendance drops when other demands arrive. |
 | 0.4 | Attendance is by junior staff and sporadic. The partnership is tolerated. |
-| 0.1 | The district is aware of the partnership and takes no part in it. |
+| 0.2 | The district is aware of the partnership and takes no part in it. |
 | 0.0 | The district has declined to take part, or has obstructed it. |
 
 The crossover falls between 0.4 and 0.6, and the descriptors are written so that the difference between the two is the one a reader would care about: whether the district acts on the partnership or merely tolerates it. Write the crossover descriptors first and the extremes afterwards. The extremes are easy. They also carry almost no analytical weight.

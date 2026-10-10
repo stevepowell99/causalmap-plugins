@@ -8,7 +8,7 @@ Back to [generic evaluation questions](generic-evaluation.md), for what the crit
 
 The 2019 revision added coherence as a criterion, asking "How well does the intervention fit?" and defining it as "The compatibility of the intervention with other interventions in a country, sector or institution" (OECD DAC 2019, p. 8). Its note splits it into two domains (OECD DAC 2019, p. 8).
 
-- **Internal coherence** "addresses the synergies and interlinkages between the intervention and other interventions carried out by the same institution/government, as well as the consistency of the intervention with the relevant international norms and standards to which that institution/government adheres". Those norms include commitments such as human rights, gender equality and environmental safeguards.
+- **Internal coherence** "addresses the synergies and interlinkages between the intervention and other interventions carried out by the same institution/government, as well as the consistency of the intervention with the relevant international norms and standards to which that institution/government adheres". The 2019 explanation gives anti-corruption statutes and human rights conventions as examples of such commitments (OECD DAC 2019, p. 8, Box 3).
 - **External coherence** "considers the consistency of the intervention with other actors' interventions in the same context", including "complementarity, harmonisation and co-ordination with others, and the extent to which the intervention is adding value while avoiding duplication of effort". In practice that means partner governments, bilateral donors and civil society organisations working in the same sector or place, and whether the project adds something distinct or builds parallel structures.
 
 The 2021 guidance treats coherence at length and sets out the challenges of evaluating it (OECD 2021, pp. 45 to 51, Table 4.2 on p. 48).
@@ -45,7 +45,7 @@ The main weakness of coherence evaluations is what might be called coordination 
 
 ## Sources
 
-The works cited for all the criterion pages are on [generic evaluation questions](generic-evaluation.md#works-cited). This page cites two OECD documents by page. The 2019 definition, its note and their page were checked against the copy the New Zealand Ministry of Foreign Affairs and Trade hosts, and the quotations are from that copy; the 2021 section and table pages were checked against that report's printed table of contents.
+The works cited for all the criterion pages are on [generic evaluation questions](generic-evaluation.md#works-cited). This page cites two OECD documents by page. The 2019 quotations and their printed pages were checked word for word against the PDF the New Zealand Ministry of Foreign Affairs and Trade hosts; the 2021 section and table pages were checked against the printed table of contents and the pages themselves in the PDF on oecd.org.
 
 OECD DAC Network on Development Evaluation (2019). *Better Criteria for Better Evaluation: Revised Evaluation Criteria Definitions and Principles for Use*. OECD. The definition of coherence, its note and Box 3 are on p. 8. Listed as [1] in the works cited.
 

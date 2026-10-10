@@ -30,7 +30,7 @@ The second half matters more, and evaluators ask for QCA in these situations con
 
 **Fewer than about ten cases.** The truth table is then almost entirely empty and the solution comes mostly from assumptions about combinations nobody observed. Possible, occasionally worth doing, and it has to be reported as what it is.
 
-**Conditions that cannot be got below about seven.** Six conditions make sixty-four logically possible combinations; thirty cases fill at most thirty of them and in practice far fewer, because cases cluster. Beyond that point [limited diversity](qca-truth-tables.md#limited-diversity-is-the-central-fact) decides the answer. Marx's benchmark work on how many conditions a given number of cases will bear is the reference here, and the constraint amounts to this: condition selection is theory work done before the data are touched. Somebody with eleven conditions they care about has two thousand and forty-eight rows: either cut to five or six on theoretical grounds, or run the analysis in stages with a small model at each stage, saying that is what you did.
+**Conditions that cannot be got below about seven.** Six conditions make sixty-four logically possible combinations; thirty cases fill at most thirty of them and in practice far fewer, because cases cluster. Beyond that point [limited diversity](qca-truth-tables.md#limited-diversity-is-the-central-fact) decides the answer. Marx and Dușa's benchmark tables, simulated on random data for crisp sets, say how many conditions a given number of cases will bear, and they are the reference here; the constraint amounts to this: condition selection is theory work done before the data are touched. Somebody with eleven conditions they care about has two thousand and forty-eight rows: either cut to five or six on theoretical grounds, or run the analysis in stages with a small model at each stage, saying that is what you did.
 
 **An outcome that barely varies.** Eighteen of twenty cases succeeded, so there is nothing for the method to discriminate. Check this first. It costs almost nothing and it stops the whole analysis before any of the expensive work. What can be offered instead is an analysis of the two that did not succeed, treated as deviant cases, which is a small-N question rather than a comparative one.
 
@@ -97,7 +97,7 @@ A QCA missing the calibration detail is not assessable, whatever else it contain
 
 ## Combining it with other methods
 
-QCA gives cross-case patterns and nothing about mechanism, so it pairs naturally with a within-case method. Schneider and Rohlfing set out how the two fit together formally: the QCA solution identifies which cases are typical of a path and which are deviant. Process tracing then examines a small number of them to see whether the mechanism the path implies is actually there. Selecting cases for process tracing from the truth table rather than by convenience is the part that makes the combination worth the trouble.
+QCA gives cross-case patterns and nothing about mechanism, so it pairs naturally with a within-case method. Schneider and Rohlfing (2013) set out how the two fit together formally: the QCA solution identifies which cases are typical of a path and which are deviant. Process tracing then examines a small number of them to see whether the mechanism the path implies is actually there. Selecting cases for process tracing from the truth table rather than by convenience is the part that makes the combination worth the trouble.
 
 Contribution analysis runs the other way round. Where a contribution story has been assembled for each of many similar cases, QCA can test whether the conditions the story relies on really do sort the successes from the failures.
 
@@ -109,16 +109,16 @@ Ragin, C. (2000). *Fuzzy-Set Social Science*. University of Chicago Press.
 
 Ragin, C. (2008). *Redesigning Social Inquiry: Fuzzy Sets and Beyond*. University of Chicago Press. The calibration chapters are the ones to read.
 
-Schneider, C. and Wagemann, C. (2012). *Set-Theoretic Methods for the Social Sciences: A Guide to Qualitative Comparative Analysis*. Cambridge University Press. The standard reference for parameters of fit, the enhanced standard analysis and what makes a counterfactual untenable.
+Schneider, C. and Wagemann, C. (2012). *Set-Theoretic Methods for the Social Sciences: A Guide to Qualitative Comparative Analysis*. Cambridge University Press. A standard reference for parameters of fit, the enhanced standard analysis and what makes a counterfactual untenable.
 
 Rihoux, B. and Ragin, C. (eds) (2009). *Configurational Comparative Methods*. Sage.
 
 Oana, I., Schneider, C. and Thomann, E. (2021). *Qualitative Comparative Analysis Using R: A Beginner's Guide*. Cambridge University Press.
 
-Marx, A., on benchmarks for how many conditions a given number of cases will support without random data producing a solution. Year not verified here.
+Marx, A. and Dușa, A. (2011). Crisp-set qualitative comparative analysis (csQCA), contradictions and consistency benchmarks for model specification. *Methodological Innovations Online* 6(2): 103 to 148. Benchmarks for how many conditions a given number of cases will support without random data producing a solution; see also Marx, A. (2010), *International Journal of Multiple Research Approaches* 4(2): 138 to 158.
 
-Befani, B., *Pathways to Change: Evaluating Development Interventions with Qualitative Comparative Analysis*, for the Swedish Expert Group for Aid Studies. The standard reference for QCA in evaluation rather than in comparative politics. Year not verified here.
+Befani, B. (2016). *Pathways to Change: Evaluating Development Interventions with Qualitative Comparative Analysis (QCA)*. Expert Group for Aid Studies (EBA), Stockholm. A guide to QCA in evaluation rather than in comparative politics.
 
-Schneider, C. and Rohlfing, I., on set-theoretic multi-method research, for combining QCA with process tracing.
+Schneider, C. and Rohlfing, I. (2013). Combining QCA and process tracing in set-theoretic multi-method research. *Sociological Methods & Research* 42(4): 559 to 597.
 
-Software: the R packages `QCA` (Duşa) and `SetMethods` (Oana and Schneider), Ragin's fsQCA, and Tosmana for crisp and multi-value sets.
+Software: the R packages `QCA` (Duşa and Thiem) and `SetMethods` (Oana, Medzihorsky, Quaranta and Schneider), Ragin's fsQCA, and Tosmana for crisp and multi-value sets.

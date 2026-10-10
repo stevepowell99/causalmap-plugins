@@ -22,7 +22,7 @@ Seven pages go with this one, one per criterion, each holding a plan, what it gu
 
 ## Why these questions need a rubric
 
-Generic evaluation questions in a programme's terms of reference are normative rather than purely empirical: they ask for a judgement of merit, worth or significance, which is what Scriven means by evaluation (Scriven 1991). In the logic of evaluation Scriven set out and Davidson turned into working method, a descriptive finding ("what occurred?") never yields an evaluative conclusion ("was it good?") on its own (Davidson 2005). An evaluative claim needs three things.
+Generic evaluation questions in a programme's terms of reference are normative rather than purely empirical: they ask for a judgement of merit or worth, which is what Scriven means by evaluation (Scriven 1991). In the logic of evaluation Scriven set out and Davidson turned into working method, a descriptive finding ("what occurred?") never yields an evaluative conclusion ("was it good?") on its own (Davidson 2005). An evaluative claim needs three things.
 
 - **Criteria of merit.** The dimensions of the intervention that matter for the evaluation, such as administrative timeliness, external deconfliction or post-project recurrent financing.
 - **Standards of merit.** Thresholds a reader can observe, saying what excellent, adequate or poor performance looks like in practice for each criterion.
@@ -92,13 +92,13 @@ The names in the fourth column are this page's own labels for common faults, not
 
 Each plan states the documents it read, counts over a stated base, compares within the corpus on the documents' own attributes, and keeps every number traceable to the words, which is what lets an evaluator answer these criteria and a reader check the answer.
 
-The DAC itself noted that, although the criteria were never mandatory, in practice "they can end up being applied mechanistically" (OECD DAC 2019, p. 2). These plans answer them with counts split by the corpus's own attributes that lead back to quotations. Each verdict comes after a stated reading, counts over a stated base, a comparison inside the corpus and a standard stated in the workflow, which leaves a model less room to supply a standard of its own. What the evaluator and the commissioner get is a trail from each verdict to the passages behind it.
+The DAC itself noted that, although the criteria were never mandatory, in practice "they can end up being applied mechanistically" (OECD DAC 2019, p. 3). These plans answer them with counts split by the corpus's own attributes that lead back to quotations. Each verdict comes after a stated reading, counts over a stated base, a comparison inside the corpus and a standard stated in the workflow, which leaves a model less room to supply a standard of its own. What the evaluator and the commissioner get is a trail from each verdict to the passages behind it.
 
 ## Works cited
 
 The criterion pages cite these works by author and date, with page numbers where they were checked; each page's Sources section says which. Method pages in this folder are linked where they are used.
 
-- [1] OECD DAC Network on Development Evaluation (2019). *Better Criteria for Better Evaluation: Revised Evaluation Criteria Definitions and Principles for Use*. OECD. Approved by the Network on 20 November 2019 and adopted by the DAC on 10 December 2019. Document DCD/DAC(2019)58/FINAL. The two principles for use are on p. 6; the definitions, notes and boxes are on pp. 7 (relevance), 8 (coherence), 9 (effectiveness), 10 (efficiency), 11 (impact) and 12 (sustainability).
+- [1] OECD DAC Network on Development Evaluation (2019). *Better Criteria for Better Evaluation: Revised Evaluation Criteria Definitions and Principles for Use*. OECD. Approved by the Network on 20 November 2019 and adopted by the DAC on 10 December 2019. The two principles for use are on p. 6; the definitions, notes and boxes are on pp. 7 (relevance), 8 (coherence), 9 (effectiveness), 10 (efficiency), 11 (impact) and 12 (sustainability).
 - [2] OECD (2021). *Applying Evaluation Criteria Thoughtfully*. OECD Publishing, Paris. [doi.org/10.1787/543e84ed-en](https://doi.org/10.1787/543e84ed-en). Chapter 3, "Using the evaluation criteria in practice", starts on p. 22, with "Applying a gender lens to the criteria" on pp. 32 to 33; Chapter 4 takes the criteria in turn: relevance from p. 38, coherence from p. 45, effectiveness from p. 52, efficiency from p. 58, impact from p. 64 and sustainability from p. 71, each with a table of challenges (pp. 42, 48, 55, 61, 67 and 74).
 - [3] United Nations Evaluation Group (2016). *Norms and Standards for Evaluation*. UNEG, New York. Norm 8 is "Human rights and gender equality".
 - [4] United Nations Evaluation Group (2014). *Integrating Human Rights and Gender Equality in Evaluations*. UNEG Guidance Document, New York.
@@ -106,4 +106,4 @@ The criterion pages cite these works by author and date, with page numbers where
 - [6] Davidson, E. J. (2005). *Evaluation Methodology Basics: The Nuts and Bolts of Sound Evaluation*. Sage, Thousand Oaks, CA.
 - [7] Patton, M. Q. (2011). *Developmental Evaluation: Applying Complexity Concepts to Enhance Innovation and Use*. Guilford Press, New York.
 
-The page numbers for [1] were checked against the copy the New Zealand Ministry of Foreign Affairs and Trade hosts, and for [2] against the printed table of contents of a copy on the Instituto Camões website; the OECD's own files could not be read from here. [3] to [7] are cited as whole works, except [3]'s Norm 8, which is cited by its number.
+The quotations and printed page numbers for [1] were checked word for word against the PDF the New Zealand Ministry of Foreign Affairs and Trade hosts, and for [2] against the PDF on oecd.org (its printed page numbers run two behind the PDF's page count). [3]'s Norm 8 was checked against UNEG's own presentation of the 2016 norms, and [4] against the UNEG PDF. [5] to [7] are cited as whole works and their texts were not read for this check, apart from the 1981 edition of [5], which defines evaluation as "the process of determining the merit or worth or value of something".

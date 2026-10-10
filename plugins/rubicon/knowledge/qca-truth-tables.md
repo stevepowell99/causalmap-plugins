@@ -40,7 +40,7 @@ Necessity is a different relation from sufficiency and is not readable off a suf
 
 Necessity consistency is the sum across cases of the minimum of condition and outcome membership, divided by the sum of outcome membership. The conventional floor is 0.9, higher than for sufficiency, because a necessary condition claim is strong.
 
-Consistency alone is not enough. A condition present in almost every case will pass the test trivially: if every district in the country has a health office, having a health office is necessary for every health outcome and says nothing. Schneider and Wagemann's relevance measure exists for this, and coverage of necessity does similar work. Report one of them alongside consistency. Treat a highly skewed condition as a candidate for trivial necessity before anything else.
+Consistency alone is not enough. A condition present in almost every case will pass the test trivially: if every district in the country has a health office, having a health office is necessary for every health outcome and says nothing. Schneider and Wagemann's (2012) relevance measure exists for this, and coverage of necessity does similar work. Report one of them alongside consistency. Treat a highly skewed condition as a candidate for trivial necessity before anything else.
 
 ## Minimisation and the three solutions
 
@@ -54,7 +54,7 @@ What varies is the treatment of remainders, and it produces three solutions from
 
 **The intermediate solution** uses only remainders consistent with stated directional expectations: for each condition, whether its presence or its absence is expected to contribute to the outcome. Those expectations come from theory. Write them down before the minimisation runs. Most published QCA reports the intermediate solution as the main result.
 
-Schneider and Wagemann's **enhanced standard analysis** goes further and rules out remainders that are untenable whatever the directional expectations: those that contradict a claimed necessary condition, those that would require contradictory assumptions across the analysis of the outcome and its negation, and those describing combinations that cannot exist. Use it, then list the assumptions it left in.
+Schneider and Wagemann's (2012) **enhanced standard analysis** goes further and rules out remainders that are untenable whatever the directional expectations: those that contradict a claimed necessary condition, those that would require contradictory assumptions across the analysis of the outcome and its negation, and those describing combinations that cannot exist. Use it, then list the assumptions it left in.
 
 The parsimonious solution retains value as a diagnostic. Conditions appearing in it survive every simplifying assumption, so they are the ones the data most insist on. Reporting the intermediate solution with the parsimonious core marked inside it is the convention worth following.
 
@@ -78,7 +78,7 @@ A QCA solution is a function of the calibration anchors, the consistency thresho
 
 The practical minimum: shift the consistency threshold by a step in each direction; raise the frequency threshold by one; drop each case in turn, or drop a small random subset repeatedly; recalibrate one contested set under its alternative anchors. Where the solution holds through all of that, say so. Where it changes at 0.78 but holds at 0.80, that belongs in the report. A reader is entitled to know the finding sits on a threshold.
 
-Oana and Schneider have set out systematic robustness procedures for QCA, and their `SetMethods` package implements them. Reporting a bare solution formula with no sensitivity work at all is now hard to justify.
+Oana and Schneider (*Sociological Methods & Research* 53(1): 57 to 88, online 2021) have set out a systematic robustness test protocol for QCA, and their `SetMethods` package implements it. Reporting a bare solution formula with no sensitivity work at all is now hard to justify.
 
 ## Returning to the cases
 

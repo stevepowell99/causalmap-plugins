@@ -61,7 +61,7 @@ Most harvests are drafted by programme staff with an evaluator facilitating. Thi
 What works:
 
 - **Teach with a rewrite.** Show one weak statement and its usable version, taken from their own programme, and let them see the diagnosis. The [worked rewrites](outcome-harvesting-identifying.md#worked-rewrites) are for this. A definition read aloud changes nothing at all.
-- **Give them the three-part test as a checklist.** Named actor. Active past-tense verb. Date. They can apply that much to their own drafts without help.
+- **Give them the first three parts of the test as a checklist.** Named actor. Active past-tense verb. Date. They can apply that much to their own drafts without help; the fourth part, a source that could confirm it, is the harvester's to check.
 - **Run the first round as a facilitated workshop.** Remote drafting against a template produces activity lists, because nobody is there to push back in the moment. A day in a room, drafting and correcting live, is worth three weeks of email.
 - **Have them draft. Do not have them substantiate.** The evaluator owns substantiation, and staff must not approach substantiators about their own outcomes.
 - **Say at the start that contribution claims are recorded as claims.** Doing this on day one makes it a method, and doing it at draft-report stage makes it feel like distrust. Same words, different reception.

@@ -38,7 +38,7 @@ The second half.
 
 Interviews with participants and with implementers, conducted so that the theory is put to them. The [testing page](realist-evaluation-testing.md) covers the technique, which matters more here than the sample size.
 
-Outcome data across sites or groups, good enough to show a pattern. You need something that varies before you can ask why it varies. The pattern does not have to be statistically respectable. A demi-regularity, in the term Pawson took from Lawson, is a semi-predictable tendency rather than an effect.
+Outcome data across sites or groups, good enough to show a pattern. You need something that varies before you can ask why it varies. The pattern does not have to be statistically respectable. A demi-regularity, in Lawson's term as realist evaluators use it, is a semi-predictable tendency rather than an effect.
 
 Contextual material about each site: what was already there, who ran it, what the local rules and relationships were. This is what most evaluations record thinnest and what realist analysis needs most.
 
@@ -105,12 +105,16 @@ Pawson, R. (2006). *Evidence-Based Policy: A Realist Perspective*. Sage.
 
 Pawson, R. (2013). *The Science of Evaluation: A Realist Manifesto*. Sage.
 
-Dalkin, S., Greenhalgh, J., Jones, D., Cunningham, B. and Lhussier, M. (2015). What's in a mechanism? Development of a key concept in realist evaluation. *Implementation Science*. The paper that separates resource from reasoning, and the one to read if only one paper is read on mechanisms.
+Dalkin, S., Greenhalgh, J., Jones, D., Cunningham, B. and Lhussier, M. (2015). What's in a mechanism? Development of a key concept in realist evaluation. *Implementation Science* 10: 49. The paper that separates the resources an intervention offers from the reasoning of participants, and a good place to start on mechanisms.
 
-Westhorp, G., on realist evaluation for practitioners and on complexity. Year not verified here.
+Westhorp, G. (2014). *Realist Impact Evaluation: An Introduction*. Methods Lab, Overseas Development Institute. For practitioners.
 
-Manzano, A. (2016). The craft of interviewing in realist evaluation. *Evaluation*. The practical account of the teacher-learner cycle.
+Westhorp, G. (2012). Using complexity-consistent theory for evaluating complex systems. *Evaluation* 18(4): 405 to 420.
 
-Wong, G., Greenhalgh, T., Westhorp, G. and Pawson, R., and colleagues, on the RAMESES quality and reporting standards for realist synthesis and realist evaluation. Years not verified here.
+Manzano, A. (2016). The craft of interviewing in realist evaluation. *Evaluation* 22(3): 342 to 360. The practical account of the teacher-learner cycle.
 
-Punton, M., Vogel, I. and Lloyd, R. (2016). *Reflections from a Realist Evaluation in Progress: Scaling Ladders and Stitching Theory*. CDI Practice Paper 18, Institute of Development Studies.
+Wong, G., Greenhalgh, T., Westhorp, G., Buckingham, J. and Pawson, R. (2013). RAMESES publication standards: realist syntheses. *BMC Medicine* 11: 21.
+
+Wong, G., Westhorp, G., Manzano, A., Greenhalgh, J., Jagosh, J. and Greenhalgh, T. (2016). RAMESES II reporting standards for realist evaluations. *BMC Medicine* 14: 96.
+
+Punton, M., Vogel, I. and Lloyd, R. (2016). *Reflections from a Realist Evaluation in Progress: Scaling Ladders and Stitching Theory*. CDI Practice Paper 18, Institute of Development Studies, Brighton.

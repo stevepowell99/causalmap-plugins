@@ -10,7 +10,7 @@ Ask for this page when a question is about impact, attribution, contribution or 
 
 **Generative.** X caused Y if a process runs from one to the other: something X provided was taken up by somebody, it did something, and Y followed from that. The evidence is an account of the process in a case, so a causal claim can be established one case at a time, without a comparison. Realist evaluation, process tracing and contribution analysis all rest on it (see [realist evaluation](realist-evaluation.md) and [contribution analysis](contribution-analysis.md)). Stern and colleagues' report for DFID names it as one of four bases for causal inference, beside regularity, counterfactuals and multiple causation, and puts its limit plainly: "Generative causation is strong on explanation but weak on estimating quantities or extent of impact."
 
-**Causal mapping is generative, and treats people as causality detectors.** When a respondent says the loan let her buy seed and the harvest paid the school fees, she is reporting a process in her own life from the place best suited to see it. Scriven holds that causation can be directly observed, "in lab or home or field". An observer can be wrong, as with any observation. A link in a causal map means only that somebody claims X somehow influenced Y. A map built from such links is a store of evidence for causal pathways rather than a model of the pathways themselves or of anybody's beliefs about them (Powell, Copestake and Remnant 2024). A Rubicon coding of causal claims is the same kind of thing: the speaker declares the cause, and the row keeps the declaration, who made it and where.
+**Causal mapping is generative, and treats people as causality detectors.** When a respondent says the loan let her buy seed and the harvest paid the school fees, she is reporting a process in her own life from the place best suited to see it. Scriven holds that causation can be directly observed, "in lab or home or field". An observer can be wrong, as with any observation. A link in a causal map records a causal claim: somebody says X influenced Y. A map built from such links is a store of evidence for causal pathways rather than a model of the pathways themselves or of anybody's beliefs about them (Powell, Copestake and Remnant 2024). A Rubicon coding of causal claims is the same kind of thing: the speaker declares the cause, and the row keeps the declaration, who made it and where.
 
 ## How they relate
 
@@ -20,7 +20,7 @@ What a set of declarations does not give is a quantity for a population. Ninetee
 
 The traffic also runs the other way. A counterfactual estimate says that a difference exists and how large it is. It says nothing about how the difference came about or why it varies from one place to another, which is the question realist evaluation exists to answer.
 
-There is one case where a comparison can mislead and an account of the process cannot. Where two causes were each enough to produce the outcome, the outcome would have happened without either of them, so a difference-making test says neither mattered. Scriven makes this objection to the counterfactual definition, citing overdetermination, and the report by Stern and colleagues treats it, under pre-emption, as a problem the regularity and counterfactual approaches cannot address. An account of which cause actually did the work in this case answers it.
+There is one case where a comparison can mislead and an account of the process cannot. Where two causes were each enough to produce the outcome, the outcome would have happened without either of them, so a difference-making test says neither mattered. Scriven makes this objection to the counterfactual definition, citing overdetermination. The report by Stern and colleagues raises a related problem for counterfactuals, pre-emption, where a cause that could have produced the outcome was prevented from acting by the one that did, and says that knowing what happens between cause and effect matters for attribution there. An account of which cause actually did the work in this case answers it.
 
 ## When each fits
 
@@ -70,7 +70,7 @@ Lewis, D. (1973). 'Causation'. *Journal of Philosophy* 70(17): 556-567. The coun
 
 Scriven, M. (2008). 'A Summative Evaluation of RCT Methodology: & An Alternative Approach to Causal Research'. *Journal of MultiDisciplinary Evaluation* 5(9): 11-24. Causation directly observed, the objection from overdetermination, and the General Elimination Methodology with its list of possible causes and their modus operandi.
 
-Stern, E., Stame, N., Mayne, J., Forss, K., Davies, R. and Befani, B. (2012). *Broadening the Range of Designs and Methods for Impact Evaluations*. DFID Working Paper 38. The four bases for causal inference are in the chapter on choosing designs and methods.
+Stern, E., Stame, N., Mayne, J., Forss, K., Davies, R. and Befani, B. (2012). *Broadening the Range of Designs and Methods for Impact Evaluations*. DFID Working Paper 38, April 2012. The four bases for causal inference are in the chapter on choosing designs and methods.
 
 Maxwell, J. A. (2004). 'Using Qualitative Methods for Causal Explanation'. *Field Methods* 16(3): 243-264.
 

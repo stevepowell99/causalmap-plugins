@@ -68,8 +68,8 @@ a.see { color: var(--quiet); font-size: .85em; white-space: nowrap; }
 .map .edge:not(.opp) polygon { stroke: var(--ink); fill: var(--ink); }
 .map g.edge { cursor: pointer; }
 .map g.edge:hover path, .map g.edge:hover polygon { stroke: var(--red); }
-.map g.node { cursor: pointer; }
-.map g.node:hover path, .map g.node:hover polygon { stroke: var(--red); }
+.map g.node:not(.inert) { cursor: pointer; }
+.map g.node:not(.inert):hover path, .map g.node:not(.inert):hover polygon { stroke: var(--red); }
 .fig figcaption { font-size: .8rem; color: var(--quiet); margin-top: .6rem; }
 .legend { font-size: .8rem; color: var(--quiet); display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: center; margin-bottom: .6rem; }
 .key { display: inline-block; width: .9em; height: .6em; border-radius: 2px; margin-right: .3rem; vertical-align: middle; }
@@ -158,7 +158,10 @@ table { border-collapse: collapse; font-size: .82rem; }
 .annex .rb-block { border-left: 3px solid transparent; padding-left: .7rem; margin-left: -.85rem; }
 .annex .record { overflow-wrap: anywhere; font-size: .92rem; }
 @keyframes rb-found-fade { from { background: var(--mark); } to { background: transparent; } }
-.rb-found { animation: rb-found-fade 2.4s ease-out; }
+.rb-found { animation: rb-found-fade 3.5s ease-out; }
+/* a count in the annex, opening who it counts; in a counting table shaded by its share, as the figures' grids are (render_report `heat`) */
+.annex .num { font: inherit; font-variant-numeric: tabular-nums; min-width: 2.2rem; border: 0; border-radius: 3px; padding: .1rem .4rem; cursor: pointer; color: inherit; background: color-mix(in srgb, var(--red) calc(var(--a, 0) * 70%), transparent); text-decoration: underline dotted color-mix(in srgb, var(--ink) 40%, transparent); text-underline-offset: .2em; }
+.annex .num:hover { text-decoration-color: var(--red); }
 .annex > p:first-of-type { font-family: var(--serif); font-size: 1.08rem; }
 details { margin: .5rem 0; }
 summary { cursor: pointer; font-weight: 500; }
@@ -180,7 +183,13 @@ blockquote { margin: .6rem 0; padding: .6rem .9rem; background: var(--panel); bo
 .panel .ctx { font-family: var(--serif); font-size: 1rem; line-height: 1.6; white-space: pre-wrap; color: var(--quiet); }
 .panel .ctx mark { background: var(--mark); color: var(--mark-ink); padding: 0 .1em; }
 .panel .codes { display: flex; flex-wrap: wrap; gap: .3rem; margin: .6rem 0; }
-.panel .codes span { font-size: .75rem; background: var(--wash); border-radius: 99px; padding: .1rem .55rem; }
+.panel .codes span, .panel .codes .code { font: inherit; font-size: .75rem; color: inherit; background: var(--wash); border: 0; border-radius: 99px; padding: .1rem .55rem; }
+/* a code that opens every passage given it (report.js showCode) is marked as the report's other links are */
+.panel .codes .code { cursor: pointer; text-decoration: underline dotted color-mix(in srgb, var(--ink) 40%, transparent); text-underline-offset: .2em; }
+.panel .codes .code:hover { text-decoration-color: var(--red); }
+.panel .why { margin: .2rem 0 0; }
+.panel .links { margin: .3rem 0; }
+.panel .twice { margin: .4rem 0 0; }
 .panel .item { border-top: 1px solid var(--line); padding-top: .7rem; margin-top: .7rem; }
 .panel .item q { font-family: var(--serif); }
 .panel .whole { font-family: var(--serif); font-size: 1rem; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }

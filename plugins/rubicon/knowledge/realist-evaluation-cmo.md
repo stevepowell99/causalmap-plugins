@@ -16,7 +16,7 @@ This is the definition everything else turns on, and the one most often mangled.
 
 A mechanism is not the programme's activity. Training is not a mechanism. Mentoring is not a mechanism. Providing a helpline is not a mechanism. Those are resources the programme introduces. A resource on its own causes nothing.
 
-The mechanism is what participants do with the resource in their heads. Dalkin and colleagues put it as resource plus reasoning, and the split is worth keeping explicit when writing a configuration: the programme offered X; recipients, being in this situation, reasoned Y about it; therefore Z. Their reasoning is where the causal power sits. That is why the same offer produces different results among different people in the same room.
+The mechanism is what participants do with the resource in their heads. Dalkin and colleagues put it as resource plus reasoning, and the split is worth keeping explicit when writing a configuration: the programme offered X; recipients, being in this situation, reasoned Y about it; therefore Z. Their reasoning is where the causal power sits. (Dalkin and colleagues also argue that mechanisms operate on a continuum rather than as an on/off switch, so "fires" and "switches" on this page are shorthand.) That is why the same offer produces different results among different people in the same room.
 
 Three tests for a candidate mechanism.
 

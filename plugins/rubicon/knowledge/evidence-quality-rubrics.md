@@ -14,7 +14,7 @@ So the framework fits a Rubicon run almost exactly. One question, one corpus, on
 
 ## The criteria
 
-Eight are presented, in this order, each as a table of five levels. The wording below is compressed; the source document carries the full descriptors.
+Eight are presented, in the order of the paper's sections (its introduction lists them in a different order), each as a table of five levels. The wording below is compressed; the source document carries the full descriptors.
 
 | Criterion | What it asks | Level 3 reads |
 |---|---|---|
@@ -31,11 +31,11 @@ The authors expect you to take a subset rather than score all eight, chosen at t
 
 ### Do not set one target level across the criteria
 
-Aston and Apgar suggest aiming for level 3 to secure credibility. Read the tables and that advice breaks on two of them.
+Aston and Apgar say that in most cases it is reasonable to aim for level 3 to ensure credibility, leaving the desired level to each team. Read the tables and that advice breaks on two of them.
 
 Uniqueness at level 3 says the connection is ambivalent and the claim is as likely to be invalid as valid. Independence at level 3 says the evidence may have come from partners or third parties and that potential bias is unknown. Neither is a passing grade in any ordinary sense. Level 3 on plausibility or triangulation means something a reader would accept; level 3 on uniqueness means the evidence did not settle anything.
 
-Set the target per criterion. For uniqueness and independence, level 4 is the first level that carries a claim. The authors say elsewhere that uniqueness should outweigh plausibility when building confidence in contribution, which points the same way.
+Set the target per criterion. For uniqueness and independence, level 4 is the first level that carries a claim. The authors say elsewhere that uniqueness can add more weight than plausibility when increasing confidence in contribution claims, which points the same way.
 
 ## What Rubicon can score from its own record
 
@@ -63,11 +63,11 @@ Where the rival is not a rival, say so. Both readings can hold of different peop
 
 **Independence, through a second count rather than a judgement.** Record who is speaking and their relation to the intervention (programme staff, partner, funder, participant, external, not stated), as a column of the documents where each document has one speaker, then count twice: once out of all cases, once out of the cases with no connection to the programme. If the verdict holds in both, independence did not decide it. If it changes, the finding rests on people with an incentive to report it, and that is worth more than any level on a five-point scale.
 
-Aston and Apgar's list of the incentives at work is the reason to bother: staff describing what they were closest to, partners saying what keeps a contract, evaluators overweighting the intervention because it is what they were hired to look at. Public statements carry more positive bias than confidential ones, so where a source sits on that spectrum belongs on the source rather than in a footnote.
+Aston and Apgar's list of the incentives at work is the reason to bother: staff describing events they and their organisation were connected to, partners saying what is acceptable to the organisation that renews their contract, evaluators with contract-renewal incentives who may focus too much on the intervention. Public statements carry more positive bias than confidential ones, so where a source sits on that spectrum belongs on the source rather than in a footnote.
 
-**Data triangulation, which is not a document count.** The temptation is to read a count of documents as the criterion: three documents corroborate, so call it level 3. Resist it. Denzin's data triangulation is about kinds of evidence, primary against secondary, testimonial against administrative against observational, and about proximity to the events described. Three interviews with three people from the same office are one line of evidence however the count reads.
+**Data triangulation, which is not a document count.** The temptation is to read a count of documents as the criterion: three documents corroborate, so call it level 3. Resist it. Aston and Apgar read Denzin's data triangulation as most commonly about multiple lines of evidence, meaning different source types, and give as examples primary and secondary sources and corroboration between administrative, testimonial and observational ones; they also note that sources closer to the events reported (eyewitness against hearsay) carry more weight. Three interviews with three people from the same office are one line of evidence however the count reads.
 
-What a count of separate cases does establish is the bottom of the scale, since one case carrying the claim is the paper's level 2 whatever else is true. Above that the criterion needs the source type, and the type has to reach the reviewer: a column of the documents giving each one's kind does that, and a count split by it shows which kinds of evidence carry the claim.
+What a count of separate cases does establish is the bottom of the scale, since a single source of evidence supporting the claim is the paper's level 2 whatever else is true. Above that the criterion needs the source type, and the type has to reach the reviewer: a column of the documents giving each one's kind does that, and a count split by it shows which kinds of evidence carry the claim.
 
 **Support factors, for transferability.** Most of the transferability criterion is outside a single-corpus run, since it compares context A with context B and only A is in the material. One part does map. Cartwright's support factors and derailers, and the assumptions a theory of change makes about them, can be items in the codebook, and a plan ending in that table is finished: it answers what the material can answer and leaves the transfer to a person. Somebody then takes the table to the question of whether the case travels.
 
@@ -77,7 +77,7 @@ What a count of separate cases does establish is the bottom of the scale, since 
 
 One part of the criterion is Rubicon's own problem, and it runs against the design. Rubicon's central rule is that a claim must cite the quotes it rests on. But a verbatim quote from a small population identifies its speaker, and the more traceable the chain, the more identifying it becomes. Anonymising the quote breaks the trace; keeping it risks the confidentiality the speaker was promised. There is no setting that resolves both, so whoever plans a run over sensitive material has to decide which they are giving up, and say so in the report. Worth settling in the plan rather than leaving to the moment somebody publishes.
 
-**Representation above level 3.** Levels 4 and 5 describe priority groups generating their own evidence and running their own analysis. A run over transcripts collected by evaluators cannot reach either, whatever the analysis does afterwards. So a Rubicon run has a structural ceiling of level 3 on representation, and reporting that ceiling as a finding is more use than scoring the criterion.
+**Representation above level 3.** Level 4 describes priority groups generating their own evidence, which researchers then aggregate, and level 5 describes multiple sources generated by priority groups through their own data collection and analysis. A run over transcripts collected by evaluators cannot reach either, whatever the analysis does afterwards. So a Rubicon run has a structural ceiling of level 3 on representation, and reporting that ceiling as a finding is more use than scoring the criterion.
 
 ## As a plan
 
@@ -117,7 +117,7 @@ The levels, and three of the criteria written out, after Aston and Apgar. Ethics
 
 **Kinds of evidence are countable only where the documents carry them.** A case is one document, or the documents the index gives one `case`, so two interviews with the same person corroborate each other unless the index says they are one case. The kind of each document has to be a column of the documents before a count can split by it.
 
-**No weighting across criteria, which is correct.** Aston and Apgar say the criteria carry different weight, that uniqueness should outweigh plausibility, and then leave aggregate scoring to the reader. Rubicon does the same: nothing averages verdicts. Keep it that way. A single number over six criteria hides exactly the disagreements a reader needs, and the paper's own refusal to supply one is the strongest thing in it.
+**No weighting across criteria, which is correct.** Aston and Apgar say the criteria are not of equal value, that uniqueness can add more weight than plausibility, and then leave aggregate scoring to the reader's judgement. Rubicon does the same: nothing averages verdicts. Keep it that way. A single number over six criteria hides exactly the disagreements a reader needs, and the paper's own refusal to supply one is the strongest thing in it.
 
 ## Traps
 
@@ -139,6 +139,6 @@ Somebody wanting a single quality score to put in a table is asking for the thin
 
 ## Sources
 
-Aston, T. and Apgar, M. (2023). *Quality of Evidence Rubrics for Single Cases*.
+Aston, T. and Apgar, M. (2023). *Quality of Evidence Rubrics for Single Cases*. Hosted by the [UK Evaluation Society](https://evaluation.org.uk/community-learning/resources/quality-of-evidence-rubrics-for-single-cases/).
 
 Works cited within it, listed here because they were read in its bibliography rather than in the original: Denzin on the four types of triangulation (1970); Shadish on coder and analyst triangulation (1993); Beach and Pedersen on process tracing (2019); Mayne on contribution analysis (2019); Cartwright on support factors and derailers (2020); Lincoln and Guba on transferability (1985); Guest et al. and Hennink and Kaiser on saturation; Davies on weighted checklists (2020); UNEG's ethical guidelines (2020). Check any of them before citing it in a deliverable.

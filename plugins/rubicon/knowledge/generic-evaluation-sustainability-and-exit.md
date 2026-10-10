@@ -36,7 +36,7 @@ Try the continuation values on one pillar's handover report and budget material 
 
 ## What it guards against
 
-Sustainability is open to what might be called the interdependent chain trap: institutional enthusiasm cannot keep infrastructure working if the domestic budget for running costs is nothing. Reading worst-first treats institutional ownership and fiscal viability as conditions that depend on each other (Davidson 2005 on synthesis that does not let one strength hide another's failure). Where nothing funds the running costs after closure, the overall reading is unsustainable, so strong political ownership cannot hide a financial collapse.
+Sustainability is open to what might be called the interdependent chain trap: institutional enthusiasm cannot keep infrastructure working if the domestic budget for running costs is nothing. Reading worst-first treats institutional ownership and fiscal viability as conditions that depend on each other (on synthesis rules, see Davidson 2005). Where nothing funds the running costs after closure, the overall reading is unsustainable, so strong political ownership cannot hide a financial collapse.
 
 ## Where Rubicon falls short
 
@@ -45,7 +45,7 @@ Sustainability is open to what might be called the interdependent chain trap: in
 
 ## Sources
 
-The works cited for all the criterion pages are on [generic evaluation questions](generic-evaluation.md#works-cited). This page cites two OECD documents by page and Davidson as a whole work. The 2019 definition, its note and their page were checked against the copy the New Zealand Ministry of Foreign Affairs and Trade hosts, and the quotations are from that copy; the 2021 section and table pages were checked against that report's printed table of contents.
+The works cited for all the criterion pages are on [generic evaluation questions](generic-evaluation.md#works-cited). This page cites two OECD documents by page and Davidson as a whole work. The 2019 quotations and their printed pages were checked word for word against the PDF the New Zealand Ministry of Foreign Affairs and Trade hosts; the 2021 section and table pages were checked against the PDF on oecd.org, by printed page number. Davidson's book was not read for this check.
 
 OECD DAC Network on Development Evaluation (2019). *Better Criteria for Better Evaluation: Revised Evaluation Criteria Definitions and Principles for Use*. OECD. The definition of sustainability, its note and Box 7 are on p. 12. Listed as [1] in the works cited.
 

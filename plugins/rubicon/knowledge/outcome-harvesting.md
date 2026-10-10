@@ -135,11 +135,11 @@ A trial classifies a handful of already-drafted outcomes before the rest, which 
 
 ## Sources
 
-Years are omitted where I am not certain of them. Check any of these before citing in a deliverable. Nothing here is quoted.
+The outcome definition used throughout (a change in the behaviour, relationships, actions, activities, policies or practices of an individual, group, community, organisation or institution) and the six steps are those of the first source below; the page's traps, tests and thresholds are working advice and are not attributed to it.
 
-- Ricardo Wilson-Grau and Heather Britt, *Outcome Harvesting*, a brief produced for the Ford Foundation's Middle East and North Africa office. The short document most practitioners learned the method from.
-- Ricardo Wilson-Grau, *Outcome Harvesting: Principles, Steps, and Evaluation Applications*, Information Age Publishing. The book-length treatment.
-- Sarah Earl, Fred Carden and Terry Smutylo, *Outcome Mapping: Building Learning and Reflection into Development Programs*, IDRC. The source of the boundary-partner and behaviour-change framing that OH inherits.
-- BetterEvaluation maintains an Outcome Harvesting page with the six steps and practitioner links.
-- John Mayne is the originator of contribution analysis, referenced on the [analysis page](outcome-harvesting-analysis.md) for the combination case.
-- Derek Beach and Rasmus Brun Pedersen, *Process-Tracing Methods: Foundations and Guidelines*, University of Michigan Press, for the evidence tests referenced in the same section.
+- Wilson-Grau, R. and Britt, H. (2012, revised November 2013). *Outcome Harvesting*. Cairo: Ford Foundation, Middle East and North Africa Office. The short document most practitioners learned the method from.
+- Wilson-Grau, R. (2018). *Outcome Harvesting: Principles, Steps, and Evaluation Applications*. Information Age Publishing (catalogued by some libraries as 2019). The book-length treatment. Its Emerald Publishing record (DOI 10.1108/978-1-64113-394-4) dates it November 2018.
+- Earl, S., Carden, F. and Smutylo, T. (2001). *Outcome Mapping: Building Learning and Reflection into Development Programs*. Ottawa: International Development Research Centre. The source of the boundary-partner and behaviour-change framing that OH inherits, including the definition of an outcome above.
+- BetterEvaluation maintains an Outcome Harvesting page, at `betterevaluation.org/methods-approaches/approaches/outcome-harvesting`.
+- Mayne, J. (2001). Addressing attribution through contribution analysis: using performance measures sensibly. *Canadian Journal of Program Evaluation*, 16(1), 1-24. DOI 10.3138/cjpe.016.001. Mayne developed contribution analysis; it is referenced on the [analysis page](outcome-harvesting-analysis.md) for the combination case.
+- Beach, D. and Pedersen, R. B. (2013; second edition 2019). *Process-Tracing Methods: Foundations and Guidelines*. University of Michigan Press, for the evidence tests referenced in the same section.

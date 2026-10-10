@@ -20,7 +20,7 @@ Scriven's logic of evaluation, as Fournier set it out, has four moves: establish
 - **The synthesis rule.** How the criteria's levels make an overall verdict, if one is wanted.
 - **When no verdict can be given.** What the evidence would have to lack for a criterion to be unrateable: too few sources bearing on it, a question the documents cannot answer, a premise the material shows to be false.
 
-Davidson distinguishes analytic rubrics, a level for each criterion separately, from holistic ones, a single description of what excellent, good and poor look like across everything. Analytic rubrics are easier to apply consistently and to argue with; holistic ones read better and hide where the judgement turned. Use analytic rubrics for anything that will be checked.
+Rubrics are analytic, a level for each criterion separately, or holistic, a single description of what excellent, good and poor look like across everything. Analytic rubrics are easier to apply consistently and to argue with; holistic ones read better and hide where the judgement turned. Use analytic rubrics for anything that will be checked.
 
 ## Synthesis
 
@@ -32,7 +32,7 @@ Never average ordinal levels. Good, poor and good do not make good-minus: they m
 - **Rules in order.** The evaluator states which combinations give which verdict, tried in order with a final "otherwise": good where reach is at least adequate and quality is not poor; adequate where one of the two is adequate; otherwise poor.
 - **No synthesis.** Report each criterion and say they were not combined. Often the honest choice, and the right one where the commissioner did not ask for an overall verdict, since an overall verdict is the line that gets quoted without its qualifications.
 
-Weighting criteria numerically and summing is a fifth option in the literature, and Scriven's critique of it holds: numerical weights let large scores on minor criteria buy back failure on a major one.
+Weighting criteria numerically and summing (Davidson's "numerical weight and sum") is a fifth option in the literature, and the usual objection to it holds: numerical weights let large scores on minor criteria buy back failure on a major one.
 
 ## Who writes it, and when
 
@@ -87,12 +87,12 @@ The write step reports each verdict beside its table: for each criterion, the co
 
 Scriven, M. (1991). *Evaluation Thesaurus*, 4th edition. Sage. The entries on the logic of evaluation, and on weighting and synthesis.
 
-Fournier, D. (1995). 'Establishing evaluative conclusions: a distinction between general and working logic'. *New Directions for Evaluation* 68.
+Fournier, D. (1995). 'Establishing evaluative conclusions: a distinction between general and working logic'. *New Directions for Evaluation* 68: 15 to 32.
 
-Davidson, E. J. (2005). *Evaluation Methodology Basics: The Nuts and Bolts of Sound Evaluation*. Sage. Rubrics, analytic and holistic; bars; synthesis.
+Davidson, E. J. (2005). *Evaluation Methodology Basics: The Nuts and Bolts of Sound Evaluation*. Sage. Rubrics; bars; synthesis.
 
-Davidson, E. J. (2014). *Evaluative Reasoning*. Methodological Briefs: Impact Evaluation 4. UNICEF Office of Research, Florence.
+Davidson, E. J. (2014). *Evaluative Reasoning*. Methodological Briefs: Impact Evaluation 4. UNICEF Office of Research, Florence (September 2014).
 
-King, J., McKegg, K., Oakden, J. and Wehipeihana, N. (2013). 'Rubrics: A method for surfacing values and improving the credibility of evaluation'. *Journal of MultiDisciplinary Evaluation* 9(21). [Open access](https://jmde.journals.publicknowledgeproject.org/index.php/jmde_1/article/view/374).
+King, J., McKegg, K., Oakden, J. and Wehipeihana, N. (2013). 'Rubrics: A method for surfacing values and improving the credibility of evaluation'. *Journal of MultiDisciplinary Evaluation* 9(21): 11 to 20. [Open access](https://jmde.journals.publicknowledgeproject.org/index.php/jmde_1/article/view/374).
 
 The Causal Map garden's note [Rubrics can help make evaluative judgements from causal mapping](https://garden.causalmap.app/200%20Causal%20mapping%20in%20evaluation/!01381%20Rubrics%20can%20help%20make%20evaluativ-5b3dae.html) gives a three-criterion rubric for whether a causal link is well enough evidenced: how many sources independently mention it, whether it can be explained theoretically, and whether bias was anticipated and mitigated.

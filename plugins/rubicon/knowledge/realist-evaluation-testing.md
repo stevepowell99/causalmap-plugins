@@ -20,7 +20,7 @@ Realist evaluation is theory, test, refine, test again. Reports that show only t
 
 ## Demi-regularities
 
-Start from a pattern rather than from an effect. A demi-regularity, Lawson's term which Pawson took up, is a semi-predictable tendency in the outcome data: adoption in eight sites and not in five, take-up high among one group and low among another, an effect that appears in year two and not in year one.
+Start from a pattern rather than from an effect. A demi-regularity, Lawson's term as realist evaluators use it, is a semi-predictable tendency in the outcome data: adoption in eight sites and not in five, take-up high among one group and low among another, an effect that appears in year two and not in year one.
 
 It does not have to be statistically respectable. It has to be real enough to be worth explaining and uneven enough to have an explanation. A uniform result across every site tells you the mechanism fired everywhere or nowhere. Either way there is nothing to configure.
 
@@ -30,7 +30,7 @@ So look at the outcome data first, and pick the split most surprising given the 
 
 The technique is what makes realist evaluation possible. Running the analysis over material gathered any other way is the commonest reason it fails.
 
-The move, from Pawson and developed by Manzano, is the teacher-learner cycle. The researcher teaches the respondent the theory under test. The respondent, who knows the situation, teaches the researcher where the theory is wrong. So the interview becomes a conversation about a proposition rather than an extraction of experience.
+The move, from Pawson and Tilley and developed by Manzano, is the teacher-learner cycle. The researcher teaches the respondent the theory under test. The respondent, who knows the situation, teaches the researcher where the theory is wrong. So the interview becomes a conversation about a proposition rather than an extraction of experience.
 
 In practice that means saying something like: "we think people took up the offer where they already trusted the supervisor, and did not where they did not. Does that match what you saw? Where does it break down?" The respondent then corrects a specific claim, which beats an open question about their experience.
 

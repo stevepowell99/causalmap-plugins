@@ -96,8 +96,25 @@ def same(name, a, b):
             return drop(a) == drop(b)
         except (OSError, ValueError, AttributeError):
             pass
+    if name.endswith(".json"):
+        # A newer engine records more about the same run (a judgement's margin, say), so a recount it makes may add
+        # fields the run's own recount never had; it may not change or drop any it has, which is what a report reads
+        try:
+            return kept(json.loads(a.read_text(encoding="utf-8")), json.loads(b.read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            pass
     # line endings are the platform's that wrote the file (a recount on Windows writes \r\n), never part of a count
     return a.read_bytes().replace(b"\r\n", b"\n") == b.read_bytes().replace(b"\r\n", b"\n")
+
+
+def kept(old, new):
+    """Whether `new` holds everything `old` does, unchanged: every key of each object with the same value, every list
+    the same length and each item kept, any key `new` adds left aside."""
+    if isinstance(old, dict):
+        return isinstance(new, dict) and all(k in new and kept(v, new[k]) for k, v in old.items())
+    if isinstance(old, list):
+        return isinstance(new, list) and len(old) == len(new) and all(kept(x, y) for x, y in zip(old, new))
+    return old == new
 
 
 def bundle(run, out, render):
@@ -168,15 +185,29 @@ def unpack(zipped, run):
     return json.loads((run / "render.json").read_text(encoding="utf-8"))
 
 
+#: What each kind of step is called where a reader meets it, in the annex's headings and the side panel's step buttons
+KIND_SAID = {"code": "Coding", "tabulate": "Counting", "judge": "Judging", "write": "Writing", "sample": "Sampling",
+             "group": "Grouping", "recode": "Second coding", "check": "Checking"}
+
+
+def step_said(sid, kind):
+    """A step as a reader sees it, the same under How this was made and in the side panel: its kind in words, then its
+    name without the one-letter prefix its id may carry for that kind (c_, t_, j_), which a reader is never told."""
+    return f"{KIND_SAID.get(kind, label(kind))}: {label(re.sub(r'^[a-z]_', '', sid))}"
+
+
 def esc(s):
     return html.escape(str(s), quote=True)
 
 
 def label(v):
     """A value as a reader sees it: underscores as spaces and the first letter capitalised, the rest left as coded, so
-    an acronym such as AI keeps its capitals."""
+    an acronym such as AI keeps its capitals. A factor's opposite pole, coded with a leading ~, is said in words, since
+    a reader need not know the convention (report.js `label` says the same)."""
     s = str(v).replace("_", " ").strip()
-    return s[:1].upper() + s[1:]
+    pole = s.startswith("~")
+    s = s[1:].strip() if pole else s
+    return s[:1].upper() + s[1:] + (", at its opposite pole" if pole else "")
 
 
 def load(zipped):
@@ -268,13 +299,27 @@ def second_reading(step, recoded, texts, rows):
             rows[x["row"]]["second"] = {"coded": False, "differ": {}}
 
 
+def loop_told(c, markers):
+    """What a loop table's cell counts, in words: the documents telling a loop whole, one of its links, or a link that
+    drives it from outside, the loop named by the marker the answer and its diagram use."""
+    v = c["values"]
+    marker = markers.get(v.get("loop"), v.get("loop"))
+    if v.get("part") == "whole":
+        return f"telling loop {marker} whole, {POLARITY_SAID.get(v.get('polarity'), 'a loop')}: {v.get('loop')}"
+    if v.get("part") == "driver":
+        return f"telling the link {v.get('link')}, which drives loop {marker} from outside it"
+    return f"telling the link {v.get('link')}, one of the links of loop {marker}"
+
+
 def build_data(R):
     """Everything the page's script needs: rows with context, cells, documents."""
     gcol = group_column(R["index"])
     docs = {d["id"]: {"group": d.get(gcol, ""), "title": d.get("title", d["id"]),
                       "file": "corpus/" + (d.get("file") or f"{d['id']}.txt")} for d in R["index"]}
-    rows, cells, defs = {}, {}, {}
-    for sid, s in sorted(R["steps"].items(), key=lambda kv: kv[1].get("kind") != "code"):  # rows before the cells that read them
+    rows, cells, defs, shared = {}, {}, {}, {}
+    # code steps first, then tabulations, then judgements: rows before the cells that read them
+    order = {"code": 0, "tabulate": 1}
+    for sid, s in sorted(R["steps"].items(), key=lambda kv: order.get(kv[1].get("kind"), 2)):
         if s.get("kind") == "code":
             for col in s.get("columns", []):
                 for v in col.get("values", []) or []:
@@ -292,10 +337,24 @@ def build_data(R):
                                   **({"weak": True} if r.get("weak") else {})}
                 if a is not None and t:
                     rows[r["row"]]["at"] = [a, b]
+                # each code the passage was given, as the key of every passage given the same code in this step, for
+                # its chip to open them; a free-text column has no codes to share
+                for c in s.get("columns", []):
+                    v = r.get(c["name"])
+                    if c.get("type") == "free_text" or v in (None, ""):
+                        continue
+                    key = f"{sid}|{c['name']}|{value_key(v)}"
+                    code = shared.setdefault(key, {"step": sid, "col": c["name"], "value": v, "rows": [], "cell": None})
+                    code["rows"].append(r["row"])
+                    rows[r["row"]].setdefault("keys", {})[c["name"]] = key
             if sid in R.get("recoded", {}):
                 second_reading(s, R["recoded"][sid], R["texts"], rows)
         elif s.get("kind") == "tabulate":
             weak = {x: r["doc"] for x, r in rows.items() if r.get("weak")}
+            # a table by one code of its step's passages, unfiltered, holds in each cell every passage given that code,
+            # so that code's chip opens the cell itself
+            markers = loop_markers(s["cells"]) if s.get("loops") else {}
+            plain = len(s.get("by", [])) == 1 and not (s.get("filtered") or s.get("loops") or s.get("paths") or s.get("sequences"))
             for c in s.get("cells", []):
                 # the documents a cell holds only through weak rows, which its count leaves out (steps.tabulate)
                 firm = {rows[x]["doc"] for x in c.get("rows", []) if x in rows and x not in weak}
@@ -303,12 +362,32 @@ def build_data(R):
                                   "within": c.get("within") or {}, "docs": c.get("documents", []),
                                   "weak_docs": sorted({weak[x] for x in c.get("rows", []) if x in weak} - firm),
                                   "rows": c.get("rows", []), "step": sid}
+                if s.get("loops"):
+                    cells[c["id"]]["told"] = loop_told(c, markers)
+                if plain:
+                    col = s["by"][0]
+                    code = shared.get(f"{s.get('input')}|{col}|{value_key(c['values'].get(col))}")
+                    if code and not code["cell"] and set(code["rows"]) == set(c.get("rows", [])):
+                        code["cell"] = c["id"]
             # {<step>.of}, the documents the tabulation read, as the engine takes them from its input step
             src = R["steps"].get(s.get("input"), {})
             read = src.get("documents") or R["steps"].get(src.get("input"), {}).get("documents") or sorted(docs)
             cells[f"{sid}.of"] = {"values": {}, "n": s.get("of"), "base": s.get("of"), "said": f'{s.get("of")} of {s.get("of")}', "within": {},
                                   "docs": sorted(read), "rows": [], "step": sid}
-    return {"docs": docs, "rows": rows, "cells": cells, "defs": defs, "group": gcol, "zip": R.get("zip", "")}
+        elif s.get("kind") == "judge":
+            # a rule's count opens the passages it was counted from, as a table's cell does, with the rule's question
+            for c in s.get("criteria") or []:
+                cid = f"{sid}.{c.get('id')}"
+                if c.get("kind") != "rule" or cid not in R["counts"] or "rows" not in c:
+                    continue
+                where = (c.get("counted") or {}).get("where") or {}
+                weak = set(c.get("weak") or [])
+                cells[cid] = {"values": {k: " or ".join(map(str, v)) if isinstance(v, list) else v for k, v in where.items()},
+                              "n": c.get("n"), "base": c.get("base"), "said": R["counts"][cid], "within": {},
+                              "docs": [d for d in c.get("documents", []) if d not in weak] + sorted(weak),
+                              "weak_docs": sorted(weak), "rows": c["rows"], "step": sid, "question": c.get("question", "")}
+    steps = {st["id"]: step_said(st["id"], st.get("kind", "")) for st in R.get("workflow", {}).get("steps", [])}
+    return {"docs": docs, "rows": rows, "cells": cells, "codes": shared, "steps": steps, "defs": defs, "group": gcol, "zip": R.get("zip", "")}
 
 
 # ---------- the answer: markdown with cell ids and row citations ----------
@@ -322,7 +401,8 @@ CELL = re.compile(r"\{([a-z][\w]*(?:\.[\w]+)+)\}")
 
 
 def cell_of(cid):
-    """The table cell a count is read from, for the page to open its passages: none for a judge's count."""
+    """The table cell a count is read from, for the page to open its passages: none for a judge's count, whose rule
+    `build_data` gives a cell of its own where it was counted from passages."""
     base = re.sub(r"\.(?:within\.[\w]+|weak)$", "", cid)
     return base if re.fullmatch(r"[a-z][\w]*\.(?:c\d+|of)", base) else None
 FIG = re.compile(r"^\{\{figure\s+([\w]+)\}\}$")
@@ -384,7 +464,8 @@ def inline(text, R, D, cite_no, static, plain=False):
         txt = R["counts"][cid]
         if plain:
             txt = SAID.fullmatch(txt).group(1)
-        base = cell_of(cid)
+        # a table's cell, or a judgement's rule counted from passages (build_data), opens them
+        base = cell_of(cid) or (cid if cid in D.get("cells", {}) else None)
         if R.get("finding") is not None:
             # a count with no cell behind it, such as a judgement's, still names the step that made it
             R["finding"].setdefault("cells" if base else "steps", []).append(base or cid.split(".")[0])
@@ -770,7 +851,8 @@ def matrix(R, D):
                     tds += "<td></td>"; continue
                 own = binary and any(r.get(binary["name"]) == "yes" for r in rs)
                 rid = ",".join(r["row"] for r in rs)
-                tds += (f'<td><button class="dot {"own" if own else "raised"}" data-rows="{esc(rid)}" '
+                why = f"Coded {label(nominal['name'])}: {label(v)} in {did}"
+                tds += (f'<td><button class="dot {"own" if own else "raised"}" data-rows="{esc(rid)}" data-why="{esc(why)}" '
                         f'aria-label="{esc(did)}: {esc(label(v))}, {len(rs)} passage{"s" if len(rs) > 1 else ""}">'
                         f'{len(rs) if len(rs) > 1 else ""}</button></td>')
             body += (f'<tr><th class="doc"><button class="doclink" data-doc="{esc(did)}" title="Read {esc(did)} whole">'
@@ -887,12 +969,36 @@ def table_of(sid, s, static=False):
     """A tabulate step's table: one row per cell, each count a button that opens who it counts, or for Word the count."""
     by = s.get("by", [])
     head = "".join(f"<th>{esc(label(b))}</th>" for b in by)
+    # each count shaded by its share of its base, or against the largest where it counts passages, as every other
+    # table of counts in the report is (`heat`); Word gets the plain numbers
+    shade = heat([(c["n"], base_of(s, c)) for c in s.get("cells", [])])[0]
     trs = "".join("<tr>" + "".join(f'<td>{esc(label(c["values"].get(b, "")))}</td>' for b in by)
-                  + (f'<td>{c["n"]}' if static else f'<td><button class="num" data-cell="{esc(c["id"])}">{c["n"]}</button>')
+                  + (f'<td>{c["n"]}' if static else f'<td><button class="num" data-cell="{esc(c["id"])}" '
+                     f'style="--a:{shade(c["n"], base_of(s, c)):.2f}">{c["n"]}</button>')
                   + (f' of {b}' if (b := base_of(s, c)) is not None else '') + '</td></tr>'
                   for c in s.get("cells", []))
     return (f'<div class="scroll"><table class="codebook"><thead><tr>{head}<th>{esc(label(s.get("count", "documents")))}</th>'
             f'</tr></thead><tbody>{trs}</tbody></table></div>')
+
+
+def judged(sid, s, D, static=False):
+    """A judgement's block under How this was made: where its rule came from, each criterion's question with its count
+    (opening the passages it was counted from) and the level it reached, the verdict and why, and the levels in full."""
+    def count(c):
+        cid = f"{sid}.{c.get('id')}"
+        said = f"{c['n']} of {c['base']}" if c.get("n") is not None else ""
+        return said if static or cid not in D["cells"] else f'<button class="num" data-cell="{esc(cid)}">{esc(said)}</button>'
+    crits = "".join(f'<li>{esc(c.get("question", c.get("id", "")))} {count(c)}'
+                    + (f' <span class="small">· level met: {esc(c["verdict"])}</span>' if c.get("verdict") not in (None, "") else "") + "</li>"
+                    for c in s.get("criteria") or [])
+    levels = "".join(f'<tr><th>{esc(v.get("name", ""))}</th><td>{esc(v.get("means", ""))}</td></tr>' for v in s.get("verdicts") or [])
+    return (f'<h3>{esc(step_said(sid, "judge"))}</h3>'
+            + (f'<p class="small">{esc(s["source"])}</p>' if s.get("source") else "")
+            + (f"<ul>{crits}</ul>" if crits else "")
+            + (f'<p>Verdict: <b>{esc(s["overall"])}</b>' + (f', since {esc(s["overall_why"])}' if s.get("overall_why") else "") + ".</p>"
+               if s.get("overall") else "")
+            + (f'<details><summary>The verdicts the rule could reach</summary><div class="scroll"><table class="codebook">'
+               f'<tbody>{levels}</tbody></table></div></details>' if levels and not static else ""))
 
 
 def annex(R, D, static=False):
@@ -911,7 +1017,7 @@ def annex(R, D, static=False):
         body = []
         if kind == "code":
             unit = "one row for each document, read whole" if st.get("per_document") else "one row for each passage that fits"
-            body.append(f'<h3>Coding: {esc(label(sid.removeprefix("c_")))}</h3>'
+            body.append(f'<h3>{esc(step_said(sid, kind))}</h3>'
                         f'<p class="small">{esc(unit)}; {len(s.get("rows", []))} rows.</p>'
                         f'<details><summary>The instruction a second coder would follow</summary><blockquote>{esc(st.get("prompt",""))}</blockquote></details>')
             for col in st["columns"]:
@@ -925,16 +1031,18 @@ def annex(R, D, static=False):
                 body.append(f'<div class="rb-block" data-node="asset:{esc(sid)}"><details><summary>The coded passages '
                             f'<span class="small">{len(s["rows"])} rows</span></summary>{passages_of(s)}</details></div>')
         elif kind == "tabulate":
-            body.append(f'<h3>Counting: {esc(label(s.get("count", st.get("count", "documents"))))} by '
-                        f'{esc(" and ".join(label(b).lower() for b in st.get("by", [])))} <span class="small">({esc(sid)})</span></h3>')
+            body.append(f'<h3>{esc(step_said(sid, kind))}</h3><p class="small">{esc(label(s.get("count", st.get("count", "documents"))))} by '
+                        f'{esc(" and ".join(label(b).lower() for b in st.get("by", [])))}</p>')
             if s.get("cells"):
                 body.append(f'<div class="rb-block" data-node="asset:{esc(sid)}"><details><summary>The table '
                             f'<span class="small">{len(s["cells"])} cells</span></summary>{table_of(sid, s, static)}</details></div>')
+        elif kind == "judge" and s:
+            body.append(judged(sid, s, D, static))
         elif kind == "write":
-            body.append(f'<h3>Writing the answer</h3><details><summary>The instruction the answer was written to</summary>'
+            body.append(f'<h3>{esc(step_said(sid, kind))}</h3><details><summary>The instruction the answer was written to</summary>'
                         f'<blockquote>{esc(st.get("instructions", ""))}</blockquote></details>')
         else:
-            body.append(f'<h3>{esc(label(kind))}: {esc(label(sid))}</h3>')
+            body.append(f'<h3>{esc(step_said(sid, kind))}</h3>')
         out.append(f'<section class="rb-block" data-node="step:{esc(sid)}">{"".join(body)}</section>')
     rp = R["report"]
     coded = rp.get("coding", {})

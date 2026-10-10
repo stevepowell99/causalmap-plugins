@@ -62,7 +62,7 @@ The commonest fault in impact findings from documents is what might be called th
 
 ## Sources
 
-The works cited for all the criterion pages are on [generic evaluation questions](generic-evaluation.md#works-cited). This page cites two OECD documents by page. The 2019 definition and its page were checked against the copy the New Zealand Ministry of Foreign Affairs and Trade hosts; the 2021 section and table pages against that report's printed table of contents. The 2021 element pages and the quotations from 2021 were checked in an earlier review against the OECD's own text, which could not be read from here this time.
+The works cited for all the criterion pages are on [generic evaluation questions](generic-evaluation.md#works-cited). This page cites two OECD documents by page. The 2019 quotations and their printed pages were checked word for word against the PDF the New Zealand Ministry of Foreign Affairs and Trade hosts; the 2021 element, statement and table pages were checked against the PDF on oecd.org, by printed page number.
 
 OECD DAC Network on Development Evaluation (2019). *Better Criteria for Better Evaluation: Revised Evaluation Criteria Definitions and Principles for Use*. OECD. Approved by the Network on 20 November 2019 and adopted by the DAC on 10 December 2019. The definition of impact, its note and Box 6 are on p. 11. Listed as [1] in the works cited.
 
