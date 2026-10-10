@@ -13,7 +13,6 @@ Most evaluation questions ask for one of a few kinds of claim, and the kind deci
 | How good, how well, to what extent, was it worth it | A verdict of worth against a standard | Evaluative rubrics, applied to whatever evidence the question needs | [evaluative rubrics](evaluative-rubrics.md), [generic evaluation questions](generic-evaluation.md) |
 | Did the programme make a difference, given what else was happening | A contribution, link by link | Contribution analysis; QuIP where intended beneficiaries can tell it unprompted; causal mapping to assemble the accounts | [contribution analysis](contribution-analysis.md), [QuIP](quip.md), [causal mapping](causal-mapping.md) |
 | Did this mechanism produce this outcome, in this case | A within-case causal inference | Process tracing | [process tracing](process-tracing.md) |
-| Which combinations of conditions go with success, across cases | A set relation across comparable cases | QCA | [QCA](qca.md) |
 | What works, for whom, in what circumstances, and why | A refined programme theory | Realist evaluation | [realist evaluation](realist-evaluation.md) |
 | What changed, including what nobody planned | An inventory of outcomes with their contributors | Outcome harvesting; Most Significant Change where the point is what participants value | [outcome harvesting](outcome-harvesting.md), [Most Significant Change](most-significant-change.md) |
 | What do people say about X, across these interviews | A structured description, case by theme | Framework analysis | [framework analysis](framework-analysis.md) |
@@ -26,7 +25,7 @@ A question often asks for two kinds at once, typically a contribution and a verd
 
 The commonest mismatch is between the method named and the shape of the corpus. Five checks catch most of it.
 
-- **How many cases are there?** A case is the unit the outcome varies over: a district, a partner, a school. Twenty interviews about one programme are one case. QCA needs roughly ten or more comparable cases; process tracing needs one, studied deeply; realist evaluation and contribution analysis can work within one programme.
+- **How many cases are there?** A case is the unit the outcome varies over: a district, a partner, a school. Twenty interviews about one programme are one case. Process tracing needs one, studied deeply; realist evaluation and contribution analysis can work within one programme.
 - **Whose voices are in it?** A corpus of the programme's own reports cannot test whether beneficiaries credit the programme, and a corpus of beneficiary interviews cannot say what the programme spent. Contribution claims resting only on implementers' accounts have to be reported as such.
 - **Does the outcome vary?** A comparison across cases where almost all succeeded has nothing to discriminate. Check before anything else.
 - **Was a theory fixed before the material was gathered?** Process tracing and contribution analysis test a theory against evidence, and are strongest where the predictions were written before the reading. Material gathered without a theory can be read for one, which is a different and weaker claim.
@@ -34,7 +33,7 @@ The commonest mismatch is between the method named and the shape of the corpus. 
 
 ## Signs a named method is the wrong one
 
-- **QCA on interviews from one programme.** Offer contribution analysis or process tracing.
+- **QCA or fuzzy-set QCA.** Rubicon does not run either: interview and document corpora rarely give the ten or more comparable cases, each with its own outcome, that the method needs, nor the measured conditions it calibrates. Say so, and offer contribution analysis or process tracing within a programme, or realist evaluation where outcomes differ across sites.
 - **Outcome harvesting asked for a percentage of the programme's contribution.** A harvest cannot give one. Offer contribution claims outcome by outcome, substantiated where possible.
 - **Process tracing asked across twenty cases at once.** Its tests are within one case. Offer a cross-case method to choose the cases and process tracing on two or three of them.
 - **Realist evaluation with no programme theory and no chance to refine one.** It will be thematic analysis with realist labels. Offer framework analysis, or a first realist cycle that only builds candidate configurations and says so.

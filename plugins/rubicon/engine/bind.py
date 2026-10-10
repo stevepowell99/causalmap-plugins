@@ -17,7 +17,7 @@ The combined report is titled `--title`, else from its parts' headings (`default
 first eight characters of its own fingerprint, the SHA-256 of its parts' fingerprints in order, so a combined report of the same
 runs always carries the same name for the day. Makes no model call. Standard library and Node only.
 """
-import datetime, hashlib, json, re, sys, zipfile
+import datetime, hashlib, json, re, sys
 from html import unescape
 from pathlib import Path
 
@@ -59,15 +59,6 @@ def scoped(html, k):
     return re.sub(r'(id="|href="#)s-', rf"\1p{k}-s-", html)
 
 
-def chat_of(zipped):
-    """The chat that first recounted the run, as its `run.json` records it, or {}."""
-    with zipfile.ZipFile(zipped) as z:
-        try:
-            return json.loads(z.read("run.json").decode("utf-8")).get("chat") or {}
-        except (KeyError, ValueError, AttributeError):
-            return {}
-
-
 def part(k, report):
     """One run as the combined report draws it: its answer and its annex, interactive and for Word, and what names it."""
     zipped = report.with_suffix(".zip")
@@ -91,7 +82,7 @@ def part(k, report):
                     f'"{RR.esc(S["rows"].get(rid, {}).get("ctx", ["", "", ""])[1])}"</p>'
                     for rid, _ in sorted(cite_no.items(), key=lambda x: x[1]))
     word = {"lead": slead, "body": sbody, "annex": RR.annex(R, S, static=True), "notes": notes}
-    return {"k": k, "R": R, "report": report, "heading": RR.heading(R, title), "chat": chat_of(zipped),
+    return {"k": k, "R": R, "report": report, "heading": RR.heading(R, title),
             "page": {n: scoped(v, k) if isinstance(v, str) else v for n, v in page.items()}, "word": word}
 
 
@@ -106,12 +97,9 @@ def plain(markup):
 
 
 def provenance(p, static=False):
-    """Which report a part was handed over as, and the chat that first recounted its run; its run ID, zip and
-    fingerprint follow under "The record" in its annex, as in its own report."""
-    url, esc = p["chat"].get("url"), RR.esc
-    chat = ((f' Its run was first recounted in <a href="{esc(url)}">this chat</a>.' if not static
-             else f" Its run was first recounted in the chat at {esc(url)}.") if url else "")
-    return f'<p class="small">Handed over as {esc(p["report"].name)}.{chat}</p>'
+    """Which report a part was handed over as; its run ID, zip and fingerprint follow under "The record" in its
+    annex, as in its own report."""
+    return f'<p class="small">Handed over as {RR.esc(p["report"].name)}.</p>'
 
 
 def about(parts, documents):

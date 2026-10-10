@@ -2,11 +2,20 @@
   const panel = document.getElementById('panel');
   const pbody = document.getElementById('panel-body');
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  // A value as a reader sees it (render_report.label says the same). A factor's opposite pole is coded with a leading ~
-  // (knowledge/causal-mapping-in-rubicon.md), a convention a reader need not know, so it is said in words
+  // A value as a reader sees it (render_report.label says the same). A factor's opposite pole keeps its leading ~, as
+  // Causal Map writes it ("~Hygiene and sanitation"), and `named` marks that ~ wherever a page names a coded value; the
+  // leading # Causal Map's export puts on a document's column is dropped
   const label = v => {
-    const s = String(v).replace(/_/g, ' ').trim(), pole = s.startsWith('~'), t = pole ? s.slice(1).trim() : s;
-    return t.charAt(0).toUpperCase() + t.slice(1) + (pole ? ', at its opposite pole' : '');
+    const s = String(v).replace(/_/g, ' ').trim().replace(/^#\s*/, ''), pole = s.startsWith('~'), t = pole ? s.slice(1).trim() : s;
+    return (pole ? '~' : '') + t.charAt(0).toUpperCase() + t.slice(1);
+  };
+  // A coded value as HTML, with an opposite pole's ~ marked: pointing at it, tabbing to it or tapping it opens the
+  // popover below, which says what the pole means (render_report.named draws the same mark)
+  const named = (v, col = '') => {
+    const words = label(v);
+    if (!words.startsWith('~')) return esc(words);
+    return `<span class="tilde" tabindex="0" role="button" data-code="${esc(String(v).trim())}" data-col="${esc(col)}" ` +
+      `aria-label="The opposite of ${esc(words.slice(1))}">~</span>${esc(words.slice(1))}`;
   };
   // a document's group, named with its column, since a value alone ("No") does not say what it is a value of
   const group = d => (RUN.docs[d] && RUN.docs[d].group) ? (RUN.group ? label(RUN.group) + ': ' : '') + label(RUN.docs[d].group) : '';
@@ -23,7 +32,7 @@
   function codes(r, still) {
     const keys = r.keys || {};
     return '<div class="codes">' + coded(r.codes).map(([k, v]) => {
-      const words = `${esc(label(k))}: ${esc(label(v))}`, title = esc(RUN.defs[k + '=' + v] || '');
+      const words = `${esc(label(k))}: ${named(v, k)}`, title = esc(RUN.defs[k + '=' + v] || '');
       return !still && RUN.codes && RUN.codes[keys[k]] ? `<button class="code" data-code="${esc(keys[k])}" title="${title}">${words}</button>`
         : `<span title="${title}">${words}</span>`;
     }).join('') + '</div>';
@@ -40,10 +49,10 @@
       const differ = Object.entries(s.differ);
       const said = !s.coded ? 'did not code this passage'
         : !differ.length ? 'agreed'
-        : differ.map(([c, theirs]) => `${label(c)}: ${theirs.length ? theirs.map(label).join(' or ') : 'not coded'} instead of ${label(r.codes[c])}`).join('; ');
-      second = `<p class="second"><b>Second coder</b> (blind): ${esc(said)}.</p>`;
+        : differ.map(([c, theirs]) => `${esc(label(c))}: ${theirs.length ? theirs.map(x => named(x, c)).join(' or ') : 'not coded'} instead of ${named(r.codes[c], c)}`).join('; ');
+      second = `<p class="second"><b>Second coder</b> (blind): ${said}.</p>`;
     }
-    return `<div class="coding"><p class="doc-tag">${esc(stepSaid(r.step))} · ${r.weak ?'only hinted at, so left out of the counts' : 'counted'}</p>${codes(r, still)}${poles(r)}${second}</div>`;
+    return `<div class="coding"><p class="doc-tag">${esc(stepSaid(r.step))} · ${r.weak ?'only hinted at, so left out of the counts' : 'counted'}</p>${codes(r, still)}${second}</div>`;
   }
   const wholeLink = (id, words = 'whole interview') => {
     const r = RUN.rows[id];
@@ -51,7 +60,7 @@
   };
   const docLink = d => RUN.docs[d] ? `<button class="doclink" data-doc="${esc(d)}" title="Read ${esc(d)} whole">${esc(d)}</button>` : esc(d);
   const docTag = (d, link = true) => `<p class="doc-tag">${link ? docLink(d) : esc(d)}${group(d) ? ' · ' + esc(group(d)) : ''}</p>`;
-  const head = (what, why) => `<h3>${esc(what)}</h3>` + (why ? `<p class="small why">${esc(why)}</p>` : '');
+  const head = (what, why, whatHtml) => `<h3>${whatHtml || esc(what)}</h3>` + (why ? `<p class="small why">${esc(why)}</p>` : '');
 
   // The rows at one place: the same document and the same stretch of it, or where a row was not placed, the same
   // quotation. One passage coded more than once, in one step or in several, is drawn once with every coding under
@@ -175,6 +184,43 @@
   tip.setAttribute('role', 'tooltip');
   tip.hidden = true;
   panel.appendChild(tip);
+  // An opposite pole's ~ (`named`) says what it means: "The opposite of X", and the pole's own meaning where the
+  // codebook gives one. Pointing, tabbing and tapping all open it, so it works on a phone; a tap elsewhere closes it.
+  const pop = document.createElement('div');
+  pop.className = 'tilde-pop';
+  pop.setAttribute('role', 'tooltip');
+  pop.hidden = true;
+  document.body.appendChild(pop);
+  const poleSaid = el => {
+    const code = el.dataset.code || '';
+    const col = el.dataset.col || (Object.keys(RUN.defs).find(k => k.endsWith('=' + code)) || '').split('=')[0];
+    const means = poleMeans(col, code);
+    const of = label(code).replace(/^~/, '');
+    return `The opposite of ${of}` + (means ? `: ${means.charAt(0).toLowerCase() + means.slice(1)}.` : '.');
+  };
+  function showPop(el) {
+    pop.textContent = poleSaid(el);
+    pop.hidden = false;
+    const r = el.getBoundingClientRect();
+    pop.style.left = Math.max(8, Math.min(r.left + scrollX - 12, scrollX + innerWidth - pop.offsetWidth - 8)) + 'px';
+    pop.style.top = (r.bottom + scrollY + 6) + 'px';
+  }
+  const hidePop = () => { pop.hidden = true; };
+  document.addEventListener('mouseover', e => { const t = e.target.closest?.('.tilde'); if (t) showPop(t); });
+  // a mouse leaving the ~ closes it; after a touch it stays until a tap elsewhere, since a tap ends with the pointer moving off
+  let touch = false;
+  document.addEventListener('pointerdown', e => { touch = e.pointerType !== 'mouse'; }, true);
+  document.addEventListener('mouseout', e => { if (!touch && e.target.closest?.('.tilde')) hidePop(); });
+  document.addEventListener('focusin', e => { const t = e.target.closest?.('.tilde'); if (t) showPop(t); });
+  document.addEventListener('focusout', e => { if (e.target.closest?.('.tilde')) hidePop(); });
+  // capture, so a tap on the ~ inside a chip opens the popover rather than the chip's passages
+  document.addEventListener('click', e => {
+    const t = e.target.closest?.('.tilde');
+    // a tap fires mouseover and focus before the click, so the click only ever opens it, never toggles it shut
+    if (t) { e.preventDefault(); e.stopPropagation(); showPop(t); return; }
+    if (!pop.hidden) hidePop();
+  }, true);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') hidePop(); });
   const MOST_SHOWN = 4;
   function showTip(span) {
     const ids = span.dataset.rows.split(',');
@@ -200,16 +246,6 @@
   const combined = c => c && c.rows.some(id => oppositeEnds(c, id).length);
   // What the codebook says a code at the opposite pole means, without its "The opposite pole of X:" lead or its full stop
   const poleMeans = (k, code) => (RUN.defs[k + '=' + code] || '').replace(/^The opposite pole of [^:]+:\s*/, '').replace(/\.\s*$/, '');
-  // A passage coded at the opposite pole of one code or more, said in words with what that pole means, wherever the
-  // passage is shown
-  function poles(r) {
-    const ends = coded(r.codes).filter(([, v]) => isPole(v));
-    if (!ends.length) return '';
-    return '<p class="poles">Coded with ' + ends.map(([k, v]) => {
-      const means = poleMeans(k, v);
-      return `<b>the ${esc(label(k).toLowerCase())} at its opposite pole</b>` + (means ? `: ${esc(means)}` : `, the opposite of ${esc(label(String(v).slice(1)))}`);
-    }).join('; and ') + '</p>';
-  }
   function open(html) {
     hideTip();
     pbody.innerHTML = html;
@@ -222,9 +258,11 @@
     const flips = k => c ? c.rows.filter(id => oppositeEnds(c, id).includes(k)).length : 0;
     return '<ul>' + Object.entries(values).map(([k, v]) => {
       const d = isPole(v) ? poleMeans(k, v) : RUN.defs[k + '=' + v], n = flips(k);
-      const od = n ? poleMeans(k, '~' + String(v).replace(/^~/, '')) : '';
-      return `<li><b>${esc(label(k))}: ${esc(label(v))}</b>${d ? '. ' + esc(d) : ''}` +
-        (n ? ` Or its opposite pole${od ? ', ' + esc(od) : ''}: ${n} of these ${c.rows.length} passages.` : '') + '</li>';
+      if (!n) return `<li><b>${esc(label(k))}: ${named(v, k)}</b>${d ? '. ' + esc(d) : ''}</li>`;
+      // an end some passages hold as its opposite: the factor as labelled and its opposite, a line each with its own meaning
+      const plain = String(v).replace(/^~/, ''), od = poleMeans(k, '~' + plain);
+      return `<li>${esc(label(k))}<br><b>${esc(label(plain))}</b>${d ? ': ' + esc(String(d).replace(/\.\s*$/, '')) : ''}.` +
+        `<br><b>${named('~' + plain, k)}</b> (the opposite, in ${n} of these ${c.rows.length} passages)${od ? ': ' + esc(od) : ''}.</li>`;
     }).join('') + '</ul>';
   }
   // The passages behind a count, a code or a factor, each place once: who holds them firmly and their passages, then
@@ -245,7 +283,7 @@
         c.docs.map(d => `<div class="item">${docTag(d)}</div>`).join(''));
     }
     const said = within && within in c.within ? `${c.n} of ${c.within[within]}` : c.said;
-    const both = combined(c) ? '<p class="small">Opposites are combined here, so a passage coded at either pole of an end counts towards this link. Passages coded at an opposite pole come first and say so under the quotation; the rest were coded at the poles named above.</p>' : '';
+    const both = combined(c) ? '<p class="small">Opposites are combined here, so a passage coded as a factor or as its opposite counts towards this link. Passages coded as an opposite come first, their codes marked ~; the rest were coded as labelled.</p>' : '';
     // passages coded at an opposite pole first, since they are the few a reader looks for
     const listed = c.rows.filter(id => oppositeEnds(c, id).length).concat(c.rows.filter(id => !oppositeEnds(c, id).length));
     open(head(said, c.question ? `Judged by rule: ${c.question}` : '') +
@@ -264,8 +302,8 @@
     const firmDocs = docsOf(k.rows.filter(id => !isWeak(id)));
     const weakDocs = docsOf(k.rows.filter(isWeak)).filter(d => !firmDocs.includes(d));
     const places = byPlace(k.rows.filter(id => !isWeak(id)));
-    open(head(`${label(k.col)}: ${label(k.value)}`, `Every passage given this code in the ${stepName(k.step)} coding: ` +
-      `${passagesSaid(places)}, from ${firmDocs.length} document${firmDocs.length === 1 ? '' : 's'}`) +
+    open(head('', `Every passage given this code in the ${stepName(k.step)} coding: ` +
+      `${passagesSaid(places)}, from ${firmDocs.length} document${firmDocs.length === 1 ? '' : 's'}`, `${esc(label(k.col))}: ${named(k.value, k.col)}`) +
       meaning({ [k.col]: k.value }) + listing(k.rows, firmDocs.concat(weakDocs), weakDocs));
   }
   // A factor in a map opens the passages behind every link into and out of it, each once: the cells of the arrows
@@ -294,8 +332,8 @@
     const groups = byPlace(f.rows || []);
     const steps = [...new Set([...(f.steps || []), ...cells.map(id => RUN.cells[id].step), ...groups.flat().map(id => RUN.rows[id].step)])]
       .filter(id => annexBlock(id));
-    const said = id => { const c = RUN.cells[id]; const v = Object.entries(c.values).map(([k, x]) => `${label(k)}: ${label(x)}`).join(', ');
-      return `<div class="item"><button class="n" data-cell="${esc(id)}">${esc(c.said)}</button> ${esc(c.question || c.told || v || 'documents read')}</div>`; };
+    const said = id => { const c = RUN.cells[id]; const v = Object.entries(c.values).map(([k, x]) => `${esc(label(k))}: ${named(x, k)}`).join(', ');
+      return `<div class="item"><button class="n" data-cell="${esc(id)}">${esc(c.said)}</button> ${c.question || c.told ? esc(c.question || c.told) : v || 'documents read'}</div>`; };
     open(head('What this rests on') +
       (cells.length ? `<p class="small">${cells.length} number${cells.length === 1 ? '' : 's'}, counted by code</p>` + cells.map(said).join('') : '') +
       (groups.length ? `<p class="small">${passagesSaid(groups)}, quoted</p>` + groups.map(g => passage(g)).join('') : '') +

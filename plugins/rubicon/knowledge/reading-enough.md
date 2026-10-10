@@ -6,7 +6,7 @@ Ask for this page before choosing how a plan reaches its passages for a question
 
 ## What is being found is a declared link
 
-Most questions put to Rubicon are about a link between two concepts: did the programme lead to the change, what led to the change, what did the programme lead to. The case that matters is the one where the text itself declares the cause, "we could pay the school fees because of the loan", which is what causal mapping codes and what the [generative account](generative-and-counterfactual.md) of causation takes as evidence. Two things are not that case. The two concepts appearing in the same interview is co-occurrence, and says nothing about whether anybody linked them. Counting across cases which conditions go with which outcome is a different question, and [QCA](qca.md) owns it.
+Most questions put to Rubicon are about a link between two concepts: did the programme lead to the change, what led to the change, what did the programme lead to. The case that matters is the one where the text itself declares the cause, "we could pay the school fees because of the loan", which is what causal mapping codes and what the [generative account](generative-and-counterfactual.md) of causation takes as evidence. Two things are not that case. The two concepts appearing in the same interview is co-occurrence, and says nothing about whether anybody linked them. Counting across cases which conditions go with which outcome is a different question, a cross-case comparison, which Rubicon does not run (see [choosing a method](choosing-a-method.md)).
 
 So reading enough means reading so that every declaration of the link had a fair chance to reach the coder whole: both ends and the words joining them, in one piece of text, from a reading that could have found it. The sections below take the parts of that in turn.
 
@@ -53,7 +53,7 @@ Whether finding the mechanism in three of a hundred cases is enough depends on t
 
 - **That it operated, at least somewhere.** One case can carry this, where the evidence within it is strong: a first-hand account, specific about what happened, with the byproducts present. Three of a hundred is three such cases. This is process tracing's territory and does not need a denominator.
 - **How common it is.** This needs a denominator, every document opened, since a document never opened is not a document with nothing to say, and a count of how many were asked. Three of a hundred where ninety-seven were never asked says nothing about how common it is. Three of a hundred where all were asked and the others named other causes says it is uncommon.
-- **That it explains a pattern across sites.** This needs variation to explain, and is [realist evaluation's](realist-evaluation.md) and [QCA's](qca.md) question rather than a count.
+- **That it explains a pattern across sites.** This needs variation to explain, and is [realist evaluation's](realist-evaluation.md) question rather than a count.
 
 Say which of the three a number supports. A report that finds three cases and writes as though it had measured prevalence has made the second claim on the evidence for the first.
 

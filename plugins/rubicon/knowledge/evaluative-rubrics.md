@@ -2,7 +2,7 @@
 
 How to write and apply an evaluative rubric, the criteria, levels, descriptors and synthesis rule that turn a description of what the documents show into a judgement of how good it is; read it whenever a question asks how well, to what extent, whether good enough, or for a rating, and before writing any judge step.
 
-Related pages: [generic evaluation questions](generic-evaluation.md), whose criterion pages are worked rubrics for the OECD-DAC criteria; [evidence quality rubrics](evidence-quality-rubrics.md), for a rubric over the evidence behind one causal claim rather than over the programme; [QCA calibration](qca-calibration.md#calibration-is-rubric-work), where a fuzzy set is a rubric under another name.
+Related pages: [generic evaluation questions](generic-evaluation.md), whose criterion pages are worked rubrics for the OECD-DAC criteria; [evidence quality rubrics](evidence-quality-rubrics.md), for a rubric over the evidence behind one causal claim rather than over the programme.
 
 ## What it establishes
 

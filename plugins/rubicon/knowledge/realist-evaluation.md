@@ -32,7 +32,7 @@ The second half.
 
 **A mechanism that is not about people reasoning.** Fixing a supply chain has a mechanism in the ordinary engineering sense, and realist evaluation's mechanism is a human response to a resource. Where the causal story really does run through logistics rather than through anybody's reasoning, the framework fits badly and something simpler will do.
 
-**Somebody asking which context factor matters most.** Realist configurations are packages, and asking which element matters most dissolves the configuration. Where somebody really does want to know which combinations of conditions go with the outcome across many sites, QCA answers that, and the realist mechanisms explain why.
+**Somebody asking which context factor matters most.** Realist configurations are packages, and asking which element matters most dissolves the configuration.
 
 ## What data it needs
 
@@ -92,8 +92,6 @@ A realist evaluation whose configurations only appear in their final form has pu
 ## Combining it with other methods
 
 Realist synthesis is the review sibling, aggregating across studies to build and test the same kind of theory. The RAMESES standards cover both: RAMESES I for synthesis, RAMESES II for evaluation, and both are worth reading as reporting checklists whatever else you do.
-
-QCA sits close and answers a narrower question in a more testable form. Where the configurations are few and the sites are many, QCA puts numbers on which combinations of context features go with the outcome. The realist mechanisms then explain why. Where the sites are few and the reasoning is rich, realist evaluation on its own is the better use of the material.
 
 Process tracing works inside one configuration. Where a mechanism is contested and one site holds good documentary evidence, tracing it there tests what the configuration asserts.
 

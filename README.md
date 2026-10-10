@@ -11,7 +11,7 @@ Rubicon turns your Claude into an opinionated evaluation assistant. You bring on
 Answering an evaluation question is rarely a single coding task. It usually takes a workflow: split the question into the parts that can be answered from the documents, code the passages that bear on each, combine and count them, compare groups, and judge the result against a standard agreed in advance. Rubicon helps you design that workflow and holds you to it:
 
 - It settles the question with you before anything is read: what the answer will feed, whether it is really several questions, which groups to compare.
-- It draws on published evaluation practice, such as contribution analysis, process tracing, QCA, realist evaluation and outcome harvesting. Where your question or your documents do not suit the method you name, it says so.
+- It draws on published evaluation practice, such as contribution analysis, process tracing, realist evaluation and outcome harvesting. Where your question or your documents do not suit the method you name, it says so.
 - It helps you set a rubric for a judgement of worth before the evidence is seen, and never supplies the standard itself.
 - It can pause for stakeholders to agree the definitions or the draft. Where a verdict has real consequences, it can first test the workflow on two made-up sets of documents, one written to pass and one to fail, to show the workflow can tell them apart.
 - Every count is made by code, out of a stated base, and every quotation is checked word for word against its document.

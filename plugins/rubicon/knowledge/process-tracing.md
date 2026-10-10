@@ -28,7 +28,7 @@ The second half.
 
 **Only retrospective accounts.** "Nobody wrote anything down at the time, but the team remember it well." Retrospective accounts from people with an interest are weak on uniqueness, so most tests come out as straws in the wind. Say what the method could establish on that material, which is usually much less than the commissioner expects, before agreeing to it.
 
-**A question about generalisation.** Process tracing gives one case. Somebody asking whether the programme would work in the next district wants something else, and QCA or a comparative design is what to offer, or tracing in two or three cases chosen to differ in a way that matters, presented as exactly that.
+**A question about generalisation.** Process tracing gives one case. Somebody asking whether the programme would work in the next district wants something else, and a comparative design is what to offer, or tracing in two or three cases chosen to differ in a way that matters, presented as exactly that.
 
 **Twelve cases in a thirty-day contract.** Process tracing is expensive per case. The expense sits in the reading and the going back rather than in anything that scales. Promising it across a portfolio is the commonest way it gets agreed and the commonest way it fails. Two or three cases done properly beat twelve done as narrative.
 
@@ -91,8 +91,6 @@ A process tracing whose predictions cannot be shown to predate the evidence is a
 
 ## Combining it with other methods
 
-It is the natural partner to QCA, and the pairing is well developed. QCA gives cross-case patterns and no mechanism; process tracing gives mechanism in one case and no generalisation. Schneider and Rohlfing (2013) set out how to select cases for tracing from a QCA model rather than by convenience: a typical case of a path tests whether the mechanism the path implies is really there, and a deviant case asks what the model left out.
-
 Contribution analysis is close kin and often the better fit for evaluation work, because it accommodates a mechanism running alongside other causes rather than requiring the analyst to adjudicate between rivals. Process tracing is the better instrument where rivals really do compete.
 
 ## Sources
@@ -102,8 +100,6 @@ Beach, D. and Pedersen, R. B. (2019). *Process-Tracing Methods: Foundations and 
 George, A. and Bennett, A. (2005). *Case Studies and Theory Development in the Social Sciences*. MIT Press.
 
 Bennett, A. and Checkel, J. (eds) (2015). *Process Tracing: From Metaphor to Analytic Tool*. Cambridge University Press. Its ten best practices are the closest thing the method has to a checklist.
-
-Schneider, C. Q. and Rohlfing, I. (2013). 'Combining QCA and Process Tracing in Set-Theoretic Multi-Method Research'. *Sociological Methods & Research* 42(4): 559-597. DOI 10.1177/0049124113481341.
 
 Collier, D. (2011). 'Understanding Process Tracing'. *PS: Political Science & Politics* 44(4): 823-830. The accessible treatment of the four tests.
 

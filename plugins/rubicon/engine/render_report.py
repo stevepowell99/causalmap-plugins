@@ -88,8 +88,8 @@ def recount_differs(run):
 
 
 def same(name, a, b):
-    """Whether two copies of a recount file are the same. `run.json` is compared without its `chat`, which names the
-    chat that first recounted the run and so is never what a fresh recount, run in whatever chat verifies it, would write."""
+    """Whether two copies of a recount file are the same. `run.json` is compared without the `chat` that runs made
+    before 10 October 2026 recorded, which no recount now writes, so those runs still draw."""
     if name == "run.json":
         try:
             drop = lambda p: {k: v for k, v in json.loads(p.read_text(encoding="utf-8")).items() if k != "chat"}
@@ -202,12 +202,24 @@ def esc(s):
 
 def label(v):
     """A value as a reader sees it: underscores as spaces and the first letter capitalised, the rest left as coded, so
-    an acronym such as AI keeps its capitals. A factor's opposite pole, coded with a leading ~, is said in words, since
-    a reader need not know the convention (report.js `label` says the same)."""
-    s = str(v).replace("_", " ").strip()
+    an acronym such as AI keeps its capitals. A factor's opposite pole keeps its leading ~, as Causal Map writes it
+    ("~Hygiene and sanitation"); `named` marks the ~ in a page (report.js `label` and `named` say the same). The leading
+    # Causal Map's export puts on a document's column ("#Age of the main respondent") is dropped, being a mark of where
+    the column came from."""
+    s = str(v).replace("_", " ").strip().removeprefix("#").strip()
     pole = s.startswith("~")
     s = s[1:].strip() if pole else s
-    return s[:1].upper() + s[1:] + (", at its opposite pole" if pole else "")
+    return ("~" if pole else "") + s[:1].upper() + s[1:]
+
+
+def named(v, col=""):
+    """A coded value as HTML: its label, with an opposite pole's ~ marked so that pointing at it, tabbing to it or
+    tapping it says what it means (report.js `named` and its popover; `col` lets that find the codebook's meaning)."""
+    words = label(v)
+    if not words.startswith("~"):
+        return esc(words)
+    return (f'<span class="tilde" tabindex="0" role="button" data-code="{esc(str(v).strip())}" data-col="{esc(col)}" '
+            f'aria-label="The opposite of {esc(words[1:])}">~</span>{esc(words[1:])}')
 
 
 def load(zipped):
@@ -568,7 +580,7 @@ def figure(tid, R, D):
         rows = sorted(cells, key=lambda c: -c["n"])
         mx = max([base_of(s, c) or c["n"] for c in rows] + [1])
         bars = "".join(
-            f'<div class="bar-row"><span class="bar-label">{esc(label(c["values"][by[0]]))}</span>'
+            f'<div class="bar-row"><span class="bar-label">{named(c["values"][by[0]], by[0])}</span>'
             f'<span class="bar-track"><button class="bar" data-cell="{esc(c["id"])}" style="width:{100*c["n"]/mx:.1f}%"></button></span>'
             f'<span class="bar-n">{c["n"]}</span></div>' for c in rows)
         return f'<figure class="fig"><div class="bars">{bars}</div><figcaption>{caption(s)} Click a bar for its passages.</figcaption></figure>'
@@ -589,13 +601,13 @@ def figure(tid, R, D):
                 w = 100 * n / (base_of(s, c) or top) if c else 0
                 btn = f'<button class="bar {cls}" data-cell="{esc(c["id"])}" style="width:{w:.1f}%"></button>' if c and n else ""
                 pair += f'<span class="bar-track thin">{btn}</span><span class="bar-n">{n}</span>'
-            out.append(f'<div class="bar-row pair"><span class="bar-label">{esc(label(v))}</span><span class="pair-bars">{pair}</span></div>')
+            out.append(f'<div class="bar-row pair"><span class="bar-label">{named(v, a)}</span><span class="pair-bars">{pair}</span></div>')
         legend = (f'<span class="key yes"></span>{esc(yes_l)} <span class="key no"></span>Raised, not tied to that')
         return (f'<figure class="fig"><div class="legend">{legend}</div><div class="bars">{"".join(out)}</div>'
                 f'<figcaption>{caption(s)} Click a bar for the passages behind it.</figcaption></figure>')
     # two nominal columns: a grid of counts within each column of b
     avals.sort(key=lambda v: -sum(look.get((v, x), {"n": 0})["n"] for x in bvals))
-    head = "".join(f"<th>{esc(label(x))}</th>" for x in bvals)
+    head = "".join(f"<th>{named(x, b)}</th>" for x in bvals)
     body = ""
     shade, note = heat([(c["n"], base_of(s, c)) for c in cells if c["n"]])
     for v in avals:
@@ -608,7 +620,7 @@ def figure(tid, R, D):
                         f'{"" if note else f"<small> of {base}</small>"}</button></td>')
             else:
                 tds += '<td class="zero">0</td>'
-        body += f"<tr><th>{esc(label(v))}</th>{tds}</tr>"
+        body += f"<tr><th>{named(v, a)}</th>{tds}</tr>"
     return (f'<figure class="fig"><div class="scroll"><table class="grid"><thead><tr><th></th>{head}</tr></thead><tbody>{body}</tbody></table></div>'
             f'<figcaption>{caption(s)} Click a count for its passages.</figcaption></figure>')
 
@@ -839,7 +851,7 @@ def matrix(R, D):
     groups = {}
     for d in R["index"]:
         groups.setdefault(d.get(D["group"], ""), []).append(d["id"])
-    head = "".join(f'<th><span>{esc(label(v))}</span></th>' for v in vals)
+    head = "".join(f'<th><span>{named(v, nominal["name"])}</span></th>' for v in vals)
     body = ""
     for g, ids in groups.items():
         body += f'<tr class="band"><th colspan="{len(vals)+1}">{esc(label(g))}</th></tr>'
@@ -961,7 +973,7 @@ def passages_of(step):
         rs = [r for r in step["rows"] if r[nominal["name"]] == v["name"]]
         if rs:
             lis = "".join(f'<li><button class="rowlink" data-row="{esc(r["row"])}">{esc(r["document"])}</button> {esc(r["quote"])}</li>' for r in rs)
-            out.append(f'<details><summary>{esc(label(v["name"]))} <span class="small">{len(rs)} passages</span></summary><ul class="quotes">{lis}</ul></details>')
+            out.append(f'<details><summary>{named(v["name"])} <span class="small">{len(rs)} passages</span></summary><ul class="quotes">{lis}</ul></details>')
     return "\n".join(out)
 
 
@@ -972,7 +984,7 @@ def table_of(sid, s, static=False):
     # each count shaded by its share of its base, or against the largest where it counts passages, as every other
     # table of counts in the report is (`heat`); Word gets the plain numbers
     shade = heat([(c["n"], base_of(s, c)) for c in s.get("cells", [])])[0]
-    trs = "".join("<tr>" + "".join(f'<td>{esc(label(c["values"].get(b, "")))}</td>' for b in by)
+    trs = "".join("<tr>" + "".join(f'<td>{named(c["values"].get(b, ""), b)}</td>' for b in by)
                   + (f'<td>{c["n"]}' if static else f'<td><button class="num" data-cell="{esc(c["id"])}" '
                      f'style="--a:{shade(c["n"], base_of(s, c)):.2f}">{c["n"]}</button>')
                   + (f' of {b}' if (b := base_of(s, c)) is not None else '') + '</td></tr>'
@@ -1024,7 +1036,7 @@ def annex(R, D, static=False):
                 body.append(f'<h4>{esc(label(col["name"]))}</h4><p>{esc(col.get("means",""))}</p>'
                             + (f'<p class="small">Weak: {esc(col["weak"])}</p>' if col.get("weak") else ""))
                 if col.get("values"):
-                    trs = "".join(f'<tr><th>{esc(label(v["name"]))}</th><td>{esc(v.get("means",""))}</td>'
+                    trs = "".join(f'<tr><th>{named(v["name"], col["name"])}</th><td>{esc(v.get("means",""))}</td>'
                                   f'<td>{esc(v.get("counts",""))}</td><td>{esc(v.get("does_not_count",""))}</td></tr>' for v in col["values"])
                     body.append(f'<div class="scroll"><table class="codebook"><thead><tr><th>Code</th><th>Means</th><th>Counts</th><th>Does not count</th></tr></thead><tbody>{trs}</tbody></table></div>')
             if s.get("rows") and not static:

@@ -2,6 +2,7 @@
 :root {
   --ink: #17130f; --paper: #f7f4ee; --panel: #fdfbf6; --wash: #f2ece2; --line: #e4dcd0;
   --annex: #ece5d9; --quiet: #7d7166; --red: #8c1912; --red-wash: #f3e3de; --bar-no: #d9cfc2; --mark: #f7ed73; --mark-ink: #17130f;
+  --opp: #c4524c; /* an opposite pole's ~: the red of the opposites scale (link-display-transforms.js), 3:1 or more on either theme */
   --serif: "Newsreader", Georgia, "Times New Roman", serif;
   --sans: "Libre Franklin", system-ui, -apple-system, "Segoe UI", sans-serif;
   --measure: 40rem;
@@ -183,7 +184,7 @@ blockquote { margin: .6rem 0; padding: .6rem .9rem; background: var(--panel); bo
 .panel .ctx { font-family: var(--serif); font-size: 1rem; line-height: 1.6; white-space: pre-wrap; color: var(--quiet); }
 .panel .ctx mark { background: var(--mark); color: var(--mark-ink); padding: 0 .1em; }
 .panel .codes { display: flex; flex-wrap: wrap; gap: .3rem; margin: .6rem 0; }
-.panel .codes span, .panel .codes .code { font: inherit; font-size: .75rem; color: inherit; background: var(--wash); border: 0; border-radius: 99px; padding: .1rem .55rem; }
+.panel .codes > span, .panel .codes > .code { font: inherit; font-size: .75rem; color: inherit; background: var(--wash); border: 0; border-radius: 99px; padding: .1rem .55rem; }
 /* a code that opens every passage given it (report.js showCode) is marked as the report's other links are */
 .panel .codes .code { cursor: pointer; text-decoration: underline dotted color-mix(in srgb, var(--ink) 40%, transparent); text-underline-offset: .2em; }
 .panel .codes .code:hover { text-decoration-color: var(--red); }
@@ -198,14 +199,16 @@ blockquote { margin: .6rem 0; padding: .6rem .9rem; background: var(--panel); bo
 .panel .layers { display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-size: .78rem; color: var(--quiet); }
 .panel .layers i { display: inline-block; width: .9em; height: .9em; border-radius: 2px; margin-right: .35rem; vertical-align: -.1em; }
 /* How a coded stretch of a whole interview was coded, shown while it is pointed at or focused (report.js showTip) */
+/* an opposite pole's ~ (report.js `named`), and the popover that says what it means */
+.tilde { color: var(--opp); font-weight: 700; font-size: 1.12em; line-height: 1; padding: 0 .06em; cursor: help; border-radius: 3px; }
+.tilde:hover, .tilde:focus-visible { background: var(--red-wash); outline: none; }
+.tilde-pop { position: absolute; z-index: 30; max-width: min(22rem, calc(100vw - 16px)); background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-left: 3px solid var(--opp); border-radius: 6px; box-shadow: 0 4px 14px rgb(0 0 0 / .16); padding: .4rem .6rem; font: .82rem/1.4 var(--sans); }
 .panel .tip { position: absolute; left: 1rem; right: 1rem; z-index: 2; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 14px rgb(0 0 0 / .16); padding: .5rem .7rem; font-size: .82rem; pointer-events: none; }
 .panel .tip .coding + .coding { border-top: 1px solid var(--line); margin-top: .4rem; padding-top: .4rem; }
 .panel .coding .doc-tag { margin: 0; }
 .panel .coding .codes { margin: .3rem 0; }
 .panel .second { margin: .3rem 0 0; font-size: .8rem; color: var(--quiet); }
 .panel .second b { color: var(--ink); font-weight: 600; }
-.panel .poles { margin: .3rem 0 0; font-size: .8rem; color: var(--quiet); }
-.panel .poles b { color: var(--ink); font-weight: 600; }
 .panel .whole .span:focus-visible { outline: 2px solid var(--red); outline-offset: 1px; }
 
 @media print {
