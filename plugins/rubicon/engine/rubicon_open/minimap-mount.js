@@ -171,7 +171,8 @@ export function mountMap(root, elements, { scroller = root, opened = () => {}, o
     const blocks = () => [...root.querySelectorAll('.rb-block[data-node]')]
     // Document order, which is the order the reader meets them in, and so the order the
     // ring walks down as they scroll.
-    const order = blocks().map(b => b.dataset.node)
+    const placed = blocks()
+    const order = placed.map(b => b.dataset.node)
 
     const here = new Set()
     let seats = new Map()
@@ -244,6 +245,35 @@ export function mountMap(root, elements, { scroller = root, opened = () => {}, o
         }
     }
 
+    /**
+     * The block being read: the last one, in document order, to have started above a
+     * reading line a third of the way down the screen. That is the innermost block the line
+     * is in, or, where the line falls between blocks, the one just read.
+     *
+     * The ring used to go to the first block with any of itself on screen, which is the
+     * one the reader has just finished: it stayed on a block for as long as its last line
+     * showed at the top, and a run of short blocks lower down never got it (Steve, 20
+     * October 2026: "the highlight does not move across the row of dots as the different
+     * components come into view"). Over the last screen of the document the line slides
+     * down to the bottom edge, so the blocks there, which can never scroll up to it, still
+     * take their turn.
+     */
+    const reading = () => {
+        const view = viewOf(scroller)
+        const left = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
+        const line = view.top + view.height / 3 + Math.max(0, view.height * 2 / 3 - left)
+        let at = null
+        for (const block of placed) {
+            const id = block.dataset.node
+            if (!here.has(id)) continue
+            const box = block.getBoundingClientRect()
+            if (!box.height) continue
+            if (box.top > line) return at || id
+            at = id
+        }
+        return at
+    }
+
     const paint = () => {
         // One viewport tall, measured from the scroller rather than from the window,
         // because the app bar and the caption are above it and `100vh` would run off the
@@ -254,10 +284,10 @@ export function mountMap(root, elements, { scroller = root, opened = () => {}, o
         const below = (key?.offsetHeight || 0)
             + (toggle?.offsetHeight ? toggle.offsetHeight + 26 : 0)
         canvas.style.height = `${Math.max(120, scroller.clientHeight - 24 - below)}px`
-        // Hovering a block rings its node, and otherwise the ring is on the first block
-        // on the screen, so it says where the reader is rather than flickering between
-        // everything visible at once.
-        const current = onBlock || onMap || order.find(id => here.has(id)) || null
+        // Hovering a block rings its node, and otherwise the ring is on the block being
+        // read, so it says where the reader is rather than flickering between everything
+        // visible at once.
+        const current = onBlock || onMap || reading()
         seats = draw(canvas, laidOut, { colours, here, lit, current, beat })
         canvas.dataset.current = current || ''
         // Where the nodes went, published because a canvas has nothing in it to aim at.
@@ -569,13 +599,27 @@ export function mountMap(root, elements, { scroller = root, opened = () => {}, o
         }
         paint()
     }, { root: scroller === document.scrollingElement ? null : scroller, threshold: 0 })
-    blocks().forEach(b => watching.observe(b))
+    placed.forEach(b => watching.observe(b))
+    // The observer says only when a block comes on or goes off the screen, and the block
+    // being read changes in between, so a scroll checks it too, once a frame, and paints
+    // only when it has moved.
+    let looking = null
+    const scrolled = () => {
+        if (looking !== null) return
+        looking = requestAnimationFrame(() => {
+            looking = null
+            if (!onBlock && !onMap && reading() !== (canvas.dataset.current || null)) paint()
+        })
+    }
+    ;(scroller === document.scrollingElement ? window : scroller)
+        .addEventListener('scroll', scrolled, { ...on, passive: true })
 
     const resized = new ResizeObserver(paint)
     resized.observe(scroller)
     owned(() => {
         watching.disconnect()
         resized.disconnect()
+        if (looking !== null) cancelAnimationFrame(looking)
         holding.abort()
         // The document is redrawn every few seconds while a run is going, so a frame
         // left asked for here would leave one more loop painting a canvas nobody can
