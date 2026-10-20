@@ -7,6 +7,10 @@ description: Use when an evaluator's question could be answered differently by t
 
 A question is settled when two careful readers, given the same instruction, would read the material alike, and every number in the answer would lead to quotations a third person could look up. Most questions arrive unsettled, and settling them with the evaluator comes before any plan is costed. Being ill defined is the only ground for refusing a question; a question is never refused for being about feelings, tone or anything else that sounds soft.
 
+## Place it in the overall design
+
+A question rarely comes alone. Evaluators usually have several linked questions for the same documents, some building on others, several resting on a common coding or other preliminary analysis that answers no question by itself, such as a codebook, a typology of the cases, a sample or a classification of each document. So before settling the question, ask what other questions the evaluator has or expects for these documents, and settle at least the part of the overall design that bears on this one: what it takes from earlier work, and what it should make that later questions can take. Follow the way they want to work: a strict plan is agreed whole at the start, a rough outline grows as each question is settled, and an evaluator who wants to go one question at a time is not pressed into a plan, though you still name what this question could share with later ones. Where earlier work on these documents already defines what the question needs, keep its definitions unless there is a reason not to, and say what the reason is.
+
 ## Say why, then break it down
 
 - Say in a sentence or two why the question cannot be checked as put, then offer parts that can. Never answer the vague version, even in passing: a direct answer decides for itself what was meant and says it confidently.

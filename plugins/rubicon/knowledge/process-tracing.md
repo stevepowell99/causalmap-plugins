@@ -61,7 +61,7 @@ Steps 2 to 6 are most of the intellectual work and all of the method's claim to 
 
 The evaluator articulates the mechanism, writes the predictions, judges certainty and uniqueness, and decides what the evidence did to confidence. None of that is mechanical. None of it can be delegated to a procedure.
 
-The programme or the commissioner supplies the theory of change and should agree the mechanism and the predictions before the search. Their agreement is what stops the mechanism being redrawn later to fit whatever turned up. A workflow over documents cannot give that agreement or run the decomposition workshop: it can draft the mechanism and predictions from the programme's own documents for them to argue with, and a Rubicon run can stop once the definitions are written and a few documents coded so they agree the register before anything is counted.
+The programme or the commissioner supplies the theory of change and should agree the mechanism and the predictions before the search. Their agreement is what stops the mechanism being redrawn later to fit whatever turned up. A workflow over documents cannot give that agreement or run the decomposition workshop: it can draft the mechanism and predictions from the programme's own documents for them to argue with. Where the evaluator works through the plugin, the run can stop once the definitions are written and a few documents coded, so they agree the register before anything is counted, and again once the answer is drafted; their agreement is kept with its date and with how many passages had been cited by then, so the report shows whether it came before the coding. A workflow from pieces has no pause, so there the register is agreed before the run starts.
 
 ## Traps
 
@@ -91,7 +91,7 @@ A process tracing whose predictions cannot be shown to predate the evidence is a
 
 ## Combining it with other methods
 
-Contribution analysis is close kin and often the better fit for evaluation work, because it accommodates a mechanism running alongside other causes rather than requiring the analyst to adjudicate between rivals. Process tracing is the better instrument where rivals really do compete.
+Contribution analysis is close kin and often the better fit for evaluation work, because it accommodates a programme acting as one contributory cause alongside others rather than as the sole explanation. It still tests rivals: a rival that stands caps the link it competes with, and a rival to the whole outcome has to be searched for as hard as the programme's own account (see [contribution analysis](contribution-analysis.md)). Process tracing is the better instrument where the rivals are mutually exclusive accounts of one outcome, so that the evidence has to decide between them.
 
 ## Sources
 

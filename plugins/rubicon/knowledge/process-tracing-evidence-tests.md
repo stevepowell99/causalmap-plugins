@@ -27,9 +27,9 @@ Every piece of predicted evidence has two properties, and the four tests are jus
 
 The names are a convenience. What does the work is the argument about certainty and uniqueness for that piece of evidence in that case, which is why [the register](process-tracing-mechanisms.md#predictions-which-are-the-product) asks for the argument rather than the label. A label applied after the evidence turned up is decoration.
 
-## The tests are a coarse version of one ratio
+## The tests are a coarse version of two ratios
 
-Behind the four boxes sits a single quantity: how much more likely the evidence is under the hypothesis than under its rivals. Certainty is the probability of the evidence given the hypothesis. Uniqueness is one minus its probability given the rivals. The ratio of the first probability to the second, the likelihood ratio, is what updates belief. The four tests are that ratio rounded to four corners.
+Behind the four boxes sit two probabilities. Certainty is the probability of the evidence given the hypothesis, P(E|H). Uniqueness is one minus its probability given the rivals, so the rivals' probability is P(E|not H). The likelihood ratio is P(E|H) divided by P(E|not H), that is, certainty over one minus uniqueness, and it is what updates belief when the evidence is found. Not finding it has a ratio of its own, one minus P(E|H) over one minus P(E|not H), and that is where a hoop test does its work: passing a hoop barely moves belief, while failing one moves it a long way. So the four tests are those two ratios, for finding and for not finding, rounded to four corners.
 
 Two consequences worth holding onto even where nobody writes a number down.
 
@@ -55,7 +55,7 @@ Three practical rules.
 
 **Report the search at the same detail as the finding.** A found piece of evidence gets a quotation and a citation. An absence should get the equivalent: the sources read, the terms searched, the coverage.
 
-**Distinguish never-searched from searched-and-absent.** These are different results. A register that collapses them is worthless for every test depending on absence. Coding the prediction as a column over the sample's documents keeps the two apart: a document outside the sample carries no row, while one inside it that the coder found wanting is coded absent and counted among those read, so the two cannot be confused. Where only part of a document was read, or a section could not be read, the absent result says so, since it rests only on what was read.
+**Distinguish never-searched from searched-and-absent.** These are different results. A register that collapses them is worthless for every test depending on absence. Coding the prediction as a per-document column keeps the two apart: each document the sample drew is read whole and given present or absent, and a tabulation of the sample by that column states each count out of the documents read, while a document outside the sample is in neither count, so the two cannot be confused. An absence is never a coded passage, since every row carries a quotation. Where a section could not be read, the record lists it, and the absent result rests only on what was read.
 
 ## Reporting the update
 

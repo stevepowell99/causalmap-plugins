@@ -34,6 +34,9 @@ as a monitoring record's count of those who did something out of those who could
 document, refuses it unless both numbers are in it, and applies the levels to them as a rule does to a count, so the
 number walks back to the document's own words as a count walks back to its rows. A reading is a model weighing the rows against the descriptors:
 it gives a verdict, the rows it relied on and those that pull the other way, or says it cannot place the criterion.
+Where the run calls no model, as a recount does, the reading is the analyst's, recorded in the same form
+(`Run.readings`, from `judged/<step id>.json`), and code checks it as it checks a model's: a verdict that is not one
+of the criterion's levels leaves it unplaced, and a cited row the criterion does not read is listed.
 Criteria combine by rules, tried in order, the first whose every condition holds deciding; a rule that would hold but
 for a criterion that could not be placed leaves the verdict open rather than passing to a later one. Where the standard
 rates each criterion on a scale of its own (`scale`) and says how those ratings make the overall verdict, the combine is
@@ -46,6 +49,9 @@ from __future__ import annotations
 import json
 import re
 
+from . import legacy_weak
+from .guidance import NoModel
+from .units import _one
 from .workflow import resolve_step, value_faults, value_key
 
 THRESHOLDS = ("at_least", "at_most", "share_at_least", "share_at_most")
@@ -296,7 +302,9 @@ def _cells(tab: dict, where: dict | None, weak: set[str] = frozenset(), of_row: 
             held = cell.get("cases", cell["documents"])
             units |= set(held)
             rows += cell["rows"]
-            firm |= ({of_row[r] for r in cell["rows"] if r not in weak and r in (of_row or {})} if cell.get("weak")
+            # a composite cell (path, chain, loop) names its own firm rows: it is as firm as its weakest link
+            firm_rows = set(cell["firm_rows"]) if "firm_rows" in cell else None
+            firm |= ({of_row[r] for r in cell["rows"] if (r in firm_rows if firm_rows is not None else r not in weak) and r in (of_row or {})} if cell.get("weak")
                      else set(held))
     return firm, rows, units - firm
 
@@ -336,11 +344,11 @@ def _rule(run, c: dict) -> dict:
     count = tab.get("count", "documents")
     by_cases = "cases" in (tab["cells"][0] if tab.get("cells") else {}) or count not in ("documents", "rows")
     rows_of = [r for rec in run.out.values() if rec.get("kind") == "code" for r in rec.get("rows") or []]
-    weak = {r["row"] for r in rows_of if r.get("weak")}
+    weak = {r["row"] for r in rows_of if legacy_weak.carries(legacy_weak.reads(run), r)}  # legacy_weak
     of_row = {r["row"]: (_unit_of_row(run, count, r) if by_cases else r["document"]) for r in rows_of}
     base_docs = _base(run, c.get("base"))
     src = run.out.get(tab.get("input"), {})
-    held = units(run, count, base_docs, run.table(tab["input"]) if by_cases and src.get("kind") in ("code", "group") else [])[0]         if by_cases else {d: {d} for d in base_docs}
+    held = units(run, count, base_docs, run.table(tab["input"]) if by_cases and src.get("kind") in ("code", "group", "profile") else [])[0]         if by_cases else {d: {d} for d in base_docs}
     base = set(held)
     noun = unit_of_table(tab) if by_cases else "documents"
     if c.get("base_where") is not None:
@@ -361,7 +369,7 @@ def _rule(run, c: dict) -> dict:
     why = (f"the first level met is {met['verdict']} ({said})" if met and met["verdict"] is not None
            else f"not placed: the first level met says no rating can be given ({said})" if met else f"no level is met ({said})")
     return {"verdict": met["verdict"] if met else None, "n": use["n"], "base": use["base"], "documents": use["documents"],
-            **({"cases": use["cases"], "unit": noun} if by_cases else {}), "rows": use["rows"], "why": why,
+            **({"cases": use["cases"]} if by_cases else {}), "unit": noun, "rows": use["rows"], "why": why,
             "tested": [{k: x[k] for k in ("verdict", "n", "base", "met")} for x in tested],
             "margin": _margin(c["levels"], [x["n"] for x in every], len(base)),
             **({"weak": use["weak"]} if use["weak"] else {})}
@@ -403,22 +411,54 @@ def _stated(run, c: dict) -> dict:
 def _reading(run, s: dict, c: dict) -> dict:
     where = {k: (set(map(str, v)) if isinstance(v, list) else {str(v)}) for k, v in (c.get("where") or {}).items()}
     rows = [r for r in run.table(c["rows_from"]) if all(str(r.get(k)) in vs for k, vs in where.items())]
-    from . import guidance
-    from .steps import parse_json, row_line
-    listing = "\n".join(row_line(r) for r in rows)
-    levels = "\n".join(f"- {lv['verdict']}: {lv['descriptor']}" for lv in c["levels"])
-    fill = {"n_documents": str(len(run.corpus.documents)), "source": str(s["source"]), "question": run.question,
-            "criterion": c["question"], "levels": levels, "rows": listing or "(none)"}
-    prompt = re.sub(r"\{(" + "|".join(fill) + r")\}", lambda m: fill[m.group(1)], guidance.prompt_text("judge").rstrip("\n"))
-    got = parse_json(run.ask(s["id"], prompt, s["model"], expect_json=True))
-    ids = {r["row"] for r in rows}
+    recorded = (getattr(run, "readings", None) or {}).get(s["id"], {}).get(c["id"])
+    if isinstance(recorded, dict):
+        got, by = recorded, "recorded"
+    else:
+        from . import guidance
+        from .steps import parse_json, row_line
+        listing = "\n".join(row_line(r) for r in rows)
+        levels = "\n".join(f"- {lv['verdict']}: {lv['descriptor']}" for lv in c["levels"])
+        fill = {"n_documents": str(len(run.corpus.documents)), "source": str(s["source"]), "question": run.question,
+                "criterion": c["question"], "levels": levels, "rows": listing or "(none)"}
+        try:  # this engine on its own carries no prompt, and a recount's `ask` calls no model: both raise NoModel
+            prompt = re.sub(r"\{(" + "|".join(fill) + r")\}", lambda m: fill[m.group(1)], guidance.prompt_text("judge").rstrip("\n"))
+            got, by = parse_json(run.ask(s["id"], prompt, s["model"], expect_json=True)), "model"
+        except NoModel:
+            got, by = {"why": f"no reading of it was recorded in judged/{s['id']}.json"}, "none"
     names = [lv["verdict"] for lv in c["levels"]]
     verdict = got.get("verdict") if got.get("verdict") in names else None
     between = [b for b in got.get("between") or [] if b in names] if got.get("verdict") == "between" else []
-    return {"verdict": verdict, "between": between, "rows_read": len(rows), "rows": [x for x in got.get("rows", []) if x in ids],
-            "against": [x for x in got.get("against", []) if x in ids],
-            "rows_cited_that_do_not_exist": [x for x in got.get("rows", []) + got.get("against", []) if x not in ids],
-            "why": got.get("why", "") if verdict else (f"between {' and '.join(between)}: " if between else "not placed: ") + got.get("why", "")}
+    # a row cited that is not among those the criterion reads: absent, or outside its `where`
+    return {"verdict": verdict, "between": between, "rows_read": len(rows), "read_by": by, **evidence(got, {r["row"] for r in rows}),
+            "why": str(got.get("why") or "") if verdict else (f"between {' and '.join(between)}: " if between else "not placed: ") + str(got.get("why") or "")}
+
+
+def evidence(got: dict, ids: set[str]) -> dict:
+    """What a recorded reading rests on, checked against the rows it may cite (`ids`): the rows for it and against it
+    that exist, and every one cited that does not. The one check of a reading's passages, for a judge step's reading
+    criterion and for a claim (`claims`), whoever made the reading."""
+    cited = [str(x) for x in (got.get("rows") or []) + (got.get("against") or [])]
+    return {"rows": [str(x) for x in got.get("rows") or [] if str(x) in ids],
+            "against": [str(x) for x in got.get("against") or [] if str(x) in ids],
+            "rows_cited_that_do_not_exist": [x for x in cited if x not in ids]}
+
+
+def claims(run, s: dict) -> dict:
+    """The claims piece: the key claims of an answer that rest on no count, each tagged as a number is tagged, with the
+    passages it rests on, those against it, how they would be found again and why they bear it out. The writer makes
+    them, as the analyst makes a reading, and records them in `judged/<step id>.json` as {claim id: {"says", "rows",
+    "against", "found_by", "why"}}; the answer cites one as `[<step id>.<claim id>]`. Code checks each as it checks a
+    reading (`evidence`), against the rows of the code steps the step reads. A claim nobody recorded is no claim, so a
+    step with none recorded holds none."""
+    ids = {r["row"] for i in s.get("inputs") or [] for r in run.out.get(i, {}).get("rows", [])}
+    recorded = (getattr(run, "readings", None) or {}).get(s["id"], {})
+    out = []
+    for cid, got in recorded.items():
+        got = got if isinstance(got, dict) else {}
+        out.append({"id": str(cid), "says": str(got.get("says") or ""), **evidence(got, ids),
+                    "found_by": str(got.get("found_by") or ""), "why": str(got.get("why") or "")})
+    return {"claims": out}
 
 
 def judge(run, s: dict) -> dict:
@@ -543,7 +583,7 @@ COMBINE_IN_WORDS = {"weakest": "The overall verdict is the lowest any criterion 
                     "best": "The overall verdict is the highest any criterion reaches.",
                     "separate": "Each criterion's verdict is reported on its own, without an overall verdict."}
 #: What each kind of criterion is, said to a reader of the answer.
-KIND_IN_WORDS = {"rule": "a count of documents, set against the thresholds below",
+KIND_IN_WORDS = {"rule": "a count of {unit}, set against the thresholds below",
                  "stated": "a number a background document states, set against the thresholds below",
                  "reading": "judged by a language model reading the coded passages against each level's description"}
 
@@ -579,17 +619,23 @@ def reader_words(text: str) -> str:
 MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
 
 
-def _test(lv: dict, kind: str = "rule") -> str:
-    """A level's test in words: its description, or its thresholds as counts and percentages, of documents for a count
-    and of the stated base for a stated number."""
+def unit_of(r: dict) -> str:
+    """What a rule's counts count, as its table names them ("households", "cases"); documents for a result recorded
+    before a rule said its unit whatever it counted."""
+    return r.get("unit") or "documents"
+
+
+def _test(lv: dict, kind: str = "rule", unit: str = "documents") -> str:
+    """A level's test in words: its description, or its thresholds as counts and percentages, of the units counted
+    for a count and of the stated base for a stated number."""
     if lv.get("descriptor"):
         return lv["descriptor"]
     said = []
     for k in THRESHOLDS:
         if k in lv:
             side = "at least" if k.endswith("least") else "at most"
-            of, unit = ("the stated base", "") if kind == "stated" else ("the documents counted", " documents")
-            said.append(f"{side} {lv[k] * 100:g}% of {of}" if k.startswith("share") else f"{side} {lv[k]:g}{unit}")
+            of, noun = ("the stated base", "") if kind == "stated" else (f"the {unit} counted", f" {unit}")
+            said.append(f"{side} {lv[k] * 100:g}% of {of}" if k.startswith("share") else f"{side} {lv[k]:g}{noun}")
     return " and ".join(said) or "otherwise"
 
 
@@ -624,14 +670,15 @@ def definitions(rec: dict, step_id: str, heading: str = "The standard") -> list[
                 else "proposed during planning" + (f", {accepted_in_words(rec['accepted'])}" if rec.get("accepted") else ", not accepted"))
     for r in rec["criteria"]:
         name = r['id'].replace('_', ' ')
-        out.append(f"- **{name[:1].upper() + name[1:]}**, {KIND_IN_WORDS.get(r['kind'], r['kind'])}: {reader_words(r['question'])}"
+        unit = unit_of(r)
+        out.append(f"- **{name[:1].upper() + name[1:]}**, {KIND_IN_WORDS.get(r['kind'], r['kind']).replace('{unit}', unit)}: {reader_words(r['question'])}"
                    + (f" Rated {', '.join(map(str, r['scale']))}, best first." if r.get("scale") else "")
                    + (f" The number, as the background document {r['document']} states it: \"{r['quote']}\""
                       if r["kind"] == "stated" and r.get("quote") else "")
-                   + (f" {counted_in_words(r['counted'])}" if r.get("counted") else ""))
+                   + (f" {counted_in_words(r['counted'], unit)}" if r.get("counted") else ""))
         for lv in r.get("levels") or []:
-            cells = f", counting documents coded {_cells_in_words(lv['where'])}" if lv.get("where") is not None else ""
-            out.append(f"    - {lv['verdict'] or NO_RATING}: {reader_words(_test(lv, r['kind']))}{cells} ({whose(lv)})")
+            cells = f", counting {unit} coded {_cells_in_words(lv['where'])}" if lv.get("where") is not None else ""
+            out.append(f"    - {lv['verdict'] or NO_RATING}: {reader_words(_test(lv, r['kind'], unit))}{cells} ({whose(lv)})")
     if isinstance(rec["combine"], list):
         out.append("- **Overall**, the evaluator's rules for combining the criteria, tried in order:")
         for rule in rec["combine"]:
@@ -647,31 +694,32 @@ def _cells_in_words(where: dict | None) -> str:
     return " and ".join(said) or "anything"
 
 
-def counted_in_words(r: dict) -> str:
+def counted_in_words(r: dict, unit: str = "documents") -> str:
     """What a rule counts and what out of, for a reader of the standard: the cells it counts and its base, both by
     document attribute and by the coding. `r` is the rule as written (a result's `counted`)."""
     of = [f"whose {k} is {' or '.join(map(str, v)) if isinstance(v, list) else v}" for k, v in (r.get("base") or {}).items()]
     if r.get("base_where") is not None:
         of.append(f"coded {_cells_in_words(r['base_where'])}")
-    counts = f"It counts documents coded {_cells_in_words(r['where'])}" if r.get("where") else "It counts documents"
-    return counts + (", out of the documents " + " and ".join(of) if of else ", out of all the documents") + "."
+    counts = f"It counts {unit} coded {_cells_in_words(r['where'])}" if r.get("where") else f"It counts {unit}"
+    return counts + (f", out of the {unit} " + " and ".join(of) if of else f", out of all the {unit}") + "."
 
 
 def margin_in_words(rec_id: str, r: dict) -> str:
-    """How near a rule's level is to moving, each number by the id an answer writes for it: how many documents coded
+    """How near a rule's level is to moving, each number by the id an answer writes for it: how many units coded
     the other way would give which level, and which documents its cells hold only weakly."""
-    said = [f"{{{rec_id}.{r['id']}.margin.{side}}} ({m['documents']}) {side} document{'' if m['documents'] == 1 else 's'} "
+    said = [f"{{{rec_id}.{r['id']}.margin.{side}}} ({m['documents']}) {side} {_one(m['documents'], unit_of(r))} "
             f"would make it {m['verdict'] or NO_RATING.lower()}" for side, m in (r.get("margin") or {}).items()]
-    weak = f"held only weakly: {', '.join(r['weak'])}" if r.get("weak") else ""
+    weak = f"held only implicitly: {', '.join(r['weak'])}" if r.get("weak") else ""  # legacy_weak
     return "; ".join(said + ([weak] if weak else []))
 
 
 def turns_on_in_words(rec: dict) -> list[str]:
     """Each judgement the overall verdict turns on, one line each, nearest first."""
     rid = rec.get("id", "judge")
+    of = {r["id"]: r for r in rec.get("criteria") or []}
 
     def part(c):
-        how = (f"{{{rid}.{c['id']}.margin.{c['side']}}} ({c['documents']}) {c['side']} document{'' if c['documents'] == 1 else 's'}"
+        how = (f"{{{rid}.{c['id']}.margin.{c['side']}}} ({c['documents']}) {c['side']} {_one(c['documents'], unit_of(of.get(c['id'], {})))}"
                if "documents" in c else "a reading")
         return f"{c['id']} moved to {c['to'] or NO_RATING.lower()} by {how}"
     near = sorted(rec.get("turns_on") or [], key=lambda t: (len(t["criteria"]), sum(c.get("documents", 99) for c in t["criteria"])))
@@ -686,10 +734,10 @@ def markdown(rec: dict, margins: bool = False) -> str:
              "| Criterion | Kind | Verdict | Evidence |", "|---|---|---|---|"]
     for r in rec["criteria"]:
         cid = f"{rec.get('id', 'judge')}.{r['id']}"
-        ev = ("; ".join(f"{{{k}}} documents ({x['n']} of {x['base']})" for k, x in level_counts(rec.get('id', 'judge'), r).items())
+        ev = ("; ".join(f"{{{k}}} {unit_of(r)} ({x['n']} of {x['base']})" for k, x in level_counts(rec.get('id', 'judge'), r).items())
               if r["kind"] == "rule"
               else f"{{{cid}}} ({r['n']} of {r['base']}), as \"{r['quote']}\" [{r['document']}]" if r["kind"] == "stated"
-              else f"rows {', '.join(r['rows'])}; against {', '.join(r['against']) or 'none'}")
+              else f"rows {', '.join(r['rows']) or 'none'}; against {', '.join(r['against']) or 'none'}")
         placed = r["verdict"] or (f"between {' and '.join(r['between'])}, for the evaluator" if r.get("between") else "not placed")
         near = margin_in_words(rec.get("id", "judge"), r) if margins and r["kind"] == "rule" else ""
         lines.append(f"| {r['id']}: {r['question']} | {r['kind']} | {placed} | {ev}. {r['why']}{'. Margin: ' + near if near else ''} |")

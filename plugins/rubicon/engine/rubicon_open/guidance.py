@@ -8,6 +8,11 @@ harness that sets them after the engine has loaded is still heard."""
 from __future__ import annotations
 
 
+class NoModel(RuntimeError):
+    """Raised where a step would ask a model and none can be asked: this engine on its own, or a run whose `ask` calls
+    none, such as a recount. A judge's reading then stays unplaced unless the analyst recorded it."""
+
+
 def notes_for(piece: str) -> list[str]:
     """The practice notes a piece reads by default: none, where no harness has given the engine any."""
     return []
@@ -21,5 +26,5 @@ def page_names() -> set[str] | None:
 
 def prompt_text(name: str, notes: list[str] | str = "all") -> str:
     """The prompt `name`, with the pages `notes` names where it asks for them."""
-    raise RuntimeError(f"the {name!r} step asks a model, and this engine carries no prompts: it recounts coding done "
+    raise NoModel(f"the {name!r} step asks a model, and this engine carries no prompts: it recounts coding done "
                        f"elsewhere, and runs no step that needs a model")

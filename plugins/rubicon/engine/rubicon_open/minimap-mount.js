@@ -76,7 +76,7 @@ export const MAP_ASIDE = `<aside class="rb-minimap"><canvas class="rb-map" aria-
         <div class="rb-map-tips" aria-hidden="true"></div>
         <details class="rb-map-key"><summary></summary><div class="rb-map-items"></div>
         </details>
-        <button type="button" class="rb-map-toggle" aria-expanded="false">map</button>
+        <button type="button" class="rb-map-toggle" aria-expanded="false">x-ray</button>
       </aside>`
 
 /**
@@ -153,7 +153,7 @@ export function mountMap(root, elements, { scroller = root, opened = () => {}, o
         mapOpen = open
         aside.classList.toggle('rb-map-open', open)
         toggle?.setAttribute('aria-expanded', String(open))
-        if (toggle) toggle.textContent = open ? 'hide map' : 'map'
+        if (toggle) toggle.textContent = open ? 'hide x-ray' : 'x-ray'
     }
     markOpen(mapOpen)
     const colours = mapColours()

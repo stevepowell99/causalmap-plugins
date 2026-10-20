@@ -23,7 +23,7 @@ The critical error in a qualitative sustainability appraisal is mistaking politi
 
 **Tabulate.** Count documents by pillar and continuation value, and by continuation value and the speaker's role or document kind, so the `.within.` cells show, of the documents discussing each pillar, how many describe funding secured and how many foresee a stop.
 
-**Judge.** Only with the evaluator's standard. A typical one is a `rule`, read worst-first: the overall verdict is held down wherever more than a stated number of documents in any pillar foresee an unfinanced stop, whatever the other pillars show, because ownership cannot run a system nobody has agreed to pay for. Without a standard, leave the judge out and offer standards in their terms without numbers.
+**Judge.** Only with the evaluator's standard. A typical one is a `rule`, read worst-first: the overall verdict is held down wherever more than a stated number of documents in any pillar foresee an unfinanced stop, whatever the other pillars show, because ownership cannot run a system nobody has agreed to pay for. A rule pools every cell it picks, so "in any pillar" is one rule criterion per pillar, combined `weakest`. Without a standard, leave the judge out and offer standards in their terms without numbers.
 
 **Write.** Each pillar by name with its counts and bases, rather than one aggregate verdict, since a programme can be financed in one pillar and cut off in another and the aggregate would hide it; commitments reported as commitments, never as financing.
 

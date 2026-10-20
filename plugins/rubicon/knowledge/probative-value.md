@@ -23,7 +23,7 @@ A Rubicon finding is usually a count put into words: "most of the trainees", "no
 **0 of 10 said yes.** "None" fails if one placement is wrong. Two things make a zero weaker evidence than it looks.
 
 - **Sampling.** If the true share among people like these were one in ten, a group of ten would still show nobody about a third of the time (0.9 to the tenth power is 0.35). A zero from ten cannot rule out a share of about a quarter: 0.74 to the tenth power is 0.049. This is the "rule of three" from medical statistics, where no event in n cases leaves the true rate at up to about 3 in n (Hanley and Lippman-Hand 1983), which is a rough guide at n = 10 rather than an exact bound.
-- **The reading.** If the reader finds a real account 80% of the time, one real case goes unseen one time in five. So the likelihood ratio of a zero, for "nobody" against "exactly one person", is 1 to 0.2, or 5. That is a straw in the wind, not a hoop.
+- **The reading.** If the reader finds a real account 80% of the time, one real case goes unseen one time in five. So the likelihood ratio of a zero, for "nobody" against "exactly one person", is 1 to 0.2, or 5. A ratio of 5 is moderate evidence: it shifts the odds towards "nobody" but leaves "one person" well within reach.
 
 So "none of the ten" is the finding most worth checking, and the check that helps is one with high sensitivity for the missing case: a fresh reading of each document for that item, not a second opinion on the quotes the first reading kept, since a zero does not come with any quotes to reread.
 
@@ -38,11 +38,11 @@ A count of all of a group, "every one of the twelve", is fragile in the same way
 
 ## As a plan
 
-What follows is what the designer writes into the workflow before any code step runs, whichever method the workflow is for.
+What follows is what the designer writes into the workflow before any code step runs, where the question tests an account against its rivals, whichever method the workflow is for.
 
 Before any document is read, the workflow gives the account being tested and each rival its own column, each stating what would be found and where; anything both would produce is dropped, since it discriminates between nothing. Both are coded in the same pass, at the same depth: one code step, or matched code steps, over the same sample, rather than one column asked of every document with its rival left to a thinner search, which is the symmetric-effort principle stated everywhere else in this knowledge base.
 
-The designer decides in advance which findings will be fragile, said in the workflow's reasons: a question asked of a small group, a likely answer of "nobody", or a comparison of two small counts, so the stronger check for those, such as a fresh reading of every document in the group for the item, or a trial on a few documents first, is chosen before the numbers arrive rather than after. An absence counts as evidence only where a document was actually read for it: a tabulate step's base is the documents its sample drew, so a zero in a cell is stated against that base rather than left out, while a document never drawn into the sample carries no row and sits outside the base, so the two kinds of absence are not confused in a count that states what it is out of.
+The designer decides in advance which findings will be fragile, said in the workflow's reasons: a question asked of a small group, a likely answer of "nobody", or a comparison of two small counts, so the stronger check for those, such as a fresh reading of every document in the group for the item, which the default second coder gives a column with fixed values, or a trial run on a few documents first, is chosen before the numbers arrive rather than after. An absence counts as evidence only where a document was actually read for it: a tabulate step's base is the documents its sample drew, so a zero in a cell is stated against that base rather than left out, while a document never drawn into the sample carries no row and sits outside the base, so the two kinds of absence are not confused in a count that states what it is out of.
 
 Recording the side of each passage is a coder's ordinary brief rather than a separate code step: where a thing has two sides the question keeps apart, the column has one value for each, so a tabulate step gives both the count supporting and the count cutting against from the one coding, with the documents nobody read for it left out of both rather than silently swelling the base on one side.
 
@@ -59,17 +59,19 @@ Recording the side of each passage is a coder's ordinary brief rather than a sep
 
 What the open format does:
 
-- A tabulation names the documents it counted and the documents it did not, for the whole base and for each group of a column it is split by, so a zero on a small group comes with the documents behind it.
-- A tabulation states a value that occurs in no document as a zero rather than a dropped row (unless it is set `sparse`), out of the documents the coding read, so a zero is never made of documents nobody read.
+- A tabulation names the documents behind each cell and states each cell's base as a number, for the whole base and for each group of a column describing documents that it is split by, so a zero on a small group comes with the size of the group read; the documents read and not counted are that base less the documents named.
+- A tabulation states a value that occurs in no document as a zero rather than a dropped row (unless it is set `sparse`, or traces paths, loops or filtered links, which list only what occurs), out of the documents the coding read, so a zero is never made of documents nobody read.
+- For a column with fixed values, a second coder of another model family reads every document afresh by default, and an adjudicator rules each value only one of the two coders placed, reading the whole document. That is the high-sensitivity check a zero needs. The setting `check` is a different thing: it reviews only the passages already coded, so it cannot find a missed one.
+- For a judge step's rule, code works out the margin: the fewest documents that, coded the other way, would move the rule to another level, and which of the judgements the overall verdict turns on.
 - The recount checks every count in the answer against its tabulation and every quotation against its document.
 
 What a careful coder does:
 
 - Defines each value with what counts and the near misses that go elsewhere, tightly enough that another coder would place the same passage the same way, since a fragile finding is only as sound as the boundary it turns on.
-- For a finding the reasons mark as fragile, rereads each document in its base for the item, which is the high-sensitivity check a zero needs, and says in the answer that this was done.
-- Gives a column a value of its own for evidence too thin to place, defined as tightly as the others, rather than forcing a close passage to one side; and where a placement is close, says so in the row, and in the answer where the finding's wording turns on it.
+- For a finding the reasons mark as fragile, makes sure each document in its base is read for the item a second time, by the second coder where the column has fixed values and otherwise by a further reading, and says in the answer that this was done.
+- Gives a column a value of its own for evidence too thin to place, defined as tightly as the others, rather than forcing a close passage to one side; and where closeness matters, defines a column of its own for how clearly each passage shows the thing, so a tabulation split by it shows how many placements were close, and says so in the answer where the finding's wording turns on it.
 
-What nothing does: **compute a margin.** Nothing works out a finding's margin and compares it with the expected number of wrong placements; the designer judges which findings are fragile from the kinds above, said in the workflow's reasons. Do not promise it.
+What nothing does: **compute a margin for a tabulation or a wording.** Outside a judge step's rules, nothing works out a finding's margin, and nothing anywhere compares a margin with the expected number of wrong placements; the designer judges which findings are fragile from the kinds above, said in the workflow's reasons. Do not promise it.
 
 A check has a sensitivity and a type I error of its own. A second reading whose errors are as common as the first's carries little probative value wherever it is pointed, so aim the extra reading at the fragile findings rather than at every row.
 

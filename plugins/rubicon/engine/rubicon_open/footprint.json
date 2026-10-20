@@ -1,0 +1,16 @@
+{
+ "_about": "The carbon estimate's constants, in one place. webapp/js/ai-footprint.js carries the same numbers for the Rubicon page and tests/rubicon-footprint-twin.test.mjs fails if the two disagree. km_examples are the distances and how both ends say them. Each figure is named with its source; see footprint.py for how they are combined.",
+ "wh_per_1k_input_high": 0.39,
+ "wh_per_1k_output_high": 1.95,
+ "high_source": "Simon P. Couch, 'Electricity use of AI coding agents', 20 January 2026, https://simonpcouch.com/blog/2026-01-20-cc-impact/: about 390 Wh per million input tokens and 1,950 per million output tokens for Claude Opus, back-solved from Epoch AI's estimate for a 100,000-token prompt with output at five times the input rate, as Anthropic's prices are. The author calls them napkin maths.",
+ "low_divisor": 20,
+ "low_source": "Oviedo et al., 'Energy use of AI inference, efficiency pathways, and test-time scaling', arXiv:2509.20241: a median 0.31 Wh per query for frontier models, and widely cited estimates overstated by 4 to 20 times. The low case takes the high case's rates divided by the top of that range.",
+ "chars_per_token": 4,
+ "overhead_high": 10,
+ "overhead_source": "Our assumption, not a measurement: an agent re-sends its instructions, earlier turns and tool output with every request, so it reads far more than the documents themselves. The low case counts only what was read and written; the high case counts what was read ten times over.",
+ "grid_kg_per_kwh": 0.124,
+ "grid_source": "DESNZ greenhouse gas reporting conversion factors, UK grid electricity, 2024.",
+ "car_kg_per_km": 0.16601,
+ "car_source": "DESNZ greenhouse gas reporting conversion factors, average car of unknown fuel, 2024.",
+ "km_examples": {"0": "0", "0.00004": "0.00004", "0.00061": "0.00061", "0.098": "0.098", "0.0099": "0.0099", "0.01": "0.01", "0.034": "0.034", "0.5": "0.5", "3.94": "3.9", "6.84": "6.8", "9.96": "10", "12.4": "12", "126.6": "130"}
+}

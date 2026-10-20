@@ -16,6 +16,15 @@
 
 const quote = s => '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"'
 
+/**
+ * A cell's id as the id of its arrow in the drawing, and back: the one place a count's id becomes a DOM id. A cell is
+ * named by its coordinates, which hold spaces, brackets, commas and arrows (`t[income →+ reinvestment →+ income,R,whole,]`),
+ * so the drawing carries it percent-encoded (letters, digits and `-_.~()%` only): safe in an SVG id, a selector (through
+ * `CSS.escape`) and a URL fragment, and the same string a positional `t.c3` already is.
+ */
+export const edgeDomId = id => encodeURIComponent(String(id))
+export const cellOfEdgeDomId = domId => decodeURIComponent(String(domId))
+
 /** A sign as drawn: a plus, a minus sign, or a question mark where the coding left it unclear. */
 const SIGN = { '+': '+', '-': '\u2212', '?': '?' }
 const signed = e => (e.sign in SIGN ? `, headlabel=${quote(SIGN[e.sign])}, labelfontsize=14, labeldistance=1.6` : '')
@@ -98,7 +107,7 @@ export function mapDot(edges, { rankdir = 'LR', borders = {} } = {}) {
     for (const name of names) out.push(`  ${node.get(name)} [label=${quote(wrapLabel(name))}${border(name)}];`)
     for (const e of edges) {
         const n = Number(e.n) || 0
-        out.push(`  ${node.get(String(e.from))} -> ${node.get(String(e.to))} [id=${quote(e.id)}, label=${quote(n)}, ` +
+        out.push(`  ${node.get(String(e.from))} -> ${node.get(String(e.to))} [id=${quote(edgeDomId(e.id))}, label=${quote(n)}, ` +
             `penwidth=${(1 + 4 * n / most).toFixed(2)}, tooltip=${quote(`${e.from} → ${e.to}: ${n}`)}${signed(e)}${coloured(e)}];`)
     }
     out.push('}')
@@ -174,7 +183,7 @@ export function loopDot({ marker, links, drivers = [] }) {
     const side = (e, i) => (ring.length === 2 && i < 2 ? `:${i ? 'w' : 'e'}` : '')
     links.concat(drivers).forEach((e, i) => {
         const n = Number(e.n) || 0
-        out.push(`  ${node.get(String(e.from))}${side(e, i)} -> ${node.get(String(e.to))}${side(e, i)} [id=${quote(e.id)}, label=${quote(n)}, ` +
+        out.push(`  ${node.get(String(e.from))}${side(e, i)} -> ${node.get(String(e.to))}${side(e, i)} [id=${quote(edgeDomId(e.id))}, label=${quote(n)}, ` +
             `penwidth=${(1 + 3 * n / most).toFixed(2)}, tooltip=${quote(`${e.from} → ${e.to}: ${n}`)}${signed(e)}];`)
     })
     out.push('}')

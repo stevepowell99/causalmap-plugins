@@ -57,7 +57,7 @@ Existing theory and literature, because the middle-range theory being tested sho
 9. Abstract towards middle-range theory: what does this say beyond this programme?
 10. Report the configurations that survived, the ones that did not, and the route between.
 
-Steps 1, 4, 5 and 8 are done with people (implementers, participants, a held-back site), and a workflow over documents cannot take them: it drafts candidate configurations from the documents and reads what earlier interviews produced where they are in the corpus, and a Rubicon run can stop once the configurations are written and a few documents coded, for implementers to correct them, and again once the answer is drafted. Step 7 is the one this method is built around and the one most reports omit. A realist evaluation presenting its final configurations without the ones they replaced has hidden its own evidence.
+Steps 1, 4, 5 and 8 are done with people (implementers, participants, a held-back site), and a workflow over documents cannot take them: it drafts candidate configurations from the documents and reads what earlier interviews produced where they are in the corpus. Where the evaluator works through the plugin, the run can stop once the configurations are written and a few documents coded, for implementers to correct them, and again once the answer is drafted; a workflow from pieces has no pause. Step 7 is the one this method is built around and the one most reports omit. A realist evaluation presenting its final configurations without the ones they replaced has hidden its own evidence.
 
 ## Who does what
 
@@ -102,6 +102,8 @@ Pawson, R. and Tilley, N. (1997). *Realistic Evaluation*. Sage. The founding tex
 Pawson, R. (2006). *Evidence-Based Policy: A Realist Perspective*. Sage.
 
 Pawson, R. (2013). *The Science of Evaluation: A Realist Manifesto*. Sage.
+
+Lawson, T. (1997). *Economics and Reality*. Routledge. The source of the term demi-regularity.
 
 Dalkin, S., Greenhalgh, J., Jones, D., Cunningham, B. and Lhussier, M. (2015). What's in a mechanism? Development of a key concept in realist evaluation. *Implementation Science* 10: 49. The paper that separates the resources an intervention offers from the reasoning of participants, and a good place to start on mechanisms.
 

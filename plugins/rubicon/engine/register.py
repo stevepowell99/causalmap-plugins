@@ -20,12 +20,19 @@ import datetime, hashlib, html, json, os, re, sys, urllib.parse, zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from rubicon_open import console  # noqa: E402
 from rubicon_open.seal import seal_broken
 
 RUNS = "rubicon-runs.md"
 FOLDERS = "folders.txt"
 REPORT = re.compile(r"\]\(([^)]+?\.html)\)")
 SEALED = re.compile(r"-[0-9a-f]{8}$")
+
+
+def day_in(stem):
+    """The day a report's file name was drawn under: the date just before its revision number and fingerprint, never a
+    date-like run of digits in the question's own words, such as a run ID the question names."""
+    return re.search(r"(\d{4}-\d{2}-\d{2})(?=(?:-revision-\d+)?(?:-[0-9a-f]{8})?$)", stem)
 
 
 def run_of(report):
@@ -47,9 +54,12 @@ def run_of(report):
     if not report.stem.endswith(fingerprint[:8]):
         return {"fault": "its zip is not the one the report names"}
     # The day in the files' own name, which code wrote when it drew them, rather than the date given to print
-    m = re.search(r"\d{4}-\d{2}-\d{2}", report.stem)
+    m = day_in(report.stem)
     day = datetime.date.fromisoformat(m.group(0)) if m else datetime.date.min
-    return {"question": workflow.get("question_as_agreed", "").strip(), "day": day,
+    # the earlier runs a step of this one was taken from (`earlier.resolve`), each by its ID and fingerprint
+    builds_on = sorted({(s["from"].get("run_id") or "", str(s["from"].get("fingerprint", ""))[:8])
+                        for s in workflow.get("steps", []) if isinstance(s.get("from"), dict)})
+    return {"question": workflow.get("question_as_agreed", "").strip(), "day": day, "builds_on": builds_on,
             "date": f"{day.day} {day:%B %Y}" if m else "", "fingerprint": fingerprint, "revision": "-revision-" in report.stem}
 
 
@@ -65,10 +75,10 @@ def unsealed(report):
     if not question:
         m = re.search(r"<title>(.*?)</title>", report.read_text(encoding="utf-8", errors="replace"), re.S)
         question = html.unescape(m.group(1)).strip() if m else report.stem
-    m = re.search(r"\d{4}-\d{2}-\d{2}", report.stem)
+    m = day_in(report.stem)
     day = datetime.date.fromisoformat(m.group(0)) if m else datetime.date.fromtimestamp(report.stat().st_mtime)
     return {"question": question, "day": day, "date": f"{day.day} {day:%B %Y}", "revision": "-revision-" in report.stem,
-            "unsealed": "drawn before reports were sealed to their zip, so not checked against it"}
+            "unsealed": "created before reports were sealed to their zip, so not checked against it"}
 
 
 def folders(data):
@@ -100,7 +110,8 @@ def add(report, data):
         q = " ".join(run["question"].split())
         link = lambda kind, label: f"[{label}]({urllib.parse.quote(report.with_suffix(kind).relative_to(documents).as_posix())})"
         text = text.rstrip("\n") + ("\n" if "\n- " in text else "\n\n") + (f"- {run['date']}: {q} {link('.html', 'report')}, {link('.doc', 'Word')}, "
-                                           f"{link('.zip', 'zip')}, fingerprint {run['fingerprint'][:8]}\n")
+                                           f"{link('.zip', 'zip')}, fingerprint {run['fingerprint'][:8]}"
+                                           + "".join(f", builds on run {i or 'without an ID'} at {f}" for i, f in run.get("builds_on", [])) + "\n")
         runs.write_text(text, encoding="utf-8", newline="\n")
     print(f"listed {report.name} in {runs}")
     if not data:
@@ -211,7 +222,7 @@ def page(listed):
 
 
 if __name__ == "__main__":
-    sys.stdout.reconfigure(encoding="utf-8")
+    console.utf8()
     args = sys.argv[1:]
     opt = lambda k: args[args.index(k) + 1] if k in args and args.index(k) + 1 < len(args) else None
     data = Path(opt("--data")) if opt("--data") and "${" not in opt("--data") else None

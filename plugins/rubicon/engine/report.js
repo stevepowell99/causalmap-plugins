@@ -27,6 +27,8 @@
   const group = d => (RUN.docs[d] && RUN.docs[d].group) ? (RUN.group ? label(RUN.group) + ': ' : '') + label(RUN.docs[d].group) : '';
 
   const coded = codes => Object.entries(codes).filter(([, v]) => v != null && v !== '');
+  // whether any passage in the run is implicit; where none is, a passage's strength says nothing and is not shown
+  const graded = () => Object.values(RUN.rows).some(r => r.weak);
   const isPole = v => /^~/.test(String(v));
   const stepName = s => label(s.replace(/^c_/, ''));
   // a step as the annex heads it, its kind in words then its name (render_report.step_said)
@@ -39,12 +41,14 @@
     const keys = r.keys || {};
     return '<div class="codes">' + coded(r.codes).map(([k, v]) => {
       const words = `${esc(label(k))}: ${named(v, k)}`, title = esc(RUN.defs[k + '=' + v] || '');
+      // the passage's case opens that case, as the recount scoped it to its document's case, never every case of the name
+      if (k === 'case' && !still && RUN.cases && RUN.cases[r.case]) return `<button class="code" data-case="${esc(r.case)}" title="Everything coded for ${esc(r.case)}">${words}</button>`;
       return !still && RUN.codes && RUN.codes[keys[k]] ? `<button class="code" data-code="${esc(keys[k])}" title="${title}">${words}</button>`
         : `<span title="${title}">${words}</span>`;
     }).join('') + '</div>';
   }
-  // How one passage was coded: the step, whether it counts or was only hinted at, its codes, and what the second
-  // coder, coding blind, made of the same place: agreed, did not code it, or only the codes they gave it otherwise
+  // How one passage was coded: the step, whether it is explicit and counts or only implicit, its codes, and what the second
+  // coder (blind only where the run records a separate one) made of the same place: agreed, did not code it, or only the codes they gave it otherwise
   // (render_report.second_reading, which compares the values)
   function coding(id, still) {
     const r = RUN.rows[id];
@@ -56,15 +60,21 @@
       const said = !s.coded ? 'did not code this passage'
         : !differ.length ? 'agreed'
         : differ.map(([c, theirs]) => `${esc(label(c))}: ${theirs.length ? theirs.map(x => named(x, c)).join(' or ') : 'not coded'} instead of ${named(r.codes[c], c)}`).join('; ');
-      second = `<p class="second"><b>Second coder</b> (blind): ${said}.</p>`;
+      second = `<p class="second"><b>Second coder</b>${RUN.second_blind ? ' (blind)' : ''}: ${said}.</p>`;
     }
-    return `<div class="coding"><p class="doc-tag">${esc(stepSaid(r.step))} · ${r.weak ?'only hinted at, so left out of the counts' : 'counted'}</p>${codes(r, still)}${second}</div>`;
+    return `<div class="coding"><p class="doc-tag">${esc(stepSaid(r.step))}${graded() ? ' · ' + (r.weak ? 'implicit, so left out of the counts' : 'explicit, so counted') : ''}</p>${codes(r, still)}${second}</div>`;
   }
   const wholeLink = (id, words = 'whole interview') => {
     const r = RUN.rows[id];
     return r && r.at ? `<button class="rowlink" data-doc="${esc(r.doc)}" data-from="${esc(id)}">${words}</button>` : '';
   };
   const docLink = d => RUN.docs[d] ? `<button class="doclink" data-doc="${esc(d)}" title="Read ${esc(d)} whole">${esc(d)}</button>` : esc(d);
+  // A case as the panel names it: one held in several documents, or several in one, opens the case view (showCase); a
+  // case that is one document is that document; a unit counted by a column of the document list is only its name
+  const caseLink = k => RUN.cases && RUN.cases[k] ? `<button class="doclink" data-case="${esc(k)}" title="Everything coded for ${esc(k)}">${esc(k)}</button>`
+    : RUN.docs[k] ? docLink(k) : esc(k);
+  // the cases a count names, where they are cases the passages were attributed to, rather than documents or column values
+  const casesOf = c => c && c.cases && c.cases.length && c.cases.every(k => (RUN.cases && RUN.cases[k]) || RUN.docs[k]) ? c.cases : null;
   const docTag = (d, link = true) => `<p class="doc-tag">${link ? docLink(d) : esc(d)}${group(d) ? ' · ' + esc(group(d)) : ''}</p>`;
   const head = (what, why, whatHtml) => `<h3>${whatHtml || esc(what)}</h3>` + (why ? `<p class="small why">${esc(why)}</p>` : '');
 
@@ -145,23 +155,28 @@
     }
     return null;
   }
-  function chooseZip(doc, from) {
-    open(`${docTag(doc, false)}<p>This report leaves its documents out because together they are too large. Choose the run's zip, ${esc(RUN.zip || 'saved beside this report')}, to read this one whole.</p><input type="file" accept=".zip" id="zip-pick">`);
+  // For a corpus too large to carry: asks for the run's zip, saying what it is wanted for, then carries on
+  function chooseZip(lead, wanted, then) {
+    open(`${lead}<p>This report leaves its documents out because together they are too large. Choose the zip file saved beside this report${RUN.zip ? ', ' + esc(RUN.zip) + ',' : ''} ${wanted}.</p><input type="file" accept=".zip" id="zip-pick">`);
     document.getElementById('zip-pick').addEventListener('change', async e => {
       const f = e.target.files[0];
       if (!f) return;
       zipped = new Uint8Array(await f.arrayBuffer());
       zippedFor = RUN;
-      showDoc(doc, from);
+      then();
     });
   }
+  const textToHand = () => !!TEXTS || !!(zipped && zippedFor === RUN);
+  // A document's text as the recount read it, line endings made one newline, since every passage's offsets count that
+  // text; from the report, or from the zip chosen for this run
+  async function textOf(doc) {
+    if (TEXTS) return carriedText(doc);
+    return (await zipText(RUN.docs[doc].file))?.replace(/\r\n?/g, '\n') ?? null;
+  }
   async function showDoc(doc, from) {
-    let text;
-    if (TEXTS) text = await carriedText(doc);
-    // read as the recount read it, line endings made one newline, since every passage's offsets count that text
-    else if (zipped && zippedFor === RUN) text = (await zipText(RUN.docs[doc].file))?.replace(/\r\n?/g, '\n');
-    else return chooseZip(doc, from);
-    if (text == null) return open(`<p>${esc(doc)} is not in ${TEXTS ? 'this report' : 'that zip'}.</p>`);
+    if (!textToHand()) return chooseZip(docTag(doc, false), 'to read this one whole', () => showDoc(doc, from));
+    const text = await textOf(doc);
+    if (text == null) return open(`<p>${esc(doc)} is not in ${TEXTS ? 'this report' : 'that file'}.</p>`);
     const marks = Object.entries(RUN.rows).filter(([, r]) => r.doc === doc && r.at);
     const cuts = [...new Set([0, text.length, ...marks.flatMap(([, r]) => r.at)])].sort((a, b) => a - b);
     let body = '';
@@ -260,42 +275,74 @@
   }
   // What a cell's or a code's values mean: each value with its definition, and where opposites were combined, how many
   // of the passages hold that end at its opposite pole
-  function meaning(values, c) {
+  // A cell's value as the panel names it, "Claim: AI taking work": a link to every passage given that code (showCode),
+  // except where that would open the cell already open, as for a table counting that code alone (render_report.code_named
+  // draws the same link in the report)
+  const valueSaid = (c, cid, k, v) => {
+    const key = c && c.codes && c.codes[k], code = key && RUN.codes && RUN.codes[key];
+    const words = `${esc(label(k))}: ${named(v, k)}`;
+    return code && code.cell !== cid ? `<button class="code-label" data-code="${esc(key)}">${words}</button>` : words;
+  };
+  function meaning(values, c, cid) {
     const flips = k => c ? c.rows.filter(id => oppositeEnds(c, id).includes(k)).length : 0;
     return '<ul>' + Object.entries(values).map(([k, v]) => {
       const d = isPole(v) ? poleMeans(k, v) : RUN.defs[k + '=' + v], n = flips(k);
-      if (!n) return `<li><b>${esc(label(k))}: ${named(v, k)}</b>${d ? '. ' + esc(d) : ''}</li>`;
+      if (!n) return `<li><b>${valueSaid(c, cid, k, v)}</b>${d ? '. ' + esc(d) : ''}</li>`;
       // an end some passages hold as its opposite: the factor as labelled and its opposite, a line each with its own meaning
       const plain = String(v).replace(/^~/, ''), od = poleMeans(k, '~' + plain);
       return `<li>${esc(label(k))}<br><b>${esc(label(plain))}</b>${d ? ': ' + esc(String(d).replace(/\.\s*$/, '')) : ''}.` +
         `<br><b>${named('~' + plain, k)}</b> (the opposite, in ${n} of these ${c.rows.length} passages)${od ? ': ' + esc(od) : ''}.</li>`;
     }).join('') + '</ul>';
   }
-  // The passages behind a count, a code or a factor, each place once: who holds them firmly and their passages, then
-  // the documents and passages held only through rows the coder marked weak, which no count stands on
-  function listing(ids, docs, weakDocs) {
-    const isWeak = id => (RUN.rows[id] || {}).weak;
-    const firmDocs = docs.filter(d => !weakDocs.includes(d));
+  // The passages behind a count, a code or a factor, each place once: who says so explicitly and their passages, then
+  // the documents and passages held only through rows the coder marked implicit, which no count stands on
+  // Where the count is of cases, who is named by case, each opening everything coded for it, rather than by document.
+  function listing(ids, docs, weakDocs, cases, weakRows) {
+    const isWeak = id => weakRows ? weakRows.includes(id) : (RUN.rows[id] || {}).weak;
+    let firmWho = docs.filter(d => !weakDocs.includes(d)), weakWho = weakDocs, link = docLink;
+    if (cases) {
+      const firm = new Set(ids.filter(id => RUN.rows[id] && !isWeak(id)).map(id => RUN.rows[id].case));
+      firmWho = cases.filter(k => firm.has(k));
+      weakWho = cases.filter(k => !firm.has(k));
+      link = caseLink;
+    }
     const drawn = keep => byPlace(ids.filter(keep)).map(g => passage(g)).join('');
     const firm = drawn(id => !isWeak(id)), weak = drawn(isWeak);
-    return `<p class="small">${firmDocs.length ? 'Who: ' + firmDocs.map(docLink).join(', ') : 'Nobody firmly.'}</p>${firm}` +
-      (weak ? `<p class="small">Only hinted at, so left out of the counts${weakDocs.length ? ': ' + weakDocs.map(docLink).join(', ') : ''}</p>${weak}` : '');
+    return `<p class="small">${firmWho.length ? (graded() ? 'Explicit: ' : 'From: ') + firmWho.map(link).join(', ') : graded() ? 'Nobody explicitly.' : 'Nobody.'}</p>${firm}` +
+      (weak ? `<p class="small">Implicit, so left out of the counts${weakWho.length ? ': ' + weakWho.map(link).join(', ') : ''}</p>${weak}` : '');
   }
   function showCell(id, within) {
     const c = RUN.cells[id];
     if (!c) return;
     if (!Object.keys(c.values).length) {
-      return open(head(c.said, `Every one of the ${c.unit || 'documents'} this count was made from, by document`) +
-        c.docs.map(d => `<div class="item">${docTag(d)}</div>`).join(''));
+      const held = casesOf(c);
+      return open(head(c.said, `Every one of the ${c.unit || 'documents'} this count was made from, by ${held ? 'case' : 'document'}`) +
+        (held ? held.map(k => `<div class="item"><p class="doc-tag">${caseLink(k)}</p></div>`).join('')
+          : c.docs.map(d => `<div class="item">${docTag(d)}</div>`).join('')));
     }
     const said = within && within in c.within ? countSaid(c.n, c.within[within], c.unit || 'documents') : c.said;
     const both = combined(c) ? '<p class="small">Opposites are combined here, so a passage coded as a factor or as its opposite counts towards this link. Passages coded as an opposite come first, their codes marked ~; the rest were coded as labelled.</p>' : '';
     // passages coded at an opposite pole first, since they are the few a reader looks for
     const listed = c.rows.filter(id => oppositeEnds(c, id).length).concat(c.rows.filter(id => !oppositeEnds(c, id).length));
     open(head(said, c.question ? `Judged by rule: ${c.question}` : '') +
-      (c.told ? `<p class="small">Counted by code from the coded passages: the ${esc(c.unit || 'documents')} ${esc(c.told)}.</p>`
-        : `<p class="small">Counted by code from the coded passages: the ${c.base == null ? 'passages' : esc(c.unit || 'documents')} where</p>${meaning(c.values, c)}`) + both +
-      listing(listed, c.docs, c.weak_docs || []));
+      (c.told ? `<p class="small">Computed directly from the coded passages: the ${esc(c.unit || 'documents')} ${esc(c.told)}.</p>`
+        : `<p class="small">Computed directly from the coded passages: the ${c.base == null ? 'passages' : esc(c.unit || 'documents')} where</p>${meaning(c.values, c, id)}`) + both +
+      listing(listed, c.docs, c.weak_docs || [], casesOf(c), c.weak_rows));
+  }
+  // A case: every passage coded for it, in any code step, grouped by document, each document opening whole with the
+  // passage marked (wholeLink), and the passages drawn as everywhere else (passage)
+  function showCase(k) {
+    const held = RUN.cases && RUN.cases[k];
+    if (!held) return RUN.docs[k] ? showDoc(k) : undefined;
+    const at = id => (RUN.rows[id].at || [Infinity])[0];
+    const steps = [...new Set(held.rows.map(id => RUN.rows[id].step))];
+    const all = byPlace(held.rows);
+    open(head(k, `Everything coded for this case: ${passagesSaid(all)}, in ${countSaid(held.docs.length, null, 'documents')}, ` +
+      `from the ${andList(steps.map(stepName))} coding${steps.length === 1 ? '' : 's'}`) +
+      held.docs.map(d => {
+        const groups = byPlace(held.rows.filter(id => RUN.rows[id].doc === d).sort((a, b) => at(a) - at(b)));
+        return `<p class="small">In ${docLink(d)}: ${passagesSaid(groups)}</p>` + groups.map(g => passage(g)).join('');
+      }).join(''));
   }
   // A code's chip: what the code means and every passage given it in its step. Where a table counts that code alone,
   // its cell holds exactly those passages and opens as it does from the table; otherwise the same view, without a count.
@@ -318,7 +365,7 @@
     const name = node.querySelector('title').textContent;
     const ends = t => t.split('->').map(x => x.replace(/:\w+$/, ''));
     return [...node.closest('svg').querySelectorAll('g.edge')]
-      .filter(e => ends(e.querySelector('title').textContent).includes(name)).map(e => RUN.cells[e.id]).filter(c => c && c.rows.length);
+      .filter(e => ends(e.querySelector('title').textContent).includes(name)).map(e => RUN.cells[MapIds.cellOfEdgeDomId(e.id)]).filter(c => c && c.rows.length);
   }
   function showFactor(node) {
     const cells = factorCells(node);
@@ -338,10 +385,10 @@
     const groups = byPlace(f.rows || []);
     const steps = [...new Set([...(f.steps || []), ...cells.map(id => RUN.cells[id].step), ...groups.flat().map(id => RUN.rows[id].step)])]
       .filter(id => annexBlock(id));
-    const said = id => { const c = RUN.cells[id]; const v = Object.entries(c.values).map(([k, x]) => `${esc(label(k))}: ${named(x, k)}`).join(', ');
+    const said = id => { const c = RUN.cells[id]; const v = Object.entries(c.values).map(([k, x]) => valueSaid(c, id, k, x)).join(', ');
       return `<div class="item"><button class="n" data-cell="${esc(id)}">${esc(c.said)}</button> ${c.question || c.told ? esc(c.question || c.told) : v || 'documents read'}</div>`; };
-    open(head('What this rests on') +
-      (cells.length ? `<p class="small">${cells.length} number${cells.length === 1 ? '' : 's'}, counted by code</p>` + cells.map(said).join('') : '') +
+    open(head('Evidence') +
+      (cells.length ? `<p class="small">${cells.length} number${cells.length === 1 ? '' : 's'}, computed directly from the coded passages</p>` + cells.map(said).join('') : '') +
       (groups.length ? `<p class="small">${passagesSaid(groups)}, quoted</p>` + groups.map(g => passage(g)).join('') : '') +
       (steps.length ? '<p class="small">From these steps</p><p>' + steps.map(s => `<button class="rowlink" data-step="${esc(s)}">${esc(stepSaid(s))}</button>`).join('') + '</p>' : ''));
   }
@@ -386,11 +433,23 @@
     if (!groups.length) return open(`<p>No passage ${esc(ids.join(', '))}.</p>`);
     open(head(passagesSaid(groups), why) + groups.map(g => passage(g, { full: groups.length === 1 })).join(''));
   }
+  // A claim the writer tagged as a number is tagged: what it says, why its passages bear it out and how they would be
+  // found again, then the passages for it and those against it
+  function showClaim(id) {
+    const c = RUN.claims && RUN.claims[id];
+    if (!c) return;
+    const drawn = ids => byPlace((ids || []).filter(i => RUN.rows[i])).map(g => passage(g)).join('');
+    open(head(c.says || id, 'A claim the writer tagged with the passages for it and against it') +
+      (c.why ? `<p class="small">${esc(c.why)}</p>` : '') +
+      (c.found_by ? `<p class="small">Found by: ${esc(c.found_by)}</p>` : '') +
+      `<p class="small">For it:</p>${drawn(c.rows) || '<p class="small">No passage.</p>'}` +
+      ((c.against || []).length ? `<p class="small">Against it:</p>${drawn(c.against)}` : ''));
+  }
   // Why the passages a button opens are these ones, said under the panel's heading
   function whyOf(b) {
     if (b.dataset.why) return b.dataset.why;
     if (b.classList.contains('cite')) return 'Cited in the answer';
-    if (b.closest('.annex')) return 'Listed with the coded passages under How this was made';
+    if (b.closest('.annex')) return 'Listed with the coded passages under ' + ((document.querySelector('#how-done > h2, .annex > h3') || {}).textContent || 'the annexes');
     return '';
   }
   const spanRows = span => {
@@ -409,7 +468,9 @@
       return found(t.matches('h2, h3') ? t : t.querySelector('h2, h3') || t, 'start');
     }
     const edge = e.target.closest('.map g.edge');
-    if (edge) return showCell(edge.id);
+    if (edge) return showCell(MapIds.cellOfEdgeDomId(edge.id));
+    const point = e.target.closest('.chart g[data-cell]');
+    if (point) return showCell(point.dataset.cell);
     const factor = e.target.closest('.map g.node:not(.inert)');
     if (factor) return showFactor(factor);
     const span = e.target.closest('.whole .span');
@@ -417,7 +478,10 @@
     const b = e.target.closest('button');
     if (!b) return;
     if (b.id === 'panel-close') { panel.hidden = true; return; }
+    if (b.dataset.xlsxStep || b.dataset.xlsxCells) return downloadXlsx(b);
     if (b.dataset.cell) return showCell(b.dataset.cell, b.dataset.within);
+    if (b.dataset.claim) return showClaim(b.dataset.claim);
+    if (b.dataset.case) return showCase(b.dataset.case);
     if (b.dataset.code) return showCode(b.dataset.code);
     if (b.dataset.row) return showRows([b.dataset.row], whyOf(b));
     if (b.dataset.rows) return showRows(b.dataset.rows.split(','), whyOf(b));
@@ -430,10 +494,37 @@
     // a coded stretch is a span, which a browser does not press on Enter or Space as it presses a button
     const span = e.target.closest && e.target.closest('.whole .span');
     if (span && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); spanRows(span); }
+    const point = e.target.closest && e.target.closest('.chart g[data-cell]');
+    if (point && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); showCell(point.dataset.cell); }
   });
 
-  // Each map is carried as DOT and drawn here by Graphviz (Viz.js), which the page loads at a fixed version
-  // (`GRAPHVIZ` in render_report.py); a reader offline sees the words under each figure and its counts, and no map.
+  // A links-shaped table's links, and the documents they come from with their text, as a workbook Causal Map's Import
+  // XLSX reads (rubicon_open/causal-map-xlsx.js), made here from what the report carries and saved by the browser: a
+  // code step's rows, or every row behind a table's cells or behind the cells named
+  async function downloadXlsx(b) {
+    const step = b.dataset.xlsxStep;
+    const ids = b.dataset.xlsxCells ? b.dataset.xlsxCells.split('|').flatMap(id => RUN.cells[id]?.rows || [])
+      : RUN.ends[step] ? Object.keys(RUN.rows).filter(id => RUN.rows[id].step === step)
+        : Object.values(RUN.cells).filter(c => c.step === step).flatMap(c => c.rows);
+    if (!textToHand()) return chooseZip('<h3>Download for Causal Map</h3>', "to put each document's text in the workbook", () => downloadXlsx(b));
+    const rows = [...new Set(ids)].filter(id => RUN.rows[id] && RUN.ends[RUN.rows[id].step]).map(id => {
+      const r = RUN.rows[id];
+      return { row: id, document: r.doc, step: r.step, quote: r.ctx[1], sentiment: r.sentiment || 0, codes: r.codes };
+    });
+    const texts = {};
+    for (const d of new Set(rows.map(r => r.document))) texts[d] = await textOf(d);
+    const bytes = CausalMapXlsx.causalMapWorkbook({ rows, ends: RUN.ends, docs: RUN.docs, texts }, CausalMapXlsx.linksOfRows);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    a.download = `${(RUN.zip || 'rubicon').replace(/\.zip$/, '')}-${b.dataset.xlsxName || step || 'links'}-for-causal-map.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  // Each map is carried as DOT and drawn here by Graphviz (Viz.js), which the report carries inside itself
+  // (`assets.graphviz_script`); a browser that cannot run it shows the words under each figure and its counts, and no map.
   const dots = [...document.querySelectorAll('pre.dot')];
   if (dots.length) {
     (window.Viz ? Viz.instance() : Promise.reject()).then(viz => {
@@ -446,7 +537,7 @@
       }
     }).catch(() => {
       for (const p of document.querySelectorAll('.graph .drawing')) {
-        p.textContent = 'The map could not be drawn: Graphviz loads from cdn.jsdelivr.net, which this computer could not reach. Open the report again when it is online.';
+        p.textContent = 'The map could not be drawn: Graphviz did not start in this browser.';
       }
     });
   }

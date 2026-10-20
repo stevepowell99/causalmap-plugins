@@ -12,8 +12,9 @@ Four checks, in order, each of which the next relies on:
 3. This is the engine that drew the report: the zip records the engine's own fingerprint and its version. Where it
    differs, the report cannot be compared word for word here, and the answer says which version to check it with.
 4. The report is what the zip draws: the zip is laid out in a scratch folder, recounted from its coded passages and its
-   answer (a recount that would change anything stops there), drawn again under the name and date it recorded, and the
-   new report compared with the given one byte for byte.
+   answer (a recount that would change anything stops there, and so does a quotation in the answer that no document
+   holds or a number stated beside its count that differs from it, which the renderer refuses to draw), drawn again under the name and date it recorded, and the new report
+   compared with the given one byte for byte.
 
 Exit status 0 means all four held; 1 means the report and zip do not match, and says where; 2 means the zip is the one
 the report names but was drawn by another version of the engine. Makes no model call.
@@ -23,6 +24,7 @@ from pathlib import Path
 
 ENGINE = Path(__file__).resolve().parent
 sys.path.insert(0, str(ENGINE))
+from rubicon_open import console  # noqa: E402
 from rubicon_open.seal import engine_fingerprint, seal_broken
 
 
@@ -35,16 +37,16 @@ def verdict(report, zipped):
         render = json.loads(z.read("render.json").decode("utf-8"))
     if report.suffix.lower() not in (".html", ".doc"):
         return 1, (f"CANNOT CHECK: verify.py reads a report's .html or .doc. A {report.suffix} copy is tied to its zip by "
-                   "its file name and by the fingerprint printed under How this was made, which a reader compares by eye; "
+                   "its file name and by the fingerprint printed in the report's annexes, which a reader compares by eye; "
                    "check the .html or .doc it was converted from instead.")
     named = re.findall(r'class="fingerprint">([0-9a-f]{64})<', report.read_text(encoding="utf-8", errors="replace"))
     if not named:
         return 1, f"NO MATCH: {report.name} carries no fingerprint, so it names no zip."
     if set(named) != {fingerprint}:
         return 1, (f"NO MATCH: {report.name} names the zip {named[0]}, and {zipped.name} is {fingerprint}. The report "
-                   "was drawn from another zip, or one of the two has been changed.")
+                   "was created from another zip, or one of the two has been changed.")
     if render.get("engine") != engine_fingerprint(ENGINE):
-        return 2, (f"SAME ZIP, OTHER ENGINE: {zipped.name} is the zip {report.name} names, untouched, but it was drawn "
+        return 2, (f"SAME ZIP, OTHER ENGINE: {zipped.name} is the zip {report.name} names, untouched, but it was created "
                    f"by Rubicon {render.get('version') or 'of another version'}, not by this engine. Check it with that "
                    "version's verify.py to compare the report word for word.")
     with tempfile.TemporaryDirectory() as t:
@@ -53,23 +55,23 @@ def verdict(report, zipped):
         done = subprocess.run([sys.executable, "-I", "-S", str(ENGINE / "render_report.py"), str(copy)],
                               capture_output=True, text=True, encoding="utf-8")
         if done.returncode:
-            return 1, f"NO MATCH: the zip does not draw a report: {done.stderr.strip()}"
-        drawn = copy.with_suffix("") / f"{render['name']}-{fingerprint[:8]}{report.suffix}"
+            return 1, f"NO MATCH: the zip does not create a report: {done.stderr.strip()}"
+        drawn = copy.parent / f"{render['name']}-{fingerprint[:8]}{report.suffix}"  # drawn beside the copy, in a folder of its own
         if not drawn.is_file():
-            return 1, f"NO MATCH: the zip draws no {report.suffix} file."
+            return 1, f"NO MATCH: the zip creates no {report.suffix} file."
         a, b = report.read_bytes(), drawn.read_bytes()
         if a != b:
             line = next((i for i, (x, y) in enumerate(zip(a.splitlines(), b.splitlines()), 1) if x != y),
                         min(len(a.splitlines()), len(b.splitlines())) + 1)
-            return 1, (f"NO MATCH: {report.name} names this zip, but is not the report the zip draws: they first "
-                       f"differ at line {line}, so the report has been changed since it was drawn.")
-    return 0, (f"MATCH: {report.name} was drawn from {zipped.name}, fingerprint {fingerprint}, by this engine. Every "
-               "file in the zip is as it was made, every number recounts from its coded passages, and the zip draws "
-               "this report byte for byte.")
+            return 1, (f"NO MATCH: {report.name} names this zip, but is not the report the zip creates: they first "
+                       f"differ at line {line}, so the report has been changed since it was created.")
+    return 0, (f"MATCH: {report.name} was created from {zipped.name}, fingerprint {fingerprint}, by this engine. Every "
+               "file in the zip is as it was made, every number recounts from its coded passages, every number stated "
+               "beside a count equals it, every quotation in the answer is found in a document, and the zip recreates this report byte for byte.")
 
 
 if __name__ == "__main__":
-    sys.stdout.reconfigure(encoding="utf-8")
+    console.utf8()
     if len(sys.argv) != 3:
         sys.exit(__doc__.split("\n\n")[1])
     code, said = verdict(Path(sys.argv[1]), Path(sys.argv[2]))

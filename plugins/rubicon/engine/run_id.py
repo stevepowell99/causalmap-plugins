@@ -8,7 +8,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
+from rubicon_open import console  # noqa: E402
 from rubicon_open.run_id import new_run_id
 
 if __name__ == "__main__":
+    console.utf8()
     print(new_run_id())

@@ -6,21 +6,21 @@ Causal Map's plugins for evaluators and researchers working with qualitative evi
 
 **Rubicon: checkable AI for evaluators.**
 
-Rubicon turns your Claude into an opinionated evaluation assistant. You bring one key evaluation question and the documents you gathered, such as interviews and reports. Rubicon argues out with you how to answer it, as an experienced evaluator would with a client, and then carries the analysis out.
+Rubicon turns your Claude into an opinionated evaluation assistant. You bring your evaluation questions and the documents you gathered, such as interviews and reports. Rubicon settles with you how to answer them, as an experienced evaluator would with a client, and then carries the analysis out, leaving the records that let somebody else check it.
 
-Answering an evaluation question is rarely a single coding task. It usually takes a workflow: split the question into the parts that can be answered from the documents, code the passages that bear on each, combine and count them, compare groups, and judge the result against a standard agreed in advance. Rubicon helps you design that workflow and holds you to it:
+Answering an evaluation question usually takes a workflow of several steps: split the question into the parts that can be answered from the documents, code the passages that bear on each, combine and count them, compare groups, and judge the result against a standard. Rubicon helps you design that workflow:
 
-- It settles the question with you before anything is read: what the answer will feed, whether it is really several questions, which groups to compare.
+- It settles the question with you: what counts, out of what, and which groups to compare.
 - It draws on published evaluation practice, such as contribution analysis, process tracing, realist evaluation and outcome harvesting. Where your question or your documents do not suit the method you name, it says so.
-- It helps you set a rubric for a judgement of worth before the evidence is seen, and never supplies the standard itself.
+- For a judgement of worth, it can help you set a rubric before the evidence is seen, and always says whose standard a verdict rests on and when it was set.
 - It can pause for stakeholders to agree the definitions or the draft. Where a verdict has real consequences, it can first test the workflow on two made-up sets of documents, one written to pass and one to fail, to show the workflow can tell them apart.
 - Every count is made by code, out of a stated base, and every quotation is checked word for word against its document.
 
-Each run answers one question; it is not a summary of everything in your documents. You get a report in which every number and quotation can be clicked to see what it rests on, a Word copy, and the whole run in one file, so that somebody else can check and rebuild the analysis. It runs on your own Claude plan; nothing is sent to Causal Map. More, with example reports: [rubicon.causalmap.app/plugin](https://rubicon.causalmap.app/plugin/).
+A later run can build on an earlier one's coding rather than repeat it. You get a report in which every number and quotation can be clicked to see what it rests on, a Word copy, and the whole run in one file, so that somebody else can check and rebuild the analysis. It runs on your own Claude plan; nothing is sent to Causal Map. More, with example reports: [rubicon.causalmap.app/plugin](https://rubicon.causalmap.app/plugin/).
 
 ## Install
 
-In the Claude app: Customize > Plugins > Add marketplace, and enter `stevepowell99/causalmap-plugins`. Then install Rubicon from it. To get new versions as they are released, choose Manage marketplaces, open the ⋮ menu beside causalmap-plugins and turn on Sync automatically; Check for updates in that menu fetches the latest at once.
+In the Claude app: Customize > Plugins > Add marketplace, and enter `stevepowell99/causalmap-plugins`. Then install Rubicon from it. To get a new version, choose Manage marketplaces, open the ⋮ menu beside causalmap-plugins and choose Check for updates; do this from time to time, since Sync automatically does not reliably bring new versions on its own. If Check for updates still leaves the old version, remove the causalmap-plugins marketplace, restart the app, and add it again.
 
 In Claude Code:
 

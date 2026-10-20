@@ -7,9 +7,9 @@ or run (`steps/`, as the engine's coders leave it): the first is the analyst's, 
 code step and column, each document either holds a value (has a row coded with it) or does not, in each of the two
 codings: agreement is counted over every document and value, with the documents on which the two differ named. For
 each tabulation, the cells whose counts differ, by the same cell ids. Writes compare.json beside the second coding and
-prints it, and disagreements.md: each document and value one coder placed and the other did not, and each both placed
-but one only weakly (a row marked weak, by the weakness its column's definition names), with the passages each coder
-gave for that document, for a reviewer to rule on against the text.
+prints it, and disagreements.md: each document and value one coder placed and the other did not, with the passages
+each coder gave for that document, for a reviewer to rule on against the text. A run made before 15 October 2026 also
+lists each both placed but one only implicitly, a row marked weak (`rubicon_open/legacy_weak.py`).
 """
 from __future__ import annotations
 
@@ -18,6 +18,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
+from rubicon_open import console  # noqa: E402
+from rubicon_open import legacy_weak
 from rubicon_open.workflow import value_key
 
 
@@ -29,6 +31,7 @@ def compare(a: Path, b: Path) -> dict:
     wf = json.loads(((b if (b / "workflow.json").exists() else a) / "workflow.json").read_text(encoding="utf-8"))
     load = lambda p: json.loads(p.read_text(encoding="utf-8"))
     sa, sb = steps_of(a), steps_of(b)
+    old = legacy_weak.marked(wf, legacy_weak.records_in(sa) + legacy_weak.records_in(sb))  # legacy_weak
     out = {"coding": {}, "tables": {}}
     disagreements: list[str] = []
     for s in wf["steps"]:
@@ -57,14 +60,14 @@ def compare(a: Path, b: Path) -> dict:
                                              f"    - The {who}'s passages: " + " / ".join(f"\"{q}\"" for q in quotes) + "\n"
                                              f"    - The other coder's rows for {d} in this step: " + (" / ".join(said) or "none"))
                 firm = lambda rec: {(r["document"], value_key(r.get(c["name"]))) for r in rec["rows"]
-                                    if r.get(c["name"]) not in (None, "") and not r.get("weak")}
+                                    if r.get(c["name"]) not in (None, "") and not legacy_weak.carries(old, r)}
                 fa, fb = firm(ra), firm(rb)
                 strength = sorted(x for x in ha & hb if (x in fa) != (x in fb))
                 for d, v in strength:
-                    said = lambda rec: " / ".join(f"\"{r['quote']}\"" + (" (weak)" if r.get("weak") else "")
+                    said = lambda rec: " / ".join(f"\"{r['quote']}\"" + (" (implicit)" if legacy_weak.carries(old, r) else "")
                                                   for r in rec["rows"] if r["document"] == d and value_key(r.get(c["name"])) == v)
-                    disagreements.append(f"- **{sid}.{c['name']} = {v}**, document {d}: firm for the "
-                                         f"{'first' if (d, v) in fa else 'second'} coder, weak for the "
+                    disagreements.append(f"- **{sid}.{c['name']} = {v}**, document {d}: explicit for the "
+                                         f"{'first' if (d, v) in fa else 'second'} coder, implicit for the "
                                          f"{'second' if (d, v) in fa else 'first'}.\n"
                                          f"    - The first coder's passages: {said(ra)}\n"
                                          f"    - The second coder's passages: {said(rb)}")
@@ -72,7 +75,9 @@ def compare(a: Path, b: Path) -> dict:
                     "document_value_pairs": len(cells), "agree": agree, "held_by_first": len(ha), "held_by_second": len(hb),
                     "held_by_both": both, "kappa": round((agree / len(cells) - pe) / (1 - pe), 2) if cells and pe < 1 else None,
                     "first_only": sorted(f"{d}: {v}" for d, v in ha - hb), "second_only": sorted(f"{d}: {v}" for d, v in hb - ha),
-                    "firm_for_one_weak_for_other": [f"{d}: {v}" for d, v in strength]}
+                    # legacy_weak: only a run made before 15 October 2026 has rows marked weak
+                    **({"firm_for_one_weak_for_other": [f"{d}: {v}" for d, v in strength]}
+                       if any(legacy_weak.carries(old, r) for r in ra["rows"] + rb["rows"]) else {})}
         elif s["kind"] in ("tabulate", "judge") and (sa / f"{sid}.json").exists() and (sb / f"{sid}.json").exists():
             ta, tb = load(sa / f"{sid}.json"), load(sb / f"{sid}.json")
             if s["kind"] == "tabulate":
@@ -90,5 +95,5 @@ def compare(a: Path, b: Path) -> dict:
 
 
 if __name__ == "__main__":
-    sys.stdout.reconfigure(encoding="utf-8")  # a Windows console is not UTF-8, and the output names documents and arrows
+    console.utf8()
     print(json.dumps(compare(Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()), indent=1, ensure_ascii=False))

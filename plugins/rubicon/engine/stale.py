@@ -5,7 +5,9 @@
 A revision that changes a definition, a step or a coded row is recounted into a new `recount/` folder. This compares
 the two folders' `counts.json` and `rows.md`, lists every count and row that changed, appeared or went, and every
 count id that now names a different cell of its table, and names each
-paragraph of the answer that cites one of them by its {count id} or [row id]. A paragraph whose claim builds on a
+paragraph of the answer that cites one of them by its {count id} or [row id]. A key claim, cited as [k.<claim id>], is
+stale when its record changed or went, or when any row it rests on or holds against it moved, and so is every
+paragraph citing it. A paragraph whose claim builds on a
 finding stated in another section says so with [§ That heading], and it is stale when anything in that section is,
 followed through as many sections as the chain runs. Stale paragraphs are read again against the new figures. The
 answer's opening paragraph states its conclusion, which rests on everything below it, so it is named whenever anything
@@ -19,7 +21,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from rubicon_open.steps import citation_ids
+from rubicon_open import console  # noqa: E402
+from rubicon_open.steps import COUNT_ID, citation_ids
 
 
 def counts(folder: Path) -> dict:
@@ -48,14 +51,43 @@ def moved(old: dict, new: dict) -> dict[str, str]:
 
 
 def cells(folder: Path) -> dict[str, dict]:
-    """What each tabulation cell id stands for: the values that define the cell. An id is a cell's place in its table,
-    ordered by count, so the same id can come to name a different cell when counts shift."""
+    """What each tabulation cell id stands for: the values that define the cell. A cell named by its coordinates always
+    stands for the same values; a positional id (`t.c3`, from a run recounted before cells were named by their
+    coordinates) is the cell's place in its table, ordered by count, so it can come to name a different cell."""
     out = {}
     for f in sorted((folder / "steps").glob("*.json")):
         rec = json.loads(f.read_text(encoding="utf-8"))
         for c in rec.get("cells") or [] if rec.get("kind") == "tabulate" else []:
             if "id" in c:
                 out[c["id"]] = c.get("values")
+    return out
+
+
+def claims(folder: Path) -> dict[str, dict]:
+    """Each key claim the recount checked, by the id the answer cites it with (`<claims step id>.<claim id>`)."""
+    out = {}
+    for f in sorted((folder / "steps").glob("*.json")):
+        rec = json.loads(f.read_text(encoding="utf-8"))
+        for c in rec.get("claims") or [] if rec.get("kind") == "claims" else []:
+            out[f"{rec['id']}.{c['id']}"] = c
+    return out
+
+
+def claims_moved(old: Path, new: Path, rows_moving: dict[str, str]) -> dict[str, str]:
+    """Each claim whose record changed or went, or that rests on a row, for it or against it, that moved."""
+    was, now = claims(old), claims(new)
+    out = {}
+    for k in sorted(was.keys() | now.keys()):
+        a, b = was.get(k), now.get(k)
+        keep = ("says", "rows", "against")
+        if b is None:
+            out[k] = "gone"
+        elif a is None:
+            out[k] = "new"
+        elif any(a.get(x) != b.get(x) for x in keep):
+            out[k] = "changed: " + ", ".join(x for x in keep if a.get(x) != b.get(x))
+        elif hit := sorted(r for r in {*a.get("rows", []), *a.get("against", [])} if r in rows_moving):
+            out[k] = "rests on " + ", ".join(hit)
     return out
 
 
@@ -88,10 +120,12 @@ def paragraphs(text: str) -> list[tuple[str, str]]:
 def stale(old: Path, new: Path, answer: str) -> tuple[dict[str, str], list[tuple[int, str, list[str]]], list[str]]:
     """What moved; each stale paragraph with what made it stale; and [§ ] references naming no section.
 
-    A paragraph is stale when it cites a count or row that moved, or refers with [§ Heading] to a section holding a
+    A paragraph is stale when it cites a count, row or key claim that moved, or refers with [§ Heading] to a section holding a
     stale paragraph, however many sections deep the chain runs; the opening conclusion is stale whenever anything is."""
-    changes = {**moved(counts(old), counts(new)), **moved(rows(old), rows(new))}
+    row_changes = moved(rows(old), rows(new))
+    changes = {**moved(counts(old), counts(new)), **row_changes}
     changes = {**renamed(old, new, counts(old).keys() | counts(new).keys()), **changes}
+    changes.update(claims_moved(old, new, {k: v for k, v in row_changes.items() if v != "new"}))
     # a count or row that is only new cannot have been cited before, so it makes nothing stale: it is what a revision
     # adds, and the paragraph citing it is the revision's own
     moving = {k: v for k, v in changes.items() if v != "new"}
@@ -99,7 +133,7 @@ def stale(old: Path, new: Path, answer: str) -> tuple[dict[str, str], list[tuple
     sections = {sec for sec, _ in paras if sec} | {ln[3:].strip() for ln in answer.splitlines() if ln.startswith("## ")}
     why: dict[int, list[str]] = {}
     for n, (_, p) in enumerate(paras):
-        ids = set(re.findall(r"\{([\w-]+\.[\w.-]+)\}", p)) | {c for c in citation_ids(p) if not c.startswith("§")}
+        ids = set(re.findall(r"\{(" + COUNT_ID + r")\}", p)) | {c for c in citation_ids(p) if not c.startswith("§")}
         if hit := sorted(i for i in ids if i in moving):
             why[n] = hit
     refs = {n: {r.strip() for r in re.findall(r"\[§\s*([^\]]+)\]", p)} for n, (_, p) in enumerate(paras)}
@@ -117,11 +151,11 @@ def stale(old: Path, new: Path, answer: str) -> tuple[dict[str, str], list[tuple
 
 
 if __name__ == "__main__":
-    sys.stdout.reconfigure(encoding="utf-8")  # a Windows console is not UTF-8, and the output names documents and arrows
+    console.utf8()
     if len(sys.argv) != 4:
         sys.exit(__doc__)
     changes, hits, broken = stale(Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]).read_text(encoding="utf-8"))
-    print(f"{len(changes)} counts or rows moved" + (":" if changes else "; nothing in the answer is stale."))
+    print(f"{len(changes)} counts, rows or claims moved" + (":" if changes else "; nothing in the answer is stale."))
     for k, v in changes.items():
         print(f"  {k}: {v}")
     for n, p, hit in hits:

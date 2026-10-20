@@ -22,9 +22,9 @@ A frequent failure in qualitative efficiency reviews is treating disbursement as
 
 **Code.** A binary column for whether a passage reports a delay against plan; a nominal column for its domain (procurement, staffing, approvals and the like, each defined); an ordinal column for how critical it was to delivery, each level saying what counts; and a nominal column for where the passage puts the cause (the organisation's own procedures, a partner's operational capacity, a disruption from outside), recorded as the passage gives it rather than assumed. The coding prompt searches for delay on its own terms, never through any disbursement figure, so a well-spent budget cannot stand in for an absent search, and asks for the later reports to be read as closely as the inception plan, with the workplan never the default account of what happened. Define the critical levels tightly enough that another coder would place the same passage the same way; where the call is close, the answer says so.
 
-**Tabulate.** Count documents reporting a critical delay by domain and by partner, each partner's count out of that partner's documents, and by phase, so what the inception workplan promised sits beside what the progress reports later recorded. A tabulation of cause by partner shows whether partners in the same setting put their delays down to the same things.
+**Tabulate.** Count documents reporting a critical delay by domain and by partner, each partner's count out of that partner's documents, and by phase, so what the inception workplan promised sits beside what the progress reports later recorded. A tabulation of cause by partner shows whether partners in the same setting put their delays down to the same things. Where the standard is about partners rather than documents, count partners (the tabulation's `count` set to the partner column, with "partners" as its unit), so a cell says how many partners reported a critical delay. Where the standard is about milestones, add a column naming the milestone a passage concerns, nominal with the workplan's milestones as its values where the workplan is to hand, and a profile step keyed by that column, with a `holds` column for a critical delay and a `distinct` count of `document`, gives each milestone one row however many reports mention it; a tabulation of the profile, with "milestones" as its unit, counts the milestones reported critically delayed. With the workplan's list as the values, every planned milestone is a row, and one no document mentions is a row of noes, which says nothing was reported about it, never that it was met.
 
-**Judge.** Only with the evaluator's standard. A typical one is a `rule`, read worst-first: the overall reading is held down wherever a partner's documents reporting a critical delay pass the stated threshold, whatever the disbursement rate shows, because spending cannot outweigh delays that leave outputs unused. Without a standard, leave the judge out and offer standards in their terms without numbers.
+**Judge.** Only with the evaluator's standard. A typical one is a `rule`, read worst-first: the overall reading is held down wherever a partner's documents reporting a critical delay pass the stated threshold, or, counting partners, wherever more than a stated number of partners report one, whatever the disbursement rate shows, because spending cannot outweigh delays that leave outputs unused. Without a standard, leave the judge out and offer standards in their terms without numbers.
 
 **Write.** Each partner and domain with its count and base, the planned beside the reported, delays named with their documents, and causes attributed to whoever states them.
 
@@ -32,7 +32,7 @@ A frequent failure in qualitative efficiency reviews is treating disbursement as
 
 - **Cost-effectiveness against alternatives**, which needs cost data and a comparison the documents do not hold.
 - **Dates and money held only in a finance system or tracking sheet**, which the evaluator brings in when the report is written.
-- **The share of milestones met**, since a document, not a milestone, is the case counted.
+- **The share of milestones met**, since a milestone no document mentions is unknown rather than met, and without the workplan's list as the milestone column's values the base is only the milestones found.
 
 Try the definitions on one partner's full set of reports before the rest, since the phasing of delay through a small corpus is where an ambiguous definition, such as what counts as critical, gets caught cheaply.
 
@@ -42,7 +42,7 @@ Evaluators routinely meet what might be called exogenous excuse bias, where an i
 
 ## Where Rubicon falls short
 
-- **The case is a document, never a milestone.** "Over 85% of milestones" cannot be read from a count of documents, and a milestone that five reports mention counts in five documents. Making the milestone the case needs a list of milestones from outside the coding.
+- **A milestone is a unit only through a profile.** A tabulation counts documents, cases a row names within its document, or the values of a document-list column such as partner, so a milestone that five reports mention counts in five documents. A profile keyed by a coded milestone column counts each milestone once, but its base is the milestones found unless the column's values are the workplan's own list, and even then "over 85% of milestones met" cannot be read from it, since silence about a milestone is not delivery.
 - **Dates and money in a finance system are out of scope.** Planned against actual dates held in a tracking sheet, cost per output and disbursement numbers have no words behind them; the answer covers the part the documents speak to, and those numbers are brought in when the report is written. A delay or a cost stated in a report or an interview is in scope, since it has a speaker and a position in a document.
 
 ## Sources

@@ -1,7 +1,7 @@
 {
   "name": "rubicon",
   "displayName": "Rubicon",
-  "version": "0.1.1+95bffc08626a",
+  "version": "0.1.2+b336babacc8f",
   "description": "Rubicon: checkable AI for evaluators.",
   "author": {
     "name": "Causal Map",

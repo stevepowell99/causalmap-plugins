@@ -19,7 +19,7 @@ Most evaluation questions ask for one of a few kinds of claim, and the kind deci
 | What leads to what, in people's own accounts | A map of causal claims | Causal mapping | [causal mapping](causal-mapping.md) |
 | Will it last, why did it level off, what did it set off | Feedback loops in people's accounts, reinforcing or balancing | Causal loop diagrams, with a rubric for the verdict | [causal loop diagrams](causal-loop-diagrams.md) |
 
-A question often asks for two kinds at once, typically a contribution and a verdict on it ("how effective was the programme in achieving X"). Settle each part separately: the contribution by its method, the verdict by a rubric applied to what the method found. A verdict needs a standard from the evaluator; without one, deliver the evidence and say the verdict waits on their standard.
+A question often asks for two kinds at once, typically a contribution and a verdict on it ("how effective was the programme in achieving X"). Settle each part separately: the contribution by its method, the verdict by a rubric applied to what the method found. A verdict needs a standard from the evaluator; without one, deliver the evidence and say the verdict waits on their standard. Where the verdict has consequences, such as whether to fund, scale or stop something, offer to test the workflow first: [testing a workflow on synthetic documents](testing-a-workflow-on-synthetic-documents.md).
 
 ## Then check what the documents can bear
 
@@ -29,7 +29,7 @@ The commonest mismatch is between the method named and the shape of the corpus. 
 - **Whose voices are in it?** A corpus of the programme's own reports cannot test whether beneficiaries credit the programme, and a corpus of beneficiary interviews cannot say what the programme spent. Contribution claims resting only on implementers' accounts have to be reported as such.
 - **Does the outcome vary?** A comparison across cases where almost all succeeded has nothing to discriminate. Check before anything else.
 - **Was a theory fixed before the material was gathered?** Process tracing and contribution analysis test a theory against evidence, and are strongest where the predictions were written before the reading. Material gathered without a theory can be read for one, which is a different and weaker claim.
-- **Can the outcome be seen in the documents at all?** A change in an indicator measured elsewhere, an effect size, a population prevalence, a counterfactual estimate: none of these is in narrative documents. Say so and point to what would answer it.
+- **Can the outcome be seen in the documents at all?** A change in an indicator measured elsewhere, an effect size, a population prevalence, a counterfactual estimate: none of these is in narrative documents. Say so and point to what would answer it. A figure a background document states, such as a monitoring record's count of households reached out of those targeted, can be quoted and judged against a threshold as a stated criterion ([evaluative rubrics](evaluative-rubrics.md)), but it cannot be recomputed or checked.
 
 ## Signs a named method is the wrong one
 
@@ -40,7 +40,7 @@ The commonest mismatch is between the method named and the shape of the corpus. 
 - **MSC asked to pick the best stories.** Selection is the participants' act. Offer secondary analysis of the stories and their selections.
 - **"Impact" meaning a measured effect.** No method on documents estimates one. Offer contribution analysis and say what a quantitative design would need.
 
-Several of these methods have steps done with people: substantiation in outcome harvesting, selection in MSC, the realist teacher-learner cycle, agreeing a rubric or a theory of change. A workflow over documents cannot stand in for those; it drafts candidates and reads what earlier participation left in the documents, and a Rubicon run can stop at agreed points for people to take part, once the definitions are written and a few documents coded and once the answer is drafted. Say which steps fall to people when proposing the method.
+Several of these methods have steps done with people: substantiation in outcome harvesting, selection in MSC, the realist teacher-learner cycle, agreeing a rubric or a theory of change. A workflow over documents cannot stand in for those; it drafts candidates and reads what earlier participation left in the documents, and where the evaluator works through the plugin the run can stop for people to take part, once the definitions are written and a few documents coded and again once the answer is drafted. Say which steps fall to people when proposing the method.
 
 ## When the question names no method
 

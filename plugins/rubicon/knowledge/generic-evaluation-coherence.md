@@ -21,7 +21,7 @@ The main trap in a qualitative coherence evaluation is taking the absence of con
 
 **Code.** A nominal column for the domain a passage concerns (internal, external), and an ordinal column for the interaction, from `friction_or_duplication` through `isolated_coexistence` and `active_coordination` to `programmatic_synergy`. Each level's definition says what counts and what does not: attendance at a coordination meeting is `isolated_coexistence` at most, `active_coordination` needs joint planning or shared information acted on, and `programmatic_synergy` needs text showing pooled resources, joint delivery or formal data sharing. The whole point of the scale is to stop attendance being read as synergy, so define the levels tightly enough that another coder would place the same passage the same way; where a passage sits between attendance and coordination, the answer says the call was close. Where documents mix voices, such as a joint review written by the agency and the ministry together, add a column for whose account a passage gives. The coding prompt asks for friction and duplication to be searched for with the same effort in the agency's own records as in the partner and government material.
 
-**Tabulate.** Count documents by interaction level and domain, and by interaction level and stakeholder group, so the `.within.` cells show, of the documents from each side, how many record friction or duplication. Counts are of documents, so two documents describing one duplicated service are two documents rather than two problems.
+**Tabulate.** Count documents by interaction level and domain, and by interaction level and stakeholder group, each cell out of that group's own documents, so the table shows, of the documents from each side, how many record friction or duplication. Counts are of documents, so two documents describing one duplicated service are two documents rather than two problems.
 
 **Judge.** Only with the evaluator's standard. A typical one is a `rule`: the verdict is no better than adequate wherever even one document records friction or duplication, whatever the rest show, read worst-first so that internal policy alignment cannot make up for duplication in the field. Without a standard, leave the judge out and offer standards in their terms without numbers: coherent where partners outside the agency describe joint delivery, or where no partner describes duplication.
 
@@ -40,7 +40,7 @@ The main weakness of coherence evaluations is what might be called coordination 
 
 ## Where Rubicon falls short
 
-- **The contrast is between documents rather than speakers.** A count split by stakeholder group puts each document on the side its attribute names, so a joint review written by the agency and the ministry together counts as one of them. A column on each coded row naming who is speaking would split it.
+- **The contrast is between documents rather than speakers.** A count split by stakeholder group puts each document on the side its attribute names, so a joint review written by the agency and the ministry together counts as one of them. A column on each coded row naming who is speaking would split it, and a `case` column naming the speaker lets a count of cases count the speakers rather than the document.
 - **A count of friction documents is not a count of frictions.** Two documents describing one duplicated service count twice. Read the count as how much of the material records friction, which is what the threshold is about, and not as how many separate problems there were.
 
 ## Sources
