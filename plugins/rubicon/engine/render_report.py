@@ -1187,7 +1187,7 @@ def limitations_of(headings):
 
 #: Around a numeral written bare in the answer while it is drawn (`unchecked`), and turned into its mark by `inline`
 UNCHECKED = re.compile("([^]*)")
-UNCHECKED_SAID = "The writer's own number, not counted by code"
+UNCHECKED_SAID = "The writer's own number, not counted by fixed rules"
 
 
 def unchecked(R):
@@ -1568,7 +1568,7 @@ def cited(R) -> bool:
 RECORD_CHECK = ("It is the SHA-256 of the zip's SHA256SUMS file, which lists the SHA-256 of every other file in the zip, so "
                 "changing any file breaks the match. To check that the zip is the one this report was created from, unzip it, run "
                 "<code>sha256sum -c SHA256SUMS</code>, then <code>sha256sum SHA256SUMS</code>, and compare the result with the "
-                "fingerprint above. Rubicon's own code checks the rest: <code>python verify.py "
+                "fingerprint above. Rubicon's own fixed rules check the rest: <code>python verify.py "
                 "&lt;report&gt; &lt;zip&gt;</code> recounts every number from the coded passages in the zip, creates "
                 "the report again from the zip and says whether it matches this one exactly.")
 
@@ -1620,7 +1620,7 @@ def gave(R):
     lines = [f"{len([d for d in docs if d in held])} of {len(docs)} with a passage cited."]
     if R.get("read") is not None:
         lines.append(f"{len(said)} marked by the AI that wrote the answer as read, with nothing in them bearing on the "
-                     f"question: its own word, which code does not check{': ' + esc(', '.join(sorted(said))) if said else ''}.")
+                     f"question: its own word, which the fixed rules do not check{': ' + esc(', '.join(sorted(said))) if said else ''}.")
     lines.append(f"{len(neither)} neither cited nor marked{': ' + esc(', '.join(neither)) if neither else ''}."
                  if R.get("read") is not None or neither else "")
     return "<h4>What each document gave</h4><p>" + " ".join(x for x in lines if x) + "</p>"
@@ -1869,7 +1869,7 @@ def annex(R, D, static=False, earlier=None, number=None):
                   + (f", {said_rough} more only approximately" if said_rough else "")
                   + " (a quotation of under twelve characters, such as one word, is not checked).</li>" if said is not None else "") +
                f"<li>{a.get('counts_written_by_id',0)} numbers in the answer, "
-               + (counted_said(R, "each written by the AI beside the count code made from the passages it cited, and equal to it")
+               + (counted_said(R, "each written by the AI beside the count the fixed rules made from the passages it cited, and equal to it")
                   if cited(R) else "every one computed directly from the coded passages rather than written by the AI")
                + f"; {len(a.get('numbers_written_bare',[]))} written by the AI without a count behind them.</li>"
                f"<li>{len(a.get('citations_to_no_row',[]))} citations to passages that do not exist; {len(set(a.get('quotations_not_in_what_they_cite',[])))} quotations not in the passage they cite.</li></ul>")
@@ -2072,7 +2072,7 @@ def counted_said(R, every_beside):
     beside = procedure.stated_beside(R)
     if beside is None:
         return every_beside
-    return ("each counted by code from the passages the AI cited and put where the AI referred to it"
+    return ("each counted by fixed rules from the passages the AI cited and put where the AI referred to it"
             + (f", {beside} of them also written by the AI beside it and equal to it" if beside else ""))
 
 
@@ -2080,7 +2080,7 @@ def summary(R, a, nrows):
     """The box under the short answer: what code checked in this report, and, for a checked run, how many of the
     answer's sentences a second AI reader read against the documents; then what nothing checked."""
     counted = (f"<li><b>{a['counts_written_by_id']}</b> numbers, "
-               + (counted_said(R, "each written by the AI and shown beside the count code made from the passages it cited, which it must equal") + "."
+               + (counted_said(R, "each written by the AI and shown beside the count the fixed rules made from the passages it cited, which it must equal") + "."
                   if cited(R) else "every one computed directly from the coded passages rather than written by the AI.")
                + '<span class="click"> Click any number to see who it counts.</span></li>') if a.get("counts_written_by_id") else (
         "<li>No counts: the answer states no number computed from the coded passages, so its findings rest on the "
@@ -2093,7 +2093,7 @@ def summary(R, a, nrows):
                    'against it and why they bear it out.<span class="click"> Click a claim\'s tag to see them.</span></li>')
     if a.get("numbers_written_bare_at"):
         out.append(f'<li class="unchecked-said">Other numbers in the text, <span class="unchecked">in grey</span>, are the '
-                   "writer's own, such as a year or a number quoted from a source, and were not counted by code.</li>")
+                   "writer's own, such as a year or a number quoted from a source, and were not counted by fixed rules.</li>")
     if R.get("check"):
         # the check's record gives how many sentences it corrected only in prose of its own wording, so none is said here
         out.append(f"<li><b>{len(sentences(R['answer']))}</b> sentences of the answer were read against the interviews "

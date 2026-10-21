@@ -246,7 +246,7 @@ def told(R: dict, steps: list[dict]) -> list[dict]:
         if s.get("cited"):
             labels = _listed([_label(c.get("name")) for c in cols])
             coding.append((f"{lead} cited, for the numbers in its answer, the passages each rests on, each labelled with its {labels}. "
-                           "So every count rests only on the passages cited: code found each one word for word in its "
+                           "So every count rests only on the passages cited: fixed rules found each one word for word in its "
                            "document and counted the documents they come from, but did not check that every passage bearing "
                            "on a point was cited, or that each was filed under the right point or speaker.", s["id"]))
             continue
@@ -315,7 +315,7 @@ def told(R: dict, steps: list[dict]) -> list[dict]:
     for s in of_kind("profile"):
         key = s.get("key", "case")
         unit = "case" if key == "case" else "document" if key == "document" else _label(key)
-        profiled.append(((" " if profiled else "") + f"Code brought together, for each {unit}, everything coded in any of its "
+        profiled.append(((" " if profiled else "") + f"Fixed rules brought together, for each {unit}, everything coded in any of its "
                          f"passages and documents, and recorded {_listed([_profiled(c) for c in s.get('columns') or []])}"
                          + (", so a count can join what one person says in different places." if key == "case" else "."), s["id"]))
 
@@ -399,7 +399,7 @@ def told(R: dict, steps: list[dict]) -> list[dict]:
     claimed = [(s, len(records.get(s["id"], {}).get("claims") or [])) for s in of_kind("claims")]
     stage("Claims", [(f"The writer tagged {k} key claim{'' if k == 1 else 's'} that rest{'s' if k == 1 else ''} on no count, as each number is "
                       "tagged: each names the passages for it and against it, how they would be found again and why they "
-                      "bear it out, and code checked that every passage named is one the coding holds." if k else
+                      "bear it out, and fixed rules checked that every passage named is one the coding holds." if k else
                       "The writer tagged no claim.", s["id"]) for s, k in claimed])
 
     # The writing, and what code checked in it
@@ -407,9 +407,9 @@ def told(R: dict, steps: list[dict]) -> list[dict]:
     for s in of_kind("write"):
         made = "counts" + (" and verdicts" if judges else "")
         beside = stated_beside(R)
-        writing.append(("The AI wrote the answer before citing it, and code put beside each number it gave the count its "
+        writing.append(("The AI wrote the answer before citing it, and fixed rules put beside each number it gave the count its "
                         "citations make, refusing to create the report while any differed." if cited and beside is None else
-                        "The AI wrote the answer referring to each count rather than writing the number, and code put in "
+                        "The AI wrote the answer referring to each count rather than writing the number, and fixed rules put in "
                         "the count its citations make" + (f", checking the {beside} numbers the AI also wrote beside one "
                         "and refusing to create the report while any differed" if beside else "") + "." if cited else
                         f"Rubicon wrote the answer from these {made}, citing for each finding the passages it rests on.",

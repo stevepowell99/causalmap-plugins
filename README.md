@@ -14,7 +14,7 @@ Answering an evaluation question usually takes a workflow of several steps: spli
 - It draws on published evaluation practice, such as contribution analysis, process tracing, realist evaluation and outcome harvesting. Where your question or your documents do not suit the method you name, it says so.
 - For a judgement of worth, it can help you set a rubric before the evidence is seen, and always says whose standard a verdict rests on and when it was set.
 - It can pause for stakeholders to agree the definitions or the draft. Where a verdict has real consequences, it can first test the workflow on two made-up sets of documents, one written to pass and one to fail, to show the workflow can tell them apart.
-- Every count is made by code, out of a stated base, and every quotation is checked word for word against its document.
+- Every count is made by fixed rules, out of a stated base, and every quotation is checked word for word against its document.
 
 A later run can build on an earlier one's coding rather than repeat it. You get a report in which every number and quotation can be clicked to see what it rests on, a Word copy, and the whole run in one file, so that somebody else can check and rebuild the analysis. It runs on your own Claude plan; nothing is sent to Causal Map. More, with example reports: [rubicon.causalmap.app/plugin](https://rubicon.causalmap.app/plugin/).
 

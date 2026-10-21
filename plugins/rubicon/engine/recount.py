@@ -270,7 +270,7 @@ if a.answer:
 
 # code-only audits of the coding and the answer: warnings to weigh against the documents, never faults to clear
 try:
-    report["audit"] = {"about": "Warnings from checks that code can make without a model. Weigh each against the document "
+    report["audit"] = {"about": "Warnings from checks that fixed rules can make without a model. Weigh each against the document "
                                 "it names; none is a fault the report must clear, and a finding may be right.",
                        **audits.audit_run(run, text if a.answer else None, counts)}
 except Exception as e:  # a broken audit must not lose the recount, and must say it did not run
