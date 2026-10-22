@@ -338,6 +338,21 @@ def recoded_links(links: dict | None, s: dict) -> dict | None:
     return {k: (f"{v}_item" if v in key_columns(s) else v) for k, v in links.items()}
 
 
+def links_ending(steps: list[dict], sid: str) -> dict | None:
+    """The link ends of what a step stands for, from the workflow alone: a code step's own `links`, or for a group
+    step those of the code step it groups. Where a group step with several key columns assigns items (a soft recode),
+    the ends are their item columns (`recoded_links`). The one place that answers "which columns are this table's
+    link ends?", for the recount, the procedure and the report, so a table counted by the item columns is read as the
+    causal map it is."""
+    by_id = {st.get("id"): st for st in steps}
+    st = by_id.get(sid) or {}
+    code = (st.get("inputs") or [None])[0] if st.get("kind") == "group" else sid
+    links = (by_id.get(code) or {}).get("links")
+    soft = [g for g in steps if g.get("kind") == "group" and (g.get("inputs") or [None])[0] == code and g.get("assign")
+            and len(key_columns(g)) > 1]
+    return recoded_links(links, soft[-1]) if soft else links
+
+
 #: The settings a step must give for itself, beside every setting `resolve_step` fills in.
 #: `cited` marks rows cited by the AI that wrote the answer rather than coded from the documents (`procedure.py`).
 GIVEN = {"sample": {"n", "documents"}, "code": {"prompt", "columns", "from", "cited"}, "group": {"key_column"}, "profile": {"columns"}, "tabulate": {"where"},

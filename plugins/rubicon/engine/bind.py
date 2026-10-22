@@ -151,11 +151,9 @@ def part(k, report, role=None):
         print(f"{report.name}: figure lines left out, as in its own report: {', '.join(figures_left)}")
     page = {"title": title, "lead": lead, "body": body, "facts": RR.facts(R, D), "matrix": RR.matrix(R, D), "data": D}
     S = RR.build_data(R)
+    S["note_prefix"] = f"p{k}x"  # one footnote id for each part's note, so no two parts' notes share one
     stitle, slead, sbody, cite_no = RR.answer_html(R, S, static=True)
-    notes = "".join(f'<p class="note">{RR.esc(S["rows"].get(rid, {}).get("doc", ""))}: '
-                    f'"{RR.esc(S["rows"].get(rid, {}).get("ctx", ["", "", ""])[1])}"</p>'
-                    for rid, _ in sorted(cite_no.items(), key=lambda x: x[1]))
-    word = {"lead": slead, "body": sbody, "notes": notes}
+    word = {"lead": slead, "body": sbody, "notes": cite_no.listed("h3")}
     said = RR.heading(R, title)
     return {"k": k, "asks": role == "question", "role": role, "R": R, "D": D, "S": S, "report": report,
             "heading": f"{BACKGROUND}: {said}" if role == "background" else said,
@@ -317,9 +315,12 @@ def differences(parts):
     differently where two parts give the same name different words (what it means, counts, does not count, or what is
     implicit). Only what each part's record already holds is read: its tables' cells and its workflow's columns."""
     counted, defined, tables, cells = compared(parts)
+    specs = {}
+    for p in parts:  # each question's steps, so that a step is named as the report names it
+        specs.setdefault(p.get("q", p["k"]) or 0, {}).update(RR.specs_of(p["R"]["workflow"]))
     def where(held, most=3):
         places = sorted(held)
-        shown = ", ".join(f"{RR.label(sid)} ({questions([k]) if k else 'shared steps'})" for k, sid in places[:most])
+        shown = ", ".join(f"{RR.step_name(sid, specs.get(k, {}))} ({questions([k]) if k else 'shared steps'})" for k, sid in places[:most])
         return shown + (f" and {len(places) - most} more" if len(places) > most else "")
     out = []
     for (c, v), bases in counted.items():
@@ -373,7 +374,8 @@ def share_texts(parts):
 
 
 #: A group of citations as `render_report.inline` draws one, and a finding's Evidence button: left out of the index
-CHIPS = re.compile(r'\s*\((?:<button class="cite"[^>]*>.*?</button>(?:, |; )?)+\)|<button class="based"[^>]*>.*?</button>')
+CHIPS = re.compile(r'\s*\((?:<button class="cite[^"]*"[^>]*>.*?</button>(?:<template[^>]*>.*?</template>)?(?:, |; )?)+\)'
+                   r'|<button class="based"[^>]*>.*?</button>', re.S)
 
 
 def plain(markup):
@@ -480,13 +482,13 @@ def binder_word(parts, title, date):
         f'{p["word"]["lead"]}{p["word"]["body"]}' for p in parts if p["asks"])
     annexes = "".join(
         f'<h2>Annex {p["k"]}: {esc(p["heading"])}</h2>{provenance(p, static=True)}{background(p, static=True)}{p["word"]["annex"]}'
-        + (f'<h3>Passages cited</h3>{p["word"]["notes"]}' if p["role"] != "shared" else "") for p in parts)
+        + (p["word"]["notes"] if p["role"] != "shared" else "") for p in parts)
     return ('<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" '
             'xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">'
             f'<title>{esc(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->'
             '<style>body,p,li,td{font-family:Cambria,Georgia,serif;font-size:11pt;line-height:1.35;color:#17130f}'
             'h1,h2,h3{font-family:Cambria,Georgia,serif;font-weight:normal;color:#8c1912}h1{font-size:20pt}h2{font-size:14pt}'
-            'p.note{font-size:9pt}td,th{border:1px solid #e4dcd0;padding:3pt 5pt;font-size:9pt;vertical-align:top}table{border-collapse:collapse}'
+            'p.MsoFootnoteText{font-size:9pt;line-height:1.2}.MsoFootnoteReference{vertical-align:super}td,th{border:1px solid #e4dcd0;padding:3pt 5pt;font-size:9pt;vertical-align:top}table{border-collapse:collapse}'
             '.pb{page-break-before:always}</style></head><body>'
             f'<p style="color:#8b7f72;font-size:9pt">RUBICON COMBINED REPORT</p><h1>{esc(title)}</h1>'
             f'<p style="color:#8b7f72;font-size:9pt">{n} question{"" if n == 1 else "s"} · {esc(date)}</p>{about(parts)}'

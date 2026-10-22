@@ -570,7 +570,17 @@ export function mountMap(root, elements, { scroller = root, opened = () => {}, o
     // And the mirror: the pointer on a block rings that block's node. Delegated, because
     // there is one listener here and a block per step, per result and per prong. A block
     // inside an earlier run's fold rings that run, which is the node the map has for it.
+    //
+    // Only a pointer that moved, though. A browser re-runs mouseover when the page scrolls
+    // under a pointer at rest, which handed the ring to whatever block passed under it, a
+    // block behind the reading line and skipping the short ones (Steve, 22 October 2026:
+    // the reading line drives the ring while scrolling, and the pointer once it moves).
+    let pointer = null
     root.addEventListener('mouseover', event => {
+        const at = `${event.clientX},${event.clientY}`
+        const still = at === pointer
+        pointer = at
+        if (still) return
         const block = event.target?.closest?.('.rb-block[data-node]')
         const node = block?.dataset.node || null
         const id = node?.startsWith('run:') && node.includes('/')
@@ -605,6 +615,11 @@ export function mountMap(root, elements, { scroller = root, opened = () => {}, o
     // only when it has moved.
     let looking = null
     const scrolled = () => {
+        // Scrolling hands the ring back to the reading line from a block the pointer was on
+        if (onBlock !== null) {
+            onBlock = null
+            if (!onMap && !onEdge) focusOn(null)
+        }
         if (looking !== null) return
         looking = requestAnimationFrame(() => {
             looking = null

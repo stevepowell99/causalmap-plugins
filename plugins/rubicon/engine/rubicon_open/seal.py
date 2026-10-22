@@ -10,10 +10,11 @@ from rubicon_open.corpus import as_read
 
 def engine_fingerprint(engine):
     """The SHA-256 of every file of the engine in the folder `engine`, so a zip records exactly which code drew its
-    report. Each file is read with its line endings made one newline (`as_read`, the open format's one rule), so the
-    same commit gives the same fingerprint from a Windows checkout, which writes CRLF, and from any other."""
+    report. Each file is read with its line endings made one newline (`as_read`, the open format's one rule), and the
+    files are taken in the order of their relative paths as strings, so the same commit gives the same fingerprint from
+    a Windows checkout, which writes CRLF and sorts paths ignoring case, and from any other."""
     h = hashlib.sha256()
-    for p in sorted(engine.rglob("*")):
+    for p in sorted(engine.rglob("*"), key=lambda p: p.relative_to(engine).as_posix()):
         if p.is_file() and "__pycache__" not in p.parts:
             # surrogateescape carries any byte that is not UTF-8 through unchanged, so only line endings are touched
             body = as_read(p.read_bytes().decode("utf-8", "surrogateescape")).encode("utf-8", "surrogateescape")

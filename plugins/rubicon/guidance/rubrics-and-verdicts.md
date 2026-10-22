@@ -19,7 +19,7 @@ Write it out in the plan and in the answer:
 
 - **Verdicts**, listed best first, each saying what it stands for. "Green" alone is not a standard; "every partner described a change they could date and name a cause for" is.
 - **Criteria**, each a question with its own levels, each level with a descriptor of what earns it.
-- **A rule or a reading for each criterion.** A criterion that turns on a number is a rule over a saved count, applied by code and never left to a model's reading of the numbers. A criterion that cannot be counted is a reading, weighing quoted passages against the descriptors and citing them.
+- **A rule or a reading for each criterion.** A criterion that turns on a number is a rule over a saved count, applied by fixed rules and never left to a model's reading of the numbers. A criterion that cannot be counted is a reading, weighing quoted passages against the descriptors and citing them.
 - **How criteria combine**: all must hold, none may fail, the weakest decides (a chain, such as a theory of change that fails at its weakest link), or the best decides (two routes to one outcome); or each criterion is rated on a scale of its own and the evaluator's rules say which combinations give which verdict, tried in order ("right where reach is at least adequate and quality is not poor; otherwise not right"). Never average ordinal levels, since an average hides the failure in one place. A rubric that keeps its criteria apart reports each and says they were not combined.
 - **When no verdict can be given.**
 

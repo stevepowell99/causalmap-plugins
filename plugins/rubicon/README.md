@@ -6,7 +6,7 @@ Rubicon answers an evaluator's questions from a folder of documents, such as int
 
 ## Install
 
-In the Claude app: Customize > Plugins > Add > Add marketplace, enter `stevepowell99/causalmap-plugins`, then install Rubicon from it. In a terminal: `/plugin marketplace add stevepowell99/causalmap-plugins`, then `/plugin install rubicon@causalmap`; `claude plugin marketplace update causalmap` followed by `claude plugin update rubicon@causalmap` fetches a new version there.
+Install it once, in the Claude app: Customize > Plugins > Add > Add marketplace, enter `stevepowell99/causalmap-plugins`, then install Rubicon from it. It is saved to your Claude account, so the same copy works in Cowork, the Code tab and Claude Code. Check for updates under Manage marketplaces brings a new version to all three. Only if you use Claude Code without the app, install from a terminal with `claude plugin marketplace add stevepowell99/causalmap-plugins` and `claude plugin install rubicon@causalmap`, and update with `claude plugin marketplace update causalmap` and `claude plugin update rubicon@causalmap`. Never use both routes: a terminal copy stays on that computer, updates separately and hides your account's copy in Claude Code, so the two drift apart unseen.
 
 It needs Python 3.9 or later and Node.js, and installs nothing else: it keeps and checks each run with the scripts in its own `engine/` folder, written in Python's standard library. If Python or Node.js is missing, `/rubicon` says so and offers to install it.
 

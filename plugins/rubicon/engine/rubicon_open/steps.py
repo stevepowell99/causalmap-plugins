@@ -21,7 +21,7 @@ from . import legacy_weak, locator, node
 from .corpus import Corpus
 from .judge import level_counts
 from .units import COUNTS, count_said, unit_noun
-from .workflow import CODING, LOOP_COLUMNS, order_of, SEQUENCE_COLUMNS, arrow, canonical, codebook_of, column_values, combining, derived, item_columns, key_columns, loop_markers, recoded_links, resolve_step, sign_of, value_key
+from .workflow import CODING, LOOP_COLUMNS, order_of, SEQUENCE_COLUMNS, arrow, canonical, codebook_of, column_values, combining, derived, item_columns, key_columns, links_ending, loop_markers, resolve_step, sign_of, value_key
 
 
 #: How a tabulation names its cells. By coordinates, the id is the step's and the values of its `by` columns in square
@@ -478,16 +478,9 @@ def group_given(run: Run, s: dict, book: dict) -> dict:
 
 
 def links_of(run: Run, sid: str) -> dict | None:
-    """The link ends of what a tabulation reads: the code step's own `links`, or for a group step (whose table is its
-    input's rows, with items) those of the code step it groups. Where a group step with several key columns recoded
-    the ends softly, the ends are their item columns (`workflow.recoded_links`)."""
-    steps = {st.get("id"): st for st in run.steps}
-    st = steps.get(sid) or {}
-    code = (st.get("inputs") or [None])[0] if st.get("kind") == "group" else sid
-    links = (steps.get(code) or {}).get("links")
-    soft = [g for g in run.steps if g.get("kind") == "group" and (g.get("inputs") or [None])[0] == code and g.get("assign")
-            and len(key_columns(g)) > 1 and run.out.get(g.get("id"), {}).get("table") is not None]
-    return recoded_links(links, soft[-1]) if soft else links
+    """The link ends of what a tabulation reads (`workflow.links_ending`): the workflow says them, so a group step that
+    assigns items is read the same here, in the procedure and in the report."""
+    return links_ending(run.steps, sid)
 
 
 def _describe_documents(run: Run, docs: list[str], rows: list[dict], cols: list[dict]) -> dict:

@@ -30,9 +30,10 @@
   // whether any passage in the run is implicit; where none is, a passage's strength says nothing and is not shown
   const graded = () => Object.values(RUN.rows).some(r => r.weak);
   const isPole = v => /^~/.test(String(v));
-  const stepName = s => label(s.replace(/^c_/, ''));
-  // a step as the annex heads it, its kind in words then its name (render_report.step_said)
-  const stepSaid = s => (RUN.steps && RUN.steps[s]) || label(s);
+  // a step's name as a reader sees it, from what the workflow says of it (rubicon_open/names.py `step_name`)
+  const stepName = s => (RUN.names && RUN.names[s]) || label(s.replace(/^[a-z]_/, ''));
+  // a step as the annex heads it, its kind in words then its name (names.py `step_said`)
+  const stepSaid = s => (RUN.steps && RUN.steps[s]) || stepName(s);
   const andList = xs => xs.length < 2 ? xs.join('') : xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1];
   const times = n => n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`;
   // A passage's codes as chips, each opening every passage given the same code in that step (showCode), from the keys
@@ -193,7 +194,7 @@
     }
     const used = stepsOf().filter(s => marks.some(([, r]) => r.step === s));
     open(`${docTag(doc, false)}<h3>${esc(RUN.docs[doc].title || doc)}</h3>` +
-      `<p class="layers">${used.map(s => `<span><i style="background:${layer(s)}"></i>${esc(label(s))}</span>`).join('')}</p>` +
+      `<p class="layers">${used.map(s => `<span><i style="background:${layer(s)}"></i>${esc(stepName(s))}</span>`).join('')}</p>` +
       `<p class="small">${marks.length} coded passage${marks.length === 1 ? '' : 's'}. Point at one, or tab to it, to see how it was coded; click it for the passage.</p><div class="whole">${body}</div>`);
     const at = pbody.querySelector('.span.from');
     if (at) found(at);
@@ -242,6 +243,48 @@
     if (!pop.hidden) hidePop();
   }, true);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') hidePop(); });
+  // One entry that points at several places (render_report.choices), such as a citation of a claim and its documents,
+  // opens a popover listing each place as a button of its own: the whole finding, or each document's passages. A
+  // choice opens as the same button would anywhere else; a choice made, a click outside, Escape or Tab away closes it.
+  const choicesPop = document.createElement('div');
+  choicesPop.className = 'choices-pop';
+  choicesPop.setAttribute('role', 'group');
+  choicesPop.hidden = true;
+  document.body.appendChild(choicesPop);
+  let choicesFrom = null;
+  function showChoices(b) {
+    if (choicesFrom === b && !choicesPop.hidden) return hideChoices(true);
+    hideChoices(false);
+    const list = b.nextElementSibling;
+    if (!list || !list.matches('template.choices-list')) return;
+    choicesPop.replaceChildren(list.content.cloneNode(true));
+    choicesPop.setAttribute('aria-label', b.textContent);
+    choicesPop.hidden = false;
+    const r = b.getBoundingClientRect();
+    choicesPop.style.left = Math.max(scrollX + 8, Math.min(r.left + scrollX - 12, scrollX + innerWidth - choicesPop.offsetWidth - 8)) + 'px';
+    const below = r.bottom + 6, above = r.top - choicesPop.offsetHeight - 6;
+    choicesPop.style.top = (below + choicesPop.offsetHeight > innerHeight && above > 0 ? above : below) + scrollY + 'px';
+    b.setAttribute('aria-expanded', 'true');
+    choicesFrom = b;
+    choicesPop.querySelector('button')?.focus();
+  }
+  function hideChoices(refocus) {
+    if (choicesPop.hidden) return;
+    choicesPop.hidden = true;
+    choicesPop.replaceChildren();
+    if (choicesFrom) { choicesFrom.setAttribute('aria-expanded', 'false'); if (refocus) choicesFrom.focus(); }
+    choicesFrom = null;
+  }
+  choicesPop.addEventListener('focusout', e => {
+    if (!e.relatedTarget || (!choicesPop.contains(e.relatedTarget) && e.relatedTarget !== choicesFrom)) hideChoices(false);
+  });
+  // the arrow keys move between the choices, as in a menu
+  choicesPop.addEventListener('keydown', e => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const bs = [...choicesPop.querySelectorAll('button')], i = bs.indexOf(document.activeElement);
+    e.preventDefault();
+    bs[(i + (e.key === 'ArrowDown' ? 1 : bs.length - 1)) % bs.length]?.focus();
+  });
   const MOST_SHOWN = 4;
   function showTip(span) {
     const ids = span.dataset.rows.split(',');
@@ -339,10 +382,14 @@
     const all = byPlace(held.rows);
     open(head(k, `Everything coded for this case: ${passagesSaid(all)}, in ${countSaid(held.docs.length, null, 'documents')}, ` +
       `from the ${andList(steps.map(stepName))} coding${steps.length === 1 ? '' : 's'}`) +
-      held.docs.map(d => {
-        const groups = byPlace(held.rows.filter(id => RUN.rows[id].doc === d).sort((a, b) => at(a) - at(b)));
-        return `<p class="small">In ${docLink(d)}: ${passagesSaid(groups)}</p>` + groups.map(g => passage(g)).join('');
-      }).join(''));
+      inDocuments(byPlace(held.docs.flatMap(d => held.rows.filter(id => RUN.rows[id].doc === d).sort((a, b) => at(a) - at(b))))));
+  }
+  // Passages under their documents, each document with how many of them it holds, in the order the documents first
+  // appear: how a case, and a claim's or a reading's passages from several documents, are listed
+  function inDocuments(groups) {
+    const by = new Map();
+    for (const g of groups) { const d = RUN.rows[g[0]].doc; by.has(d) ? by.get(d).push(g) : by.set(d, [g]); }
+    return [...by].map(([d, gs]) => `<p class="small">In ${docLink(d)}: ${passagesSaid(gs)}</p>` + gs.map(g => passage(g)).join('')).join('');
   }
   // A code's chip: what the code means and every passage given it in its step. Where a table counts that code alone,
   // its cell holds exactly those passages and opens as it does from the table; otherwise the same view, without a count.
@@ -431,7 +478,11 @@
   function showRows(ids, why = '') {
     const groups = byPlace(ids);
     if (!groups.length) return open(`<p>No passage ${esc(ids.join(', '))}.</p>`);
-    open(head(passagesSaid(groups), why) + groups.map(g => passage(g, { full: groups.length === 1 })).join(''));
+    // from several documents they are listed under each, in the order the corpus lists them
+    const order = Object.keys(RUN.docs), place = g => order.indexOf(RUN.rows[g[0]].doc);
+    const several = new Set(groups.map(g => RUN.rows[g[0]].doc)).size > 1;
+    open(head(passagesSaid(groups), why) + (several ? inDocuments([...groups].sort((a, b) => place(a) - place(b)))
+      : groups.map(g => passage(g, { full: groups.length === 1 })).join('')));
   }
   // A claim the writer tagged as a number is tagged: what it says, why its passages bear it out and how they would be
   // found again, then the passages for it and those against it
@@ -457,7 +508,7 @@
     showRows(ids, RUN.rows[ids[0]] ? `Coded at this point of ${RUN.rows[ids[0]].doc}` : '');
   };
 
-  document.addEventListener('click', e => {
+  const pressed = e => {
     // a link to a section of the report (the contents, a "§" reference) takes the reader there and marks its heading
     const to = e.target.closest('a[href^="#"]');
     if (to) {
@@ -478,6 +529,7 @@
     const b = e.target.closest('button');
     if (!b) return;
     if (b.id === 'panel-close') { panel.hidden = true; return; }
+    if (b.classList.contains('choices')) return showChoices(b);
     if (b.dataset.xlsxStep || b.dataset.xlsxCells) return downloadXlsx(b);
     if (b.dataset.cell) return showCell(b.dataset.cell, b.dataset.within);
     if (b.dataset.claim) return showClaim(b.dataset.claim);
@@ -488,8 +540,15 @@
     if (b.dataset.based) return showBased(b.dataset.based);
     if (b.dataset.doc) return showDoc(b.dataset.doc, b.dataset.from);
     if (b.dataset.step) return showStep(b.dataset.step);
+  };
+  // a click is pressed first, so a choice opens its passages before the popover closes; its opener's own click is not outside
+  document.addEventListener('click', e => {
+    pressed(e);
+    if (!choicesPop.hidden && e.target.closest('.choices') !== choicesFrom) hideChoices(false);
   });
   document.addEventListener('keydown', e => {
+    // Escape closes the popover first, back to the entry that opened it, and the panel only once no popover is open
+    if (e.key === 'Escape' && !choicesPop.hidden) { hideChoices(true); return; }
     if (e.key === 'Escape') panel.hidden = true;
     // a coded stretch is a span, which a browser does not press on Enter or Space as it presses a button
     const span = e.target.closest && e.target.closest('.whole .span');

@@ -39,6 +39,7 @@ code { font-size: .85em; background: var(--wash); padding: 0 .25em; border-radiu
 .madewith { margin: 1rem 0 0; font-size: .85rem; color: var(--quiet); }
 .madewith a { color: inherit; }
 .asked { margin: 0; font-size: .95rem; color: var(--quiet); }
+.how-to { margin: .3rem 0 0; font-size: .9rem; color: var(--quiet); }
 .asked b { color: var(--ink); font-weight: 600; margin-right: .3rem; }
 .asked summary { cursor: pointer; }
 .asked p { margin: .4rem 0 0; }
@@ -67,17 +68,21 @@ code { font-size: .85em; background: var(--wash); padding: 0 .25em; border-radiu
 
 button { font: inherit; color: inherit; cursor: pointer; }
 button:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
-/* Everything clickable in the running text (a count, a citation, a source's id, a code's label, a link to a section) looks alike: the
-   text as it is, with a faint dotted underline that firms up on hover. What each opens differs; how it looks does not. */
-.n, .cite, .src, .doclink, .code-label, a.see, a.step { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-decoration: underline dotted color-mix(in srgb, var(--ink) 40%, transparent); text-decoration-thickness: 1px; text-underline-offset: .2em; }
+/* Everything clickable in the running text (a count, a citation, a source's id, a code's label, a link to a section), and each
+   place in a citation's list, looks alike: the text as it is, with a light dotted underline, lighter than the text, that firms
+   up on hover. What each opens differs; how it looks does not. */
+.n, .cite, .src, .doclink, .code-label, a.see, a.step, .choices-pop button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-decoration: underline dotted color-mix(in srgb, var(--ink) 60%, transparent); text-decoration-thickness: 1.5px; text-underline-offset: .2em; }
 .n { font-variant-numeric: tabular-nums; }
+/* A count, a citation and a source's id are each at least 24px high to tap: padding above and below, taken back by an
+   equal negative margin so the lines stay as far apart as before, and the hover wash kept to the words */
+.n, .cite, .src, .doclink { padding-block: .2em; margin-block: -.2em; background-clip: content-box; }
 /* A citation's brackets stay on the line with the ids beside them (render_report.bracketed) */
 .nw { white-space: nowrap; }
 /* A number the writer wrote with no count behind it (a year, a number quoted from a source): set a little quieter, never
    underlined, since it opens nothing; the verification box says what the grey means */
 .unchecked { color: var(--quiet); cursor: help; }
 .unchecked-said .unchecked { cursor: inherit; }
-.n:hover, .cite:hover, .cite.on, .src:hover, .doclink:hover, .code-label:hover, a.see:hover, a.step:hover { text-decoration-color: var(--red); background: var(--wash); border-radius: 2px; }
+.n:hover, .cite:hover, .cite.on, .src:hover, .doclink:hover, .code-label:hover, a.see:hover, a.step:hover, .choices-pop button:hover, .choices-pop button:focus-visible { text-decoration-color: var(--red); background: var(--wash); border-radius: 2px; }
 a.see { color: var(--quiet); font-size: .85em; white-space: nowrap; }
 /* A step named in the plain account links to its record, underlined only under the pointer, since whole clauses carry the link */
 a.step { text-decoration-color: transparent; }
@@ -96,6 +101,11 @@ a.step { text-decoration-color: transparent; }
 .map g.node:not(.inert) { cursor: pointer; }
 .map g.node:not(.inert):hover path, .map g.node:not(.inert):hover polygon { stroke: var(--red); }
 .fig figcaption { font-size: .8rem; color: var(--quiet); margin-top: .6rem; }
+/* a map's counts as a grid beneath it, behind one control that names what it will do (render_report `causal_map`) */
+.map-table { margin: .6rem 0 0; }
+.map-table > summary { font-size: .85rem; color: var(--red); }
+.map-table .open, .map-table[open] .shut { display: none; }
+.map-table[open] .open { display: inline; }
 .legend { font-size: .8rem; color: var(--quiet); display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: center; margin-bottom: .6rem; }
 .key { display: inline-block; width: .9em; height: .6em; border-radius: 2px; margin-right: .3rem; vertical-align: middle; }
 .key.yes { background: var(--red); } .key.no { background: var(--bar-no); }
@@ -216,8 +226,14 @@ summary { cursor: pointer; font-weight: 500; }
 blockquote { margin: .6rem 0; padding: .6rem .9rem; background: var(--panel); border-left: 3px solid var(--line); font-size: .88rem; }
 .codebook th, .codebook td { text-align: left; vertical-align: top; padding: .4rem .5rem; border-bottom: 1px solid var(--line); min-width: 9rem; overflow-wrap: anywhere; }
 .codebook thead th { color: var(--quiet); font-weight: 500; }
+/* An item's open labels, folded under its row (render_report.py `grouped`) */
+.codebook tr:has(+ tr.gathered) > * { border-bottom: 0; }
+.codebook tr.gathered td { padding-top: 0; font-size: .85em; color: var(--quiet); }
+.codebook tr.gathered p { margin: .3rem 0 0; color: var(--ink); }
 .quotes { list-style: none; padding: 0; font-size: .88rem; }
 .rowlink { border: 0; background: var(--wash); border-radius: 3px; font-size: .75rem; padding: .05rem .35rem; margin-right: .4rem; color: var(--quiet); }
+/* a trigger standing in a sentence ("Rests on: 16 passages in 8 grantees.") keeps its full stop against it */
+span.small > .rowlink { margin-right: 0; }
 
 .next { background: var(--red-wash); border-radius: 6px; padding: 1rem 1.2rem; }
 .next h2 { margin-top: 0; font-size: 1.2rem; }
@@ -250,6 +266,13 @@ blockquote { margin: .6rem 0; padding: .6rem .9rem; background: var(--panel); bo
 .tilde { color: var(--opp); font-weight: 700; font-size: 1.12em; line-height: 1; padding: 0 .06em; cursor: help; border-radius: 3px; }
 .tilde:hover, .tilde:focus-visible { background: var(--red-wash); outline: none; }
 .tilde-pop { position: absolute; z-index: 30; max-width: min(22rem, calc(100vw - 16px)); background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-left: 3px solid var(--opp); border-radius: 6px; box-shadow: 0 4px 14px rgb(0 0 0 / .16); padding: .4rem .6rem; font: .82rem/1.4 var(--sans); }
+/* one entry's several places (report.js showChoices): a list in the panel's colours, each place a row of its own */
+.choices-pop { position: absolute; z-index: 30; min-width: 12rem; max-width: min(24rem, calc(100vw - 16px)); max-height: min(60vh, 24rem); overflow-y: auto; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 14px rgb(0 0 0 / .16); padding: .3rem 0; font: .85rem/1.4 var(--sans); }
+.choices-pop button { display: block; width: 100%; text-align: left; margin: 0; padding: .35rem .75rem; border: 0; border-radius: 0; background: none; background-clip: border-box; color: inherit; font: inherit; cursor: pointer; }
+.choices-pop button:hover, .choices-pop button:focus-visible { background: var(--wash); outline: none; }
+.choices-pop .claim { font-weight: 600; border-bottom: 1px solid var(--line); }
+.choices-pop button:first-child:not(.claim) { border-bottom: 1px solid var(--line); }
+.choices[aria-expanded="true"] { text-decoration-color: var(--red); background: var(--wash); border-radius: 2px; }
 .panel .tip { position: absolute; left: 1rem; right: 1rem; z-index: 2; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 14px rgb(0 0 0 / .16); padding: .5rem .7rem; font-size: .82rem; pointer-events: none; }
 .panel .tip .coding + .coding { border-top: 1px solid var(--line); margin-top: .4rem; padding-top: .4rem; }
 .panel .coding .doc-tag { margin: 0; }
@@ -260,7 +283,7 @@ blockquote { margin: .6rem 0; padding: .6rem .9rem; background: var(--panel); bo
 
 @media print {
   .wf-gutter { display: none !important; }
-  .panel, .next, .checks .click, .based, .toc { display: none !important; }
+  .panel, .next, .checks .click, .based, .toc, .choices-pop { display: none !important; }
   .annexes::before { background: none; }
   .n, .cite, .src, .doclink, .code-label { text-decoration: none; }
   details { display: block; } details > * { display: block; }

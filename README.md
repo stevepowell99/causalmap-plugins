@@ -20,14 +20,20 @@ A later run can build on an earlier one's coding rather than repeat it. You get 
 
 ## Install
 
-In the Claude app: Customize > Plugins > Add marketplace, and enter `stevepowell99/causalmap-plugins`. Then install Rubicon from it. To get a new version, choose Manage marketplaces, open the ⋮ menu beside causalmap-plugins and choose Check for updates; do this from time to time, since Sync automatically does not reliably bring new versions on its own. If Check for updates still leaves the old version, remove the causalmap-plugins marketplace, restart the app, and add it again.
+Install Rubicon once, in the Claude app: Customize > Plugins > Add marketplace, and enter `stevepowell99/causalmap-plugins`. Then install Rubicon from it. It is saved to your Claude account, so the same copy works in Cowork, in the Code tab and in Claude Code signed in to that account.
 
-In Claude Code:
+To get a new version, choose Manage marketplaces, open the ⋮ menu beside causalmap-plugins and choose Check for updates; do this from time to time, since Sync automatically does not reliably bring new versions on its own. If Check for updates still leaves the old version, remove the causalmap-plugins marketplace, restart the app, and add it again. Claude Code picks up the new version the next time a session starts, or after `/reload-plugins`.
+
+If you use Claude Code without the app, install from a terminal instead:
 
 ```
-/plugin marketplace add stevepowell99/causalmap-plugins
-/plugin install rubicon@causalmap
+claude plugin marketplace add stevepowell99/causalmap-plugins
+claude plugin install rubicon@causalmap
 ```
+
+To get a new version there, run `claude plugin marketplace update causalmap`, then `claude plugin update rubicon@causalmap`, and restart Claude Code.
+
+Use one route or the other, never both. A copy installed from a terminal stays on that computer and is updated separately. In Claude Code it takes the place of the copy on your account, so the two can end up at different versions without any sign of it. If you have installed Rubicon both ways, remove the terminal copy with `claude plugin uninstall rubicon@causalmap`. Remove any copy you once installed from a zip file too, for the same reason.
 
 Then open a folder of documents, or attach them to a conversation, and type `/rubicon` followed by your evaluation question.
 

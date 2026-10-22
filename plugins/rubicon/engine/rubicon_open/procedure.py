@@ -14,8 +14,9 @@ from __future__ import annotations
 import re
 
 from . import legacy_weak
+from .names import step_name
 from .steps import unit_of_table
-from .workflow import key_columns
+from .workflow import key_columns, links_ending
 
 #: Words internal to Rubicon or to its records, which the explanation never uses: a reader new to Rubicon would have to
 #: look each one up. Matched as whole words, case-insensitively, by the test.
@@ -325,14 +326,14 @@ def told(R: dict, steps: list[dict]) -> list[dict]:
         stage("Counting", profiled)
     if tables:
         coded = {c.get("name") for s in codes for c in s.get("columns") or []}
-        links = {s["id"]: s.get("links") for s in codes}
+        ends_of = lambda s: links_ending(steps, (s.get("inputs") or [s.get("input")])[0])
         shared = {unit_of_table(rec(s)) for s in tables}
         unit = f" {next(iter(shared))}" if len(shared) == 1 else ""
         lead = (unit.strip()[:1].upper() + unit.strip()[1:]) if unit else "The coded passages"
         k = len(tables)
         if k > MANY_TABLES:
             def is_map(s):
-                ends = links.get((s.get("inputs") or [s.get("input")])[0])
+                ends = ends_of(s)
                 return bool(ends) and list(s.get("by") or [])[:2] == [ends.get("from"), ends.get("to")] and not s.get("loops")
             kinds = [("table", [s for s in tables if not (is_map(s) or s.get("loops"))]),
                      ("causal map", [s for s in tables if is_map(s)]),
@@ -350,7 +351,7 @@ def told(R: dict, steps: list[dict]) -> list[dict]:
         else:
             parts = [(f"{lead} were then counted in {k} table{'s' if k > 1 else ''}: ", None)]
             for i, s in enumerate(tables):
-                said = _table(rec(s), links.get((s.get("inputs") or [s.get("input")])[0]), coded)
+                said = _table(rec(s), ends_of(s), coded)
                 parts.append((said if unit else f"{unit_of_table(rec(s))} {said}", s["id"]))
                 parts.append(("." if i == k - 1 else "; ", None))
         stage("Counting", profiled + ([(" ", None)] if profiled else []) + parts)
@@ -389,7 +390,7 @@ def told(R: dict, steps: list[dict]) -> list[dict]:
             if all(v for v, _ in got):
                 parts.append((" The verdicts reached were ", None))
                 for i, (v, s) in enumerate(got):
-                    parts.append((f"{v} for {_label(re.sub(r'^[a-z]_', '', s['id']))}", s["id"]))
+                    parts.append((f"{v} for {_label(step_name(s['id'], by_id))}", s["id"]))
                     parts.append(("." if i == len(got) - 1 else " and " if i == len(got) - 2 else ", ", None))
             else:
                 parts += [("", s["id"]) for s in judges]

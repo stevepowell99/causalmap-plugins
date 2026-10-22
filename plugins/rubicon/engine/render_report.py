@@ -28,8 +28,18 @@ and draws the same report every time. Standard library and Node only.
 In answer.md, a line holding only {{figure <table id>}} draws that table as a chart at that point. A table with a column
 whose values have an order (`order_of`) draws along it (`ordered_chart`), as an inline SVG of lines or stacked columns. A table by the two
 ends of a code step's causal links draws as a causal map: the report carries its DOT (rubicon_open/draw_map.mjs) and
-Graphviz draws it in the reader's browser, from a copy of Viz.js carried inside the report (`assets.graphviz_script`), as are the
+Graphviz draws it in the reader's browser, with the same counts as a grid beneath it behind "Show as table" (the Word copy
+holds the grid), from a copy of Viz.js carried inside the report (`assets.graphviz_script`), as are the
 typefaces (`assets.fonts_css`), so one report file opens on a network that reaches nothing.
+
+The passages a claim or a reading rests on, or stands against, are one trigger each way ("16 passages in 8 grantees",
+`rowlinks`); the unit is the one the run's tables count. A citation in the answer is one entry too ("sources",
+`citation`). Wherever one entry points at several places, a click opens a popover listing each of them (`choices`): all
+the passages under their documents, a claim with its passages for and against, or one document's passages alone. The
+Word copy has no panel, so it says the same with the passages each document holds, and carries each citation in the
+answer as a footnote (`Footnotes`): Word's own markup for one, which Word makes a real footnote at the foot of its page and
+LibreOffice shows as a bracketed number with the notes listed at the end. A causal map is not in the Word copy: Word shows
+no SVG in an HTML file, and the grid stands in its place.
 --fragment writes the page without <html>/<head>/<body>, for publishing as an Artifact.
 """
 import base64, csv, datetime, gzip, hashlib, html, io, json, re, shutil, subprocess, sys, tempfile, zipfile
@@ -39,12 +49,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder
 from rubicon_open import console  # noqa: E402
 from rubicon_open import assets, footprint, legacy_weak, locator, node, plan, procedure
 from rubicon_open.corpus import INDEX_FIELDS, Corpus, as_read
+from rubicon_open.names import in_words, label, made_of, specs_of, step_name, step_said
 from rubicon_open.legacy_weak import CHAIN_EXPLICIT
 from rubicon_open.run_id import clean as run_id_of
 from rubicon_open.seal import engine_fingerprint, engine_version, seal_broken
 from rubicon_open.steps import LIMITS, ROW_ID, base_of, cited_as, group_ids, said_with_unit, step_of, unit_of_table
 from rubicon_open.units import base_said, count_said
-from rubicon_open.workflow import arrow_parts, codebook_of, column_values, derived, loop_markers, normalise, order_of, sign_of, value_key
+from rubicon_open.workflow import arrow_parts, codebook_of, column_values, derived, links_ending, loop_markers, normalise, order_of, sign_of, value_key
 
 ENGINE = Path(__file__).resolve().parent
 DRAW_MAP = ENGINE / "rubicon_open" / "draw_map.mjs"
@@ -230,32 +241,14 @@ def unpack(zipped, run):
     return json.loads((run / "render.json").read_text(encoding="utf-8"))
 
 
-#: What each kind of step is called where a reader meets it, in the annex's headings and the side panel's step buttons
-KIND_SAID = {"code": "Coding", "profile": "Profiling", "tabulate": "Counting", "judge": "Judging", "claims": "Tagging claims",
-             "write": "Writing", "sample": "Sampling",
-             "group": "Grouping", "recode": "Second coding", "check": "Checking"}
-
-
-def step_said(sid, kind):
-    """A step as a reader sees it, the same under How this was made and in the side panel: its kind in words, then its
-    name without the one-letter prefix its id may carry for that kind (c_, t_, j_), which a reader is never told."""
-    return f"{KIND_SAID.get(kind, label(kind))}: {label(re.sub(r'^[a-z]_', '', sid))}"
+def step_title(D, sid):
+    """A step as the page says it (`build_data`'s `steps`, which is `names.step_said`), so that the annex, the answer and
+    the panel call it the same."""
+    return D.get("steps", {}).get(sid) or step_said(sid, {})
 
 
 def esc(s):
     return html.escape(str(s), quote=True)
-
-
-def label(v):
-    """A value as a reader sees it: underscores as spaces and the first letter capitalised, the rest left as coded, so
-    an acronym such as AI keeps its capitals. A factor's opposite pole keeps its leading ~, as Causal Map writes it
-    ("~Hygiene and sanitation"); `named` marks the ~ in a page (report.js `label` and `named` say the same). The leading
-    # Causal Map's export puts on a document's column ("#Age of the main respondent") is dropped, being a mark of where
-    the column came from."""
-    s = str(v).replace("_", " ").strip().removeprefix("#").strip()
-    pole = s.startswith("~")
-    s = s[1:].strip() if pole else s
-    return ("~" if pole else "") + s[:1].upper() + s[1:]
 
 
 def named(v, col=""):
@@ -435,6 +428,15 @@ def loop_told(c, markers):
     return f"telling the link {v.get('link')}, one of the links of loop {marker}"
 
 
+def doc_unit(R):
+    """What a document is called where the report counts documents without a table to name them: the unit the run's
+    own tabulations count, where they all count one thing and each of its cases is one document (grantees, households),
+    else documents."""
+    units = {unit_of_table(s) for s in R["steps"].values() if s.get("kind") == "tabulate"
+             and (s.get("count") == "documents" or (s.get("count") == "cases" and s.get("cases_are_documents", True)))}
+    return units.pop() if len(units) == 1 else "documents"
+
+
 def build_data(R):
     """Everything the page's script needs: rows with context, cells, documents."""
     gcol = group_column(R["index"])
@@ -556,16 +558,18 @@ def build_data(R):
         keys = {col: f"{src}|{col}|{value_key(v)}" for col, v in c["values"].items()} if src else {}
         if any(k in shared for k in keys.values()):
             c["codes"] = {col: k for col, k in keys.items() if k in shared}
-    steps = {st["id"]: step_said(st["id"], st.get("kind", "")) for st in R.get("workflow", {}).get("steps", [])}
+    specs = specs_of(R.get("workflow"))
+    steps = {sid: step_said(sid, specs) for sid in specs}
+    names = {sid: step_name(sid, specs) for sid in specs}
     # each claim the writer tagged, by the id the answer cites it with, with the passages for it and against it
-    claims = {f"{sid}.{c['id']}": {k: c.get(k) for k in ("says", "rows", "against", "found_by", "why")}
+    claims = {f"{sid}.{c['id']}": {**{k: c.get(k) for k in ("says", "rows", "against", "why")}, "found_by": in_words(c.get("found_by"), specs) or None}
               for sid, s in R["steps"].items() if s.get("kind") == "claims" for c in s.get("claims") or []}
     # a case held by one document and named after it is that document, which its own link opens whole
     cases = {k: v for k, v in cases.items() if not (v["docs"] == [k])}
-    return {"docs": docs, "rows": rows, "cells": cells, "codes": shared, "cases": cases, "steps": steps, "defs": defs, "claims": claims,
+    return {"docs": docs, "rows": rows, "cells": cells, "codes": shared, "cases": cases, "steps": steps, "names": names, "defs": defs, "claims": claims,
             # whether the passage notes may call the second coder blind: only where the run records a separate one
             "second_blind": procedure.separate(R, "second_coding") is True,
-            "group": gcol, "zip": R.get("zip", ""), "ends": ends}
+            "group": gcol, "zip": R.get("zip", ""), "ends": ends, "doc_unit": doc_unit(R)}
 
 
 # ---------- the answer: markdown with cell ids and row citations ----------
@@ -655,7 +659,7 @@ def inline(text, R, D, cite_no, static, plain=False):
 
     def cite(m):
         # On the page, each document cited once by its id, opening its passages in the side panel, where the quotation
-        # and the way into the whole interview are; for Word, with the opening words of each quotation
+        # and the way into the whole interview are; for Word, by the document and a footnote giving the passage (`Footnotes`)
         ids = group_ids(m.group(1))
         if not ids or not all(ROW_ID.fullmatch(i) for i in ids):
             return m.group(0)
@@ -664,30 +668,19 @@ def inline(text, R, D, cite_no, static, plain=False):
         for k in tags:
             if R.get("finding") is not None:
                 R["finding"].setdefault("rows", []).extend(D["claims"][k]["rows"])
-        if static:
-            tagged = [cited_as(D["rows"].get(i, {}).get("doc", i), D["rows"].get(i, {}).get("ctx", ["", "", ""])[1])
-                      for k in tags for i in D["claims"][k]["rows"]]
-        else:
-            tagged = [f'<button class="cite claim" data-claim="{esc(k)}" title="{esc(CLAIM_SAID)}: {esc(D["claims"][k]["says"])}">'
-                      f'{esc(claim_docs(D["claims"][k], D))}</button>' for k in tags]
+        tagged = [cite_no.claim(D["claims"][k], D) for k in tags] if static else []
         if not ids:
-            return "(" + "; ".join(esc(x) for x in tagged) + ")" if static else bracketed(tagged)
+            return "(" + "; ".join(tagged) + ")" if static else citation([], tags, D)
         by_doc = {}
         for i in ids:
-            cite_no.setdefault(i, len(cite_no) + 1)
+            if not static:
+                cite_no.setdefault(i, len(cite_no) + 1)
             if R.get("finding") is not None:
                 R["finding"].setdefault("rows", []).append(i)
             by_doc.setdefault(D["rows"].get(i, {}).get("doc", i), []).append(i)
         if static:
-            def said(i):
-                r = D["rows"].get(i, {})
-                ctx = r.get("ctx", ["", "", ""])
-                return esc(cited_as(r.get("doc", i), ctx[1], before=ctx[0], after=ctx[2]))
-            return "(" + "; ".join([said(i) for i in ids] + [esc(x) for x in tagged]) + ")"
-        chips = [f'<button class="cite" data-row="{esc(rs[0])}"' if len(rs) == 1 else
-                 f'<button class="cite" data-rows="{esc(",".join(rs))}"' for rs in by_doc.values()]
-        return bracketed([f'{c} title="{esc(quoted(d, rs, D))}">{esc(d)}</button>'
-                          for c, (d, rs) in zip(chips, by_doc.items())] + tagged)
+            return "(" + "; ".join([cite_no.row(i, D) for i in ids] + tagged) + ")"
+        return citation(ids, tags, D)
 
     def see(m):
         h = html.unescape(m.group(1)).strip()
@@ -700,10 +693,120 @@ def inline(text, R, D, cite_no, static, plain=False):
     while (merged := ADJACENT.sub(joined, out)) != out:
         out = merged
     out = NAMED_THEN_CITED.sub(lambda m: named_once(m, D), out)
-    out = CITE.sub(cite, out)
+    # A citation straight after the writer's own closing bracket goes inside it, "(3 of 6, against 1 of 7; sources)",
+    # never two brackets side by side (Steve, 22 October 2026); a mark ahead of each citation finds where one starts
+    out = CITE.sub(lambda m: m.group(0) if (c := cite(m)) == m.group(0) else MERGE_MARK + c, out)
+    out = re.sub(r'\)\s*' + MERGE_MARK + r'(<span class="nw">)?\(', lambda m: "; " + (m.group(1) or ""), out).replace(MERGE_MARK, "")
     out = SEE.sub(see, out)
     out = UNCHECKED.sub(r"\1" if static else rf'<span class="unchecked" title="{UNCHECKED_SAID}">\1</span>', out)
     return out if static else linked_sources(out, D)
+
+
+class Footnotes(dict):
+    """The footnotes a Word copy carries: {number: the note's HTML}, numbered in the order the marks stand in the text.
+    Word makes each a real footnote at the foot of its page from the markup it writes for one (`mark`, `listed`); any other
+    reader of the file sees the number in brackets after the words and the notes listed at the end. `prefix` keeps the ids
+    of one part of a combined report apart from another's."""
+
+    def __init__(self, prefix=""):
+        super().__init__()
+        self.prefix, self.first = prefix, {}
+
+    def mark(self, note):
+        """A footnote's mark in the text, the note held under its number."""
+        n = len(self) + 1
+        self[n] = note
+        i = f"{self.prefix}{n}"
+        return (f"<a style='mso-footnote-id:ftn{i}' href=\"#_ftn{i}\" name=\"_ftnref{i}\" title=\"\"><span class=MsoFootnoteReference>"
+                f"<span style='mso-special-character:footnote'><![if !supportFootnotes]>[{n}]<![endif]></span></span></a>")
+
+    def row(self, row, D):
+        """A cited passage: its document, and a footnote giving the passage in full, or pointing at the note that did."""
+        doc = D["rows"].get(row, {}).get("doc", row)
+        if row in self.first:
+            return esc(doc) + self.mark(f"{esc(doc)}: the passage quoted in note {self.first[row]}.")
+        self.first[row] = len(self) + 1
+        quote = D["rows"].get(row, {}).get("ctx", ["", "", ""])[1]
+        return esc(doc) + self.mark(f"{esc(doc)}: “{esc(quote)}”")
+
+    def claim(self, c, D):
+        """A tagged claim: the documents its passages for it come from, and a footnote giving the claim with the passages
+        for it and against it, as many as there are in each document."""
+        said = [esc(c["says"].rstrip(".") + ".") if c.get("says") else ""] + [f"{what}: {rowlinks(c[k], D, True)}." for k, what in (("rows", "For it"), ("against", "Against it")) if c.get(k)]
+        return esc(claim_docs(c, D)) + self.mark(" ".join(s for s in said if s))
+
+    def listed(self, heading="h2"):
+        """The notes as Word reads a list of footnotes, to put where a reader without footnotes finds them: after the text,
+        under a heading of this level that Word leaves out, since it puts the notes at the foot of their pages."""
+        if not self:
+            return ""
+        def ref(n):
+            i = f"{self.prefix}{n}"
+            return (f"<a style='mso-footnote-id:ftn{i}' href=\"#_ftnref{i}\" name=\"_ftn{i}\" title=\"\"><span class=MsoFootnoteReference>"
+                    f"<span style='mso-special-character:footnote'><![if !supportFootnotes]>[{n}]<![endif]></span></span></a>")
+        notes = "".join(f"<div style='mso-element:footnote' id=ftn{self.prefix}{n}><p class=MsoFootnoteText>{ref(n)} {note}</p></div>"
+                        for n, note in self.items())
+        return (f"<div style='mso-element:footnote-list'><![if !supportFootnotes]><br clear=all><{heading}>{PASSAGES_CITED}</{heading}>"
+                f"<![endif]>{notes}</div>")
+
+
+#: The heading over the notes where the reader's program has no footnotes to put them in
+PASSAGES_CITED = "Passages cited"
+
+
+def choices(said, targets, cls):
+    """Several places one citation or trigger points at, as one visible button (`said`) whose popover lists each of
+    them as a button of its own, opening as it would anywhere else (report.js `showChoices`). The list waits in a
+    <template>, which a browser neither shows nor reads out until the popover copies it."""
+    return (f'<button class="{cls} choices" aria-haspopup="true" aria-expanded="false">{esc(said)}</button>'
+            f'<template class="choices-list">{"".join(targets)}</template>')
+
+
+def citation(ids, tags, D):
+    """A citation in the answer on the page: one document's passages as that document's id, opening them; several
+    places, as one entry, "sources" (`choices`), whose popover lists each claim the writer tagged,
+    opening its passages for it and against it, or else all the passages cited together, then each document, opening
+    the passages cited from it."""
+    by_doc = {}
+    for i in ids + [r for k in tags for r in D["claims"][k]["rows"] if r in D["rows"]]:
+        by_doc.setdefault(D["rows"].get(i, {}).get("doc", i), []).append(i)
+    by_doc = {d: list(dict.fromkeys(rs)) for d, rs in by_doc.items()}
+
+    def chip(d, rs, words):
+        opens = f'data-row="{esc(rs[0])}"' if len(rs) == 1 else f'data-rows="{esc(",".join(rs))}"'
+        return f'<button class="cite" {opens} title="{esc(quoted(d, rs, D))}">{esc(words)}</button>'
+
+    def passages(n):
+        return f"{n} passage{'' if n == 1 else 's'}"
+    if not by_doc:  # a claim with no passage left to open says so
+        return bracketed([f'<button class="cite claim" data-claim="{esc(k)}" title="{esc(CLAIM_SAID)}: {esc(D["claims"][k]["says"])}">'
+                          f'{esc(claim_docs(D["claims"][k], D))}</button>' for k in tags])
+    if not tags and len(by_doc) == 1:
+        return bracketed([chip(d, rs, d) for d, rs in by_doc.items()])
+    # the whole finding first: each claim with its passages for and against, or else every passage cited together
+    every = [i for rs in by_doc.values() for i in rs]
+    whole = ([f'<button class="cite claim" data-claim="{esc(k)}" title="{esc(CLAIM_SAID)}: {esc(D["claims"][k]["says"])}">'
+              f'The finding: {esc(shortened(D["claims"][k]["says"]))}</button>' for k in tags] if tags else
+             [f'<button class="cite" data-rows="{esc(",".join(every))}">All {passages(sum(places_of(every, D).values()))}</button>'])
+    listed = [chip(d, rs, f"{d} · {passages(places_of(rs, D).get(d, len(rs)))}") for d, rs in by_doc.items()]
+    # a word and no number, since a number in the prose is a count a reader can open and this is not one
+    said = next(iter(by_doc)) if len(by_doc) == 1 else CITED_SAID
+    return bracketed([choices(said, whole + listed, "cite")])
+
+
+#: Put ahead of each citation while the answer's text is drawn, so one following a closing bracket can be merged into it
+MERGE_MARK = "\x00"
+#: What a citation of several sources says in the prose, opening the list of them
+CITED_SAID = "sources"
+#: Said once under the report's title, so a reader knows what the underlining opens before meeting the first one; the
+#: text itself carries no reminders (Steve, 22 October 2026)
+HOW_TO_READ = f"Click any underlined number, or “{CITED_SAID}”, to read the passages behind it."
+
+
+def shortened(words, most=90):
+    """A sentence cut at a word to about `most` characters, with an ellipsis where it was cut."""
+    words = words.strip()
+    return words if len(words) <= most else words[:most].rsplit(" ", 1)[0].rstrip(",;:") + "…"
 
 
 def bracketed(chips):
@@ -776,17 +879,38 @@ def linked_sources(out, D):
     return "".join(p if k % 2 else named.sub(link, p) for k, p in enumerate(MARKUP.split(out)))
 
 
-def figure(tid, R, D):
+# A button is an atomic inline, so a browser may end a line on either side of one whatever touches it: "job (" on one
+# line and "5 of 7)" on the next. The punctuation touching a count, a citation or a source's id is held with it.
+TOUCHING = re.compile(r'((?:[(\[“‘«]|&quot;|&#x27;)*)'
+                      r'(<button\b[^>]*>.*?</button>(?:<template class="choices-list">.*?</template>)?)'
+                      r'((?:’s|&#x27;s)?(?:[)\]”’»,.;:!?%…]|&quot;|&#x27;)*)', re.S)
+
+
+def kept_together(markup):
+    """The page's markup with each button and the brackets, quotes and punctuation touching it kept on one line. One
+    already held alone, such as a citation `bracketed` drew, is left as it is."""
+    def held(m):
+        alone = m.string[:m.start()].endswith('<span class="nw">') and m.string.startswith("</span>", m.end())
+        return f'<span class="nw">{m.group(0)}</span>' if (m.group(1) or m.group(3)) and not alone else m.group(0)
+    return TOUCHING.sub(held, markup)
+
+
+def figure(tid, R, D, static=False):
+    """A figure line's table as a chart, or as a map with its table. In the Word copy (`static`) only a map has a
+    figure, as its table."""
     s = R["steps"].get(tid)
     if not s or s.get("kind") != "tabulate":
         R.setdefault("missing_figures", []).append(tid)
         return ""
+    ends = link_ends(s, R)
+    is_map = bool(ends and s["by"] in (ends[:2], ends) and not s.get("loops"))
+    if static and not is_map:
+        return ""
     if s.get("loops"):
         return loop_diagrams(tid, s, R)
     by = s["by"]
-    ends = link_ends(s, R)
-    if ends and by in (ends[:2], ends):
-        return causal_map(s, s["cells"], by, tid)
+    if is_map:
+        return causal_map(s, s["cells"], by, tid, D, code_step(R, tid), static)
     if len(by) > 2:  # a chart shows two columns at most; drawing the first two would drop the rest and mislead
         R.setdefault("wide_figures", []).append(tid)
         return ""
@@ -826,8 +950,18 @@ def figure(tid, R, D):
         return (f'<figure class="fig"><div class="legend">{legend}</div><div class="bars">{"".join(out)}</div>'
                 f'<figcaption>{caption(s)} Click a bar for the passages behind it.</figcaption></figure>')
     # two nominal columns: a grid of counts within each column of b
+    return (f'<figure class="fig">{crosstab(s, cells, a, b, D, src)}'
+            f'<figcaption>{caption(s)} Click a count for its passages.</figcaption></figure>')
+
+
+def crosstab(s, cells, a, b, D, src, static=False):
+    """A table's counts as a grid, the values of column `a` down and those of `b` across, each count a button to its
+    passages (a plain number in the Word copy). Also the view of a causal map's counts beneath the map (`causal_map`)."""
+    avals = list(dict.fromkeys(c["values"][a] for c in cells))
+    bvals = list(dict.fromkeys(c["values"][b] for c in cells))
+    look = {(c["values"][a], c["values"][b]): c for c in cells}
     avals.sort(key=lambda v: -sum(look.get((v, x), {"n": 0})["n"] for x in bvals))
-    head = "".join(f"<th>{code_named(D, src, b, x)}</th>" for x in bvals)
+    head = "".join(f"<th>{code_named(D, src, b, x, static)}</th>" for x in bvals)
     body = ""
     shade, note = heat([(c["n"], base_of(s, c)) for c in cells if c["n"]], unit_of_table(s))
     for v in avals:
@@ -836,13 +970,25 @@ def figure(tid, R, D):
             c = look.get((v, x))
             if c and (c["n"] or implicit_of(c)):
                 n, base = c["n"], base_of(s, c)
-                tds += (f'<td><button class="cellbtn" data-cell="{esc(c["id"])}" style="--a:{shade(n, base) if n else 0:.2f}">{n}'
-                        f'{"" if note else f"<small> {esc(base_said(base, unit_of_table(s)))}</small>"}{implicit_said(c, word=False)}</button></td>')
+                said = (f'{n}{"" if note else f"<small> {esc(base_said(base, unit_of_table(s)))}</small>"}'
+                        f'{implicit_said(c, word=static)}')
+                tds += (f"<td>{said}</td>" if static else
+                        f'<td><button class="cellbtn" data-cell="{esc(c["id"])}" style="--a:{shade(n, base) if n else 0:.2f}">{said}</button></td>')
             else:
                 tds += '<td class="zero">0</td>'
-        body += f"<tr><th>{code_named(D, src, a, v)}</th>{tds}</tr>"
-    return (f'<figure class="fig"><div class="scroll"><table class="grid"><thead><tr><th></th>{head}</tr></thead><tbody>{body}</tbody></table></div>'
-            f'<figcaption>{caption(s)} Click a count for its passages.</figcaption></figure>')
+        body += f"<tr><th>{code_named(D, src, a, v, static)}</th>{tds}</tr>"
+    return f'<div class="scroll"><table class="grid"><thead><tr><th></th>{head}</tr></thead><tbody>{body}</tbody></table></div>'
+
+
+def links_table(s, cells, by, D, src, static=False):
+    """The counts of a signed map, which a grid of two columns cannot hold: a row for each link, with its sign."""
+    shade, _ = heat([(c["n"], base_of(s, c)) for c in cells if c["n"]], unit_of_table(s))
+    trs = "".join("<tr>" + "".join(f"<td>{code_named(D, src, col, c['values'][col], static)}</td>" for col in by)
+                  + (f"<td>{c['n']}</td>" if static else
+                     f'<td><button class="cellbtn" data-cell="{esc(c["id"])}" style="--a:{shade(c["n"], base_of(s, c)):.2f}">{c["n"]}</button></td>')
+                  + "</tr>" for c in sorted(cells, key=lambda c: -c["n"]) if c["n"])
+    head = "".join(f"<th>{esc(label(col))}</th>" for col in by)
+    return f'<div class="scroll"><table class="grid"><thead><tr>{head}<th>Count</th></tr></thead><tbody>{trs}</tbody></table></div>'
 
 
 #: The most groups a chart along an ordered column draws, one line or one band of columns each; a table with more
@@ -1050,12 +1196,8 @@ def caption(s):
 
 def link_ends(s, R):
     """The two ends of the causal links a tabulation counts, and their sign where the links are signed, when its input
-    is a code step that names them."""
-    steps = {w.get("id"): w for w in R.get("workflow", {}).get("steps", [])}
-    src = steps.get(s.get("input"), {})
-    if src.get("kind") == "group":  # a grouped table has the links of the code step it groups
-        src = steps.get((src.get("inputs") or [None])[0], {})
-    links = src.get("links") or {}
+    is a code step that names them, or a group step that gave its links' ends items (`links_ending`)."""
+    links = links_ending(R.get("workflow", {}).get("steps", []), s.get("input")) or {}
     return [links["from"], links["to"]] + ([links["sign"]] if links.get("sign") else []) if links else None
 
 
@@ -1084,16 +1226,25 @@ def graph(drawn):
             f'<p class="small drawing">Drawing the map with Graphviz.</p></div>')
 
 
-def causal_map(s, cells, by, tid):
+def causal_map(s, cells, by, tid, D, src, static=False):
+    """A table by the two ends of a causal map's links, drawn as the map, with the same counts as a grid beneath it
+    behind "Show as table" (a reader wanting to know which drivers drive which outcomes may want either). The Word copy
+    cannot run Graphviz, so it holds the grid under a line saying where the map is."""
     a, b = by[:2]
+    # a row with no cause or no effect is not a link, whatever else it was coded for: neither map nor table shows it
+    links = [c for c in cells if c["n"] and "(blank)" not in (c["values"][a], c["values"][b])]
+    grid = crosstab(s, links, a, b, D, src, static) if len(by) == 2 else links_table(s, links, by, D, src, static)
+    if static:
+        return (f'<p class="small">The causal map of these links is drawn in the web version of this report; its counts are '
+                f'in this table.</p>{grid}<p class="small">{caption(s)}</p>')
     edges = [{"id": c["id"], "from": c["values"][a], "to": c["values"][b], "n": c["n"],
               **({"sign": sign_of(c["values"][by[2]])} if len(by) == 3 else {}),
-              **({"flipped": {**c["flipped"], "of": len(c["rows"])}} if "flipped" in c else {})} for c in cells
-             # a row with no cause or no effect is not a link, whatever else it was coded for
-             if c["n"] and "(blank)" not in (c["values"][a], c["values"][b])]
+              **({"flipped": {**c["flipped"], "of": len(c["rows"])}} if "flipped" in c else {})} for c in links]
     drawn = node.call(DRAW_MAP, {"edges": edges}, "map drawing")
     # the caption's words are map-dot.js's, which the page's map says too
     return (f'<figure class="fig map">{graph(drawn)}<figcaption>{marked(esc(drawn["caption"]))}</figcaption>'
+            f'<details class="map-table"><summary><span class="shut">Show as table</span><span class="open">Hide table</span></summary>'
+            f'{grid}<p class="small">{caption(s)} Click a count for its passages.</p></details>'
             f'{xlsx_button(step=tid)}</figure>')
 
 
@@ -1145,11 +1296,52 @@ def heading(R, title):
     return " ".join(words[:10]) + ("\u2026" if len(words) > 10 else "") or "Rubicon report"
 
 
+#: A question's label as an evaluator numbers one: "q2:", "Question 2.", and at a line's start "2." or "(2)"
+QUESTION_LABEL = re.compile(r"(?<![\w'’])(?:q(?:uestion)?\s*(\d+)\s*[:.)\-]?(?=\s)|(?:(?<=\n)|^)\s*(?:\((\d+)\)|(\d+)[.)])(?=\s))", re.I)
+NUMBER_WORDS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
+
+
+def questions_of(q):
+    """The questions a task holds, when it holds several: (what comes before the first, [(label, question)], the
+    paragraphs after them), else None. Several questions are numbered in the evaluator's own labels ("q1: ... q2: ...",
+    or a numbered list), counting up from one, or are several sentences each ending in a question mark. The questions
+    are the first paragraph's: later paragraphs are how it was to be answered, which may number the same questions again."""
+    head, _, after = q.partition("\n\n")
+    marks = []
+    for m in QUESTION_LABEL.finditer(head):
+        n = int(next(g for g in m.groups() if g))
+        if n != len(marks) + 1:
+            break
+        marks.append((n, m))
+    if len(marks) > 1:
+        lead = head[:marks[0][1].start()].strip().rstrip("\"“” ")
+        got = [(m.group(0).strip().rstrip(":.)-").strip("() "),
+                head[m.end():(marks[i + 1][1].start() if i + 1 < len(marks) else len(head))].strip().strip("\"“”").strip())
+               for i, (n, m) in enumerate(marks)]
+        return lead, got, [p.strip() for p in after.split("\n\n") if p.strip()]
+    sentences = [s.strip() for s in re.split(r"(?<=[.?!])\s+", head) if s.strip()]
+    asks = [s for s in sentences if s.endswith("?")]
+    if len(asks) > 1:
+        lead = " ".join(sentences[:sentences.index(asks[0])])
+        return lead, [("", s) for s in asks], [p.strip() for p in after.split("\n\n") if p.strip()]
+    return None
+
+
 def asked(R, static=False):
-    """The agreed question in full, under the heading: shown whole when short, folded after its first sentence when long."""
+    """The agreed question in full, under the heading: shown whole when short, folded after its first sentence when long.
+    A task holding several questions says how many, and gives each its own line."""
     q = R["workflow"].get("question_as_agreed", "").strip()
     if not q:
         return ""
+    several = questions_of(q)
+    if several:
+        lead, items, rest = several
+        said = f"{NUMBER_WORDS[len(items) - 1].capitalize() if len(items) <= len(NUMBER_WORDS) else len(items)} questions"
+        lines = "".join(f'<p><b>{esc(label)}</b> {esc(text)}</p>' if label else f'<p>{esc(text)}</p>' for label, text in items)
+        body = (f"<p>{esc(lead)}</p>" if lead else "") + lines + "".join(f"<p>{esc(p)}</p>" for p in rest)
+        if static:
+            return f'<div class="asked"><p><b>Task</b> {said}</p>{body}</div>'
+        return f'<details class="asked"><summary><b>Task</b> {said}</summary>{body}</details>'
     if static or len(q) <= 240:
         return f'<p class="asked"><b>Question</b> {esc(q)}</p>'
     first = re.split(r"(?<=[?.])\s", q, maxsplit=1)
@@ -1209,7 +1401,7 @@ def answer_html(R, D, static=False):
     renamed = R["renamed"] = {h: LIMITATIONS for h in [limitations_of(heads)] if h}
     # The answer's sections, for the report's contents: anchor and heading as the reader sees it
     R["toc"] = [(anchor(h), renamed.get(h, re.sub(r"[*`]", "", h))) for h in heads]
-    title, lead, parts, cite_no = "", "", [], {}
+    title, lead, parts, cite_no = "", "", [], Footnotes(D.get("note_prefix", "")) if static else {}
     para, items, rows = [], [], []
     # What each finding rests on, the short answer and each section, for its Evidence button (report.js)
     based = D.setdefault("based", {})
@@ -1252,7 +1444,7 @@ def answer_html(R, D, static=False):
             continue
         m = FIG.match(s.strip())
         if m:
-            flush(); parts.append("" if static else figure(m.group(1), R, D)); continue
+            flush(); parts.append(figure(m.group(1), R, D, static)); continue
         if s.lstrip().startswith("|"):
             if para or items:
                 flush()
@@ -1391,6 +1583,9 @@ def map_elements(R):
     page are one picture."""
     steps = drawn_steps(R)
     ids = {st["id"] for st in steps}
+    # each node named as the annex names its step (`names`), never by its id; the check's own steps are not the
+    # workflow's, so they keep their plain names ("Second coding", "Check") rather than a kind word repeating them
+    specs = specs_of(R["workflow"])
     made = set(R["steps"]) | ({"check"} | ({"second_coding"} if R.get("recoded") else set()) if R.get("check") else set())
     def reads(st):
         cols = [c.get("values")[9:] for c in st.get("columns", []) if str(c.get("values", "")).startswith("codebook:")]
@@ -1403,13 +1598,13 @@ def map_elements(R):
         seen.add(st_id)
         # A result not made is named and typed as the page names one, by its step alone
         there = st_id in made
-        nodes.append({"data": {"id": f"asset:{st_id}", "label": f"{MADE.get(kind, kind)} of {st_id}" if there
-                               else st_id.replace("_", " "), "kind": "asset",
+        nodes.append({"data": {"id": f"asset:{st_id}", "label": made_of(MADE.get(kind, kind), step_name(st_id, specs)) if there
+                               else step_name(st_id, specs), "kind": "asset",
                                "type": kind if there else "", "quotes": 0, "missing": not there, "coming": 0,
                                "answer": st_id in made and st_id not in eaten}})
     kinds = {st["id"]: st.get("kind", "") for st in steps}
     for st in steps:
-        nodes.append({"data": {"id": f"step:{st['id']}", "label": st["id"].replace("_", " "), "kind": "step",
+        nodes.append({"data": {"id": f"step:{st['id']}", "label": step_said(st["id"], specs), "kind": "step",
                                "type": st.get("kind", ""),
                                "status": "succeeded" if st["id"] in made or st["id"] == "second_coding" else "not run",
                                "declaredId": st["id"]}})
@@ -1462,7 +1657,7 @@ def table_of(sid, s, D, R, static=False):
             f'</tr></thead><tbody>{trs}</tbody></table></div>')
 
 
-def grouped(sid, st, s, step_link):
+def grouped(sid, st, s, step_link, D):
     """A group step's codebook: each item with what it means, counts and does not count and the open labels it gathers,
     then the labels left over with why, and what the recount found unplaced or named twice."""
     book = s.get("codebook") or {}
@@ -1475,15 +1670,19 @@ def grouped(sid, st, s, step_link):
             item = row.get("item") if len(keys) == 1 else row.get(f"{k}_item")
             if row.get(k):
                 gathered.setdefault(item, []).append(str(row[k]))
-    out = [f'<h4>{esc(step_said(sid, "group"))}</h4>'
-           f'<p class="small">The {esc(" and ".join(label(k).lower() for k in keys if k))} labels of {step_link(s.get("input"))}, '
-           f'{ch.get("labels", 0)} distinct labels on {ch.get("rows", 0)} passages, drawn into {len(items)} items'
+    out = [f'<h4>{esc(step_title(D, sid))}</h4>'
+           f'<p class="small">The {esc(" and ".join(label(k).lower() for k in keys if k))} column{"s" if len([k for k in keys if k]) > 1 else ""} '
+           f'of {step_link(s.get("input"))}: {ch.get("labels", 0)} distinct labels on {ch.get("rows", 0)} passages, drawn into {len(items)} items'
            + (", and each passage given the item its label is listed under." if s.get("table") is not None else ".") + "</p>"]
+    # An item can gather hundreds of open labels, so they fold under its row across the whole table rather than taking a
+    # column of their own: a column a ninth of the page wide made each row thousands of pixels tall, mostly blank
+    labels_of = lambda it: list(dict.fromkeys(gathered.get(it.get("id")) or it.get("from_labels") or []))
     trs = "".join(f'<tr><th>{esc(label(str(it.get("id", ""))))}<div class="small">{esc(it.get("label", ""))}</div></th>'
-                  f'<td>{esc(it.get("means", ""))}</td><td>{esc(it.get("counts", ""))}</td><td>{esc(near_misses(it.get("does_not_count", "")))}</td>'
-                  f'<td>{esc(", ".join(dict.fromkeys(gathered.get(it.get("id")) or it.get("from_labels") or [])))}</td></tr>' for it in items)
+                  f'<td>{esc(it.get("means", ""))}</td><td>{esc(it.get("counts", ""))}</td><td>{esc(near_misses(it.get("does_not_count", "")))}</td></tr>'
+                  + (f'<tr class="gathered"><td colspan="4"><details><summary>Open labels it gathers ({len(labels_of(it))})</summary>'
+                     f'<p>{esc(", ".join(labels_of(it)))}</p></details></td></tr>' if labels_of(it) else "") for it in items)
     out.append('<div class="scroll"><table class="codebook"><thead><tr><th>Item</th><th>Means</th><th>Counts</th><th>Does not count</th>'
-               f'<th>Open labels it gathers</th></tr></thead><tbody>{trs}</tbody></table></div>')
+               f'</tr></thead><tbody>{trs}</tbody></table></div>')
     left = [u for u in book.get("unplaced", []) if isinstance(u, dict)]
     if left:
         out.append("<p>Left in no item: " + "; ".join(esc(str(u.get("label") or u.get("row") or "")) + (f" ({esc(u['reason'])})" if u.get("reason") else "")
@@ -1506,16 +1705,16 @@ def judged(sid, s, D, static=False):
                 else f"{c['n']} of {c['base']}, as {c.get('document')} states it" if c.get("kind") == "stated"
                 else count_said(c["n"], c["base"], c.get("unit") or "documents"))
         return said if static or cid not in D["cells"] else f'<button class="num" data-cell="{esc(cid)}">{esc(said)}</button>'
-    def rows(ids):
-        return rowlinks(ids, D, static)
+    def rows(ids, why):
+        return rowlinks(ids, D, static, why)
 
     def reading(c):
         # a reading has no count to open: it shows why it reached its level and the passages it weighed, each opening
         if c.get("kind") != "reading":
             return ""
         out = f'<br><span class="small">{esc(c.get("why", ""))}'
-        out += f' Rests on: {rows(c["rows"])}.' if c.get("rows") else ""
-        out += f' Against: {rows(c["against"])}.' if c.get("against") else ""
+        out += f' Rests on: {rows(c["rows"], "Passages this reading rests on")}.' if c.get("rows") else ""
+        out += f' Against: {rows(c["against"], "Passages against this reading")}.' if c.get("against") else ""
         return out + "</span>"
 
     crits = "".join(f'<li>{esc(c.get("question", c.get("id", "")))} {count(c)}'
@@ -1523,7 +1722,7 @@ def judged(sid, s, D, static=False):
                     + reading(c) + "</li>"
                     for c in s.get("criteria") or [])
     levels = "".join(f'<tr><th>{esc(v.get("name", ""))}</th><td>{esc(v.get("means", ""))}</td></tr>' for v in s.get("verdicts") or [])
-    return (f'<h4>{esc(step_said(sid, "judge"))}</h4>'
+    return (f'<h4>{esc(step_title(D, sid))}</h4>'
             + (f'<p class="small">{esc(s["source"])}</p>' if s.get("source") else "")
             + (f"<ul>{crits}</ul>" if crits else "")
             + (f'<p>Verdict: <b>{esc(s["overall"])}</b>' + (f', since {esc(s["overall_why"])}' if s.get("overall_why") else "") + ".</p>"
@@ -1532,11 +1731,39 @@ def judged(sid, s, D, static=False):
                f'<tbody>{levels}</tbody></table></div></details>' if levels and not static else ""))
 
 
-def rowlinks(ids, D, static=False):
-    """Passages by id, each named by its document and opening it, as a reading or a claim lists what it rests on."""
+def places_of(ids, D):
+    """The passages among rows `ids`, each place once, by document in the order the corpus lists them: the rows at one
+    place (the same stretch of one document, or its quotation where it was not placed) are one passage, as the panel
+    counts passages (report.js `byPlace`, which `placeOf` keys the same way). {document: number of passages}."""
+    held = {}
+    for i in ids:
+        r = D["rows"].get(i)
+        if r:
+            held.setdefault(r["doc"], set()).add("-".join(map(str, r["at"])) if r.get("at") else r["ctx"][1])
+    order = {d: n for n, d in enumerate(D["docs"])}
+    return {d: len(held[d]) for d in sorted(held, key=lambda d: order.get(d, len(order)))}
+
+
+def rowlinks(ids, D, static=False, why=""):
+    """Passages by id, as a reading or a claim lists what it rests on: how many, in how many documents, as one entry.
+    In one document it opens them in the side panel; in several, its popover (`choices`) opens them all, grouped by
+    document with each passage in place, or each document's alone (`why` heads the panel). Word has no panel, so it
+    says the same with the passages each document holds."""
+    by_doc = places_of(ids, D)
+    n, k = sum(by_doc.values()), len(by_doc)
+    if not k:
+        return ""
+    said = f"{n} passage{'' if n == 1 else 's'} in " + (next(iter(by_doc)) if k == 1 else f"{k} {D.get('doc_unit', 'documents')}")
     if static:
-        return ", ".join(esc(D["rows"].get(i, {}).get("doc", i)) for i in ids)
-    return ", ".join(f'<button class="rowlink" data-row="{esc(i)}">{esc(D["rows"].get(i, {}).get("doc", i))}</button>' for i in ids)
+        return esc(said if k == 1 else said + " (" + ", ".join(f"{d} ×{m}" if n > k else d for d, m in by_doc.items()) + ")")
+    opens = lambda rows, words: (f'<button class="rowlink" data-rows="{esc(",".join(rows))}"' + (f' data-why="{esc(why)}"' if why else "")
+                                 + f'>{esc(words)}</button>')
+    if k == 1:
+        return opens(ids, said)
+    # several documents: the count is one entry, whose popover offers them all together or each document's alone
+    held = lambda d: [i for i in ids if D["rows"].get(i, {}).get("doc") == d]
+    return choices(said, [opens(ids, f"All {n} passages")]
+                   + [opens(held(d), f"{d} · {m} passage{'' if m == 1 else 's'}") for d, m in by_doc.items()], "rowlink")
 
 
 def tagged(sid, s, D, static=False):
@@ -1544,12 +1771,13 @@ def tagged(sid, s, D, static=False):
     and against it, how they would be found again and why they bear it out."""
     def one(c):
         out = f'<li>{esc(c.get("says") or c.get("id", ""))}<br><span class="small">{esc(c.get("why", ""))}'
-        out += f' Rests on: {rowlinks(c["rows"], D, static)}.' if c.get("rows") else ""
-        out += f' Against: {rowlinks(c["against"], D, static)}.' if c.get("against") else ""
-        out += f' Found by: {esc(c["found_by"])}' + ("" if c["found_by"].rstrip().endswith(".") else ".") if c.get("found_by") else ""
+        out += f' Rests on: {rowlinks(c["rows"], D, static, "Passages this claim rests on")}.' if c.get("rows") else ""
+        out += f' Against: {rowlinks(c["against"], D, static, "Passages against this claim")}.' if c.get("against") else ""
+        found = D["claims"].get(f"{sid}.{c.get('id')}", {}).get("found_by")  # in the words a reader sees, `in_words`
+        out += f' Found by: {esc(found)}' + ("" if found.rstrip().endswith(".") else ".") if found else ""
         return out + "</span></li>"
     items = "".join(one(c) for c in s.get("claims") or [])
-    return f'<h4>{esc(step_said(sid, "claims"))}</h4>' + (f"<ul>{items}</ul>" if items else '<p class="small">No claim was tagged.</p>')
+    return f'<h4>{esc(step_title(D, sid))}</h4>' + (f"<ul>{items}</ul>" if items else '<p class="small">No claim was tagged.</p>')
 
 
 METHOD_INTRO = ("The analysis was written down as a workflow before it was counted: what to look for, how to code it, what to "
@@ -1673,7 +1901,7 @@ def agreed(records, R=None, static=False):
     from the run: where it is unchanged, by pointing to where this report shows it, and where it changed afterwards, as
     the run held it then. A record a run of pieces keeps, or one the plugin kept before 16 October 2026, holds instead
     the words it was put in (`text`), shown as they are."""
-    kinds = {s.get("id"): s.get("kind", "") for s in ((R or {}).get("workflow") or {}).get("steps", [])}
+    specs = {s.get("id"): s for s in ((R or {}).get("workflow") or {}).get("steps", [])}
     def link(sid, said):
         return said if static else f'<a href="#{procedure.anchor(sid)}">{said}</a>'
     where = {"question": "as shown at the head of this report", "documents": "as shown under What was read",
@@ -1683,11 +1911,11 @@ def agreed(records, R=None, static=False):
             return f'<blockquote>{esc(a.get("text", "")).replace(chr(10), "<br>")}</blockquote>'
         out = []
         for name, then in (a.get("held") or {}).items():
-            said = esc(HELD_SAID.get(name) or step_said(name, kinds.get(name, "")))
+            said = esc(HELD_SAID.get(name) or step_said(name, specs))
             if R is not None and unchanged(name, then, held_now(R, name)):
                 out.append(f"<li>{link(name, said)}, as this report shows it.</li>" if name not in HELD_SAID else
                            f"<li>{said}, {where[name]}.</li>" if name in where else
-                           f"<li>{said}, as shown under {link('c', esc(step_said('c', kinds.get('c', 'code'))))}.</li>")
+                           f"<li>{said}, as shown under {link('c', esc(step_said('c', specs)))}.</li>")
             else:
                 out.append(f"<li>{said}, since changed. As they agreed it:{as_agreed(name, then)}</li>")
         how = ("" if not out else
@@ -1728,9 +1956,8 @@ def annex(R, D, static=False, earlier=None, number=None):
     n = len(R["index"])
     combined = earlier is not None
     seen = dict(earlier or {})  # what is drawn so far: the earlier annexes' and this one's own
-    kinds = {st["id"]: st.get("kind", "") for st in wf["steps"]}
     def step_link(sid):
-        name = esc(step_said(sid, kinds.get(sid, "code")))
+        name = esc(step_title(D, sid))
         return name if static else f'<a href="#{procedure.anchor(sid)}">{name}</a>'
     def again(key, what):
         """A pointer to where this is drawn already, or None where it is drawn here."""
@@ -1767,11 +1994,11 @@ def annex(R, D, static=False, earlier=None, number=None):
             unit = "one row for each document, read whole" if st.get("per_document") else "one row for each passage that fits"
             if s.get("combines"):  # nothing was coded here: the passages of other codings, put together
                 held = s.get("rows_by_coding") or {}
-                body.append(f'<h4>{esc(step_said(sid, kind))}</h4>'
+                body.append(f'<h4>{esc(step_title(D, sid))}</h4>'
                             f'<p class="small">The passages coded in {esc(" and ".join(s["combines"]))} put together, each keeping its own '
                             f'identity and the coding it came from: {len(s.get("rows", []))} rows ({esc(", ".join(f"{n} from {i}" for i, n in held.items()))}).</p>')
             else:
-                body.append(f'<h4>{esc(step_said(sid, kind))}</h4>'
+                body.append(f'<h4>{esc(step_title(D, sid))}</h4>'
                             f'<p class="small">{esc(unit)}; {len(s.get("rows", []))} rows.</p>'
                             + ("" if same else f'<details><summary>The instruction a second coder would follow</summary><blockquote>{esc(st.get("prompt",""))}</blockquote></details>'))
             if isinstance(st.get("from"), dict):
@@ -1808,7 +2035,7 @@ def annex(R, D, static=False, earlier=None, number=None):
                             f'<span class="small">{len(s["rows"])} rows</span></summary>{passages_of(s)}</details>'
                             + (xlsx_button(step=sid) if st.get("links") and not s.get("combines") else "") + '</div>')
         elif kind == "tabulate":
-            body.append(f'<h4>{esc(step_said(sid, kind))}</h4><p class="small">{esc(label(unit_of_table(s if s.get("count") else {"count": st.get("count", "cases"), "unit": st.get("unit")})))} by '
+            body.append(f'<h4>{esc(step_title(D, sid))}</h4><p class="small">{esc(label(unit_of_table(s if s.get("count") else {"count": st.get("count", "cases"), "unit": st.get("unit")})))} by '
                         f'{esc(" and ".join(label(b).lower() for b in st.get("by", [])))}</p>')
             if s.get("description") or st.get("description"):
                 body.append(f'<p class="table-said">{esc(s.get("description") or st.get("description"))}</p>')
@@ -1822,16 +2049,16 @@ def annex(R, D, static=False, earlier=None, number=None):
                             f'<span class="small">{len(s["cells"])} cells</span></summary>{table_of(sid, s, D, R, static)}</details>'
                             + ("" if static or not link_ends(s, R) else xlsx_button(step=sid)) + '</div>')
         elif kind == "group" and s:
-            body.append(grouped(sid, st, s, step_link))
+            body.append(grouped(sid, st, s, step_link, D))
         elif kind == "judge" and s:
             body.append(judged(sid, s, D, static))
         elif kind == "claims" and s:
             body.append(tagged(sid, s, D, static))
         elif kind == "write":
-            body.append(f'<h4>{esc(step_said(sid, kind))}</h4><details><summary>The instruction the answer was written to</summary>'
+            body.append(f'<h4>{esc(step_title(D, sid))}</h4><details><summary>The instruction the answer was written to</summary>'
                         f'<blockquote>{esc(st.get("instructions", ""))}</blockquote></details>')
         else:
-            body.append(f'<h4>{esc(step_said(sid, kind))}</h4>')
+            body.append(f'<h4>{esc(step_title(D, sid))}</h4>')
         out.append(f'<section class="rb-block" id="{procedure.anchor(sid)}" data-node="step:{esc(sid)}">{"".join(body)}</section>')
         if combined:
             for shown in [key] + [column_key(c) for c in st.get("columns", [])]:
@@ -1842,7 +2069,7 @@ def annex(R, D, static=False, earlier=None, number=None):
         lis = "".join(f'<li>{esc(e.get("question") or "")} Run <code>{esc(e.get("run_id") or "")}</code>, fingerprint '
                       f'<code>{esc(e["fingerprint"])}</code>, held in this run\'s zip as <code>{esc(e.get("zip") or "")}</code>; '
                       f'{"its definitions" if e.get("take") == "definitions" else "its coded passages"} for '
-                      f'{esc(step_said(e["step"], "code").lower())}.</li>' for e in rp["earlier_runs"])
+                      f'{esc(step_title(D, e["step"]).lower())}.</li>' for e in rp["earlier_runs"])
         out.append("<h4>Earlier runs this one builds on</h4><ul>" + lis + "</ul><p>Passages taken from an earlier run "
                    "were coded and checked in that run and are not checked again here. Where this answer agrees with an "
                    "earlier one on passages taken from it, the two do not corroborate each other, because one coding "
@@ -1875,8 +2102,10 @@ def annex(R, D, static=False, earlier=None, number=None):
                f"<li>{len(a.get('citations_to_no_row',[]))} citations to passages that do not exist; {len(set(a.get('quotations_not_in_what_they_cite',[])))} quotations not in the passage they cite.</li></ul>")
     if R.get("check"):
         # The check's two steps, as the margin map draws them after the workflow's own (`drawn_steps`)
-        counts = next((b.strip() for b in R["check"].split("\n\n") if b.strip() and not b.lstrip().startswith("#")), "")
-        lis = "".join(f"<li>{esc(label(sid.removeprefix('c_')))}: {len(rows)} rows</li>" for sid, rows in R["recoded"].items())
+        specs = specs_of(wf)
+        record = in_words(R["check"], specs)  # the check's own text, with the workflow's ids given the names a reader sees
+        counts = next((b.strip() for b in record.split("\n\n") if b.strip() and not b.lstrip().startswith("#")), "")
+        lis = "".join(f"<li>{esc(step_name(sid, specs))}: {len(rows)} rows</li>" for sid, rows in R["recoded"].items())
         alone = not procedure.second_coded(R)
         out.append("" if alone else f'<section class="rb-block" id="{procedure.anchor("second_coding")}" data-node="step:second_coding"><h4>Second coding</h4><p>'
                    + procedure.SECOND_SAID[procedure.separate(R, "second_coding")]
@@ -1894,7 +2123,7 @@ def annex(R, D, static=False, earlier=None, number=None):
                    "corrected one, recounted after the check.</p>"
                    + (record_html(counts) if static and counts else "" if static else
                       '<div class="rb-block" data-node="asset:check"><details><summary>The check\'s record '
-                      f'<span class="small">check.md</span></summary><div class="record">{record_html(R["check"])}</div></details></div>')
+                      f'<span class="small">check.md</span></summary><div class="record">{record_html(record)}</div></details></div>')
                    + "</section>")
     out.append("</div>")
     if R.get("fingerprint"):
@@ -2028,7 +2257,10 @@ def pack_texts(by_id):
     """Documents (id to text) as `packed_texts` carries them; a combined report packs once the documents of several runs."""
     if sum(map(len, by_id.values())) > TEXTS_CARRIED:
         return ""
-    return base64.b64encode(gzip.compress(json.dumps(by_id, ensure_ascii=False).encode("utf-8"), mtime=0)).decode("ascii")
+    packed = gzip.compress(json.dumps(by_id, ensure_ascii=False).encode("utf-8"), mtime=0)
+    # The header's tenth byte names the system that compressed it (10 from Windows, 3 from anywhere else), so it is set
+    # to 255, "unknown", which every reader ignores: a report then recreates byte for byte on any system.
+    return base64.b64encode(packed[:9] + b"\xff" + packed[10:]).decode("ascii")
 
 
 def texts(R):
@@ -2082,7 +2314,7 @@ def summary(R, a, nrows):
     counted = (f"<li><b>{a['counts_written_by_id']}</b> numbers, "
                + (counted_said(R, "each written by the AI and shown beside the count the fixed rules made from the passages it cited, which it must equal") + "."
                   if cited(R) else "every one computed directly from the coded passages rather than written by the AI.")
-               + '<span class="click"> Click any number to see who it counts.</span></li>') if a.get("counts_written_by_id") else (
+               + '</li>') if a.get("counts_written_by_id") else (
         "<li>No counts: the answer states no number computed from the coded passages, so its findings rest on the "
         "passages cited and quoted beside them.</li>")
     out = [f'<li class="head"><span class="vb-t">{BOX_TITLE}<small>{VERIFIED_WHEN}</small></span></li>', counted,
@@ -2200,6 +2432,7 @@ def page(R, fragment=False):
 <header class="cover" id="top">
   <p class="eyebrow">{site_link("Rubicon report")}</p>
   <h1>{esc(heading(R, title))}</h1>
+  <p class="how-to">{HOW_TO_READ}</p>
   {asked(R)}
   {synthetic(R)}
   <div class="lead">{lead}</div>
@@ -2216,6 +2449,8 @@ def page(R, fragment=False):
 {assets.graphviz_script() if '<pre class="dot"' in body + map_js else ""}<script>{js}</script>
 <script>{map_js}</script>
 """
+    start, end = content.index("<main>"), content.index("</main>")
+    content = content[:start] + kept_together(content[start:end]) + content[end:]
     if fragment:
         return content
     head, body = content.split('<div class="wrap">', 1)
@@ -2223,22 +2458,20 @@ def page(R, fragment=False):
 
 
 def word(R):
-    """The same report for Word: figures as text, citations as their documents and opening words, with the passages
-    cited in full at the end."""
+    """The same report for Word: figures as text, each citation as its document with a footnote giving the passage in
+    full (`Footnotes`), which Word puts at the foot of the page and a program without footnotes lists at the end."""
     D = build_data(R)
     title, lead, body, cite_no = answer_html(R, D, static=True)
-    notes = "".join(f'<p class="note">{esc(D["rows"].get(rid, {}).get("doc",""))}: "{esc(D["rows"].get(rid, {}).get("ctx", ["","",""])[1])}"</p>'
-                    for rid, k in sorted(cite_no.items(), key=lambda x: x[1]))
     return ('<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" '
             'xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">'
             f'<title>{esc(heading(R, title))}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->'
             '<style>body,p,li,td{font-family:Cambria,Georgia,serif;font-size:11pt;line-height:1.35;color:#17130f}'
             'h1,h2,h3{font-family:Cambria,Georgia,serif;font-weight:normal;color:#8c1912}h1{font-size:20pt}h2{font-size:14pt}'
-            'p.note{font-size:9pt}td,th{border:1px solid #e4dcd0;padding:3pt 5pt;font-size:9pt;vertical-align:top}table{border-collapse:collapse}'
+            'p.MsoFootnoteText{font-size:9pt;line-height:1.2}.MsoFootnoteReference{vertical-align:super}td,th{border:1px solid #e4dcd0;padding:3pt 5pt;font-size:9pt;vertical-align:top}table{border-collapse:collapse}'
             '.pb{page-break-before:always}</style></head><body>'
             f'<p style="color:#8b7f72;font-size:9pt">RUBICON REPORT</p><h1>{esc(heading(R, title))}</h1>'
             + (f'<p style="color:#8b7f72;font-size:9pt">Run {esc(R["run_id"])}</p>' if R.get("run_id") else "") +
-            f'{asked(R, static=True)}{synthetic(R)}{lead}{word_badge(R, nrows_of(R))}{body}<h1 class="pb">{ANNEXES}</h1><h2>{HOW_DONE}</h2>{how_done(R, static=True)}{annex(R, D, static=True)}<h2>Passages cited</h2>{notes}'
+            f'{asked(R, static=True)}{synthetic(R)}{lead}{word_badge(R, nrows_of(R))}{body}<h1 class="pb">{ANNEXES}</h1><h2>{HOW_DONE}</h2>{how_done(R, static=True)}{annex(R, D, static=True)}{cite_no.listed()}'
             f'<h2>What next</h2>{further(R)}{carbon_line(R["footprint"], static=True)}{made_with()}</body></html>')
 
 
