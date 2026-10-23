@@ -51,7 +51,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder
 import register
 import render_report as RR
 from rubicon_open import console  # noqa: E402
-from rubicon_open import assets, footprint, plan
+from rubicon_open import assets, footprint, plan, procedure
 from rubicon_open.run_id import clean as run_id_of
 from rubicon_open.seal import engine_fingerprint
 from rubicon_open.steps import base_of, unit_of_table
@@ -183,7 +183,7 @@ def gather(parts):
     for p in parts:
         k, R = p["k"], p["R"]
         if "annex" not in p["page"]:
-            shown = lambda inner, static: f"<h3>{RR.HOW_DONE}</h3>" + RR.how_done(R, static=static) + inner
+            shown = lambda inner, static: f"<h3>{RR.HOW_DONE}</h3>" + RR.how_done(R, static=static, D=p["D"]) + inner
             p["page"]["annex"] = scoped(shown(RR.annex(R, p["D"], earlier=earlier, number=k), False), k)
             p["word"]["annex"] = shown(RR.annex(R, p["S"], static=True, earlier=earlier, number=k), True)
             matrix = p["page"]["matrix"]
@@ -400,8 +400,10 @@ def about(parts):
         folder = run_folder.parent
         held[folder] = max(held.get(folder, 0), len(p["R"]["index"]))
     n = sum(p["asks"] for p in parts)
+    facts = any(RR.counts_from_facts(p["R"], p["D"]) for p in parts)
     return (f"<p>This report answers {COUNT_WORDS.get(n, n)} question{'' if n == 1 else 's'} from {sum(held.values())} documents. Each answer was "
-            "reached and checked separately. Its numbers were counted from what people said in the documents rather than "
+            "reached and checked separately. Its numbers were counted from "
+            + procedure.from_said("what people said in the documents", facts) + " rather than "
             "estimated by the AI, and every quotation is word for word. How each answer was reached is set out in the "
             "annexes at the end.</p>")
 

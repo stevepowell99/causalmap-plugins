@@ -437,6 +437,27 @@ def doc_unit(R):
     return units.pop() if len(units) == 1 else "documents"
 
 
+def case_fields(c, rows, weak_in):
+    """The cases a count covers, for the side panel: the ones the recount took the count from (`c["cases"]`, made in
+    `steps.tabulate` from `Corpus.cases_held`), never worked out again from the passages, since a count made from the
+    documents' own facts, or from a filter on them, has cases and no passage at all. `weak_cases` are those a cell
+    holds only through the passages in `weak_in` (legacy_weak), which its count leaves out. `from_facts` marks a count
+    whose rows are the documents themselves, none of them a passage: it rests on the documents' own facts. This is the
+    one place that is decided; the panel reads the mark, and `counts_from_facts` asks it of every count."""
+    facts = {"from_facts": True} if c.get("rows") and not any(x in rows for x in c["rows"]) else {}
+    if "cases" not in c:
+        return facts
+    firm = {rows[x]["case"] for x in c.get("rows", []) if x in rows and x not in weak_in}
+    return {"cases": c["cases"], "weak_cases": sorted({rows[x]["case"] for x in weak_in if x in rows} & set(c["cases"]) - firm), **facts}
+
+
+def counts_from_facts(R, D=None):
+    """Whether any count in the run rests on the documents' own facts rather than on passages, as the side panel's
+    cells say (`case_fields`), for every sentence that says what the numbers were computed from
+    (`procedure.computed_said`, `procedure.from_said`). `D` is `build_data(R)` where the caller has it."""
+    return bool(R.get("steps")) and any(c.get("from_facts") for c in (D or build_data(R))["cells"].values())
+
+
 def build_data(R):
     """Everything the page's script needs: rows with context, cells, documents."""
     gcol = group_column(R["index"])
@@ -517,7 +538,7 @@ def build_data(R):
                                   "weak_docs": sorted(set(weak_in.values()) - firm),
                                   "rows": c.get("rows", []), "step": sid,
                                   **({"weak_rows": sorted(weak_in)} if held is not None else {}),
-                                  **({"cases": c["cases"]} if "cases" in c else {})}
+                                  **case_fields(c, rows, weak_in)}
                 if s.get("loops"):
                     cells[c["id"]]["told"] = loop_told(c, markers)
                 if plain:
@@ -546,7 +567,7 @@ def build_data(R):
                               "said": count_said(c.get("n"), c.get("base"), c.get("unit") or "documents"), "within": {},
                               "docs": [d for d in c.get("documents", []) if d not in weak] + sorted(weak),
                               "weak_docs": sorted(weak), "rows": c["rows"], "step": sid, "question": c.get("question", ""),
-                              **({"cases": c["cases"]} if "cases" in c else {})}
+                              **case_fields(c, rows, {x: rows[x]["doc"] for x in c["rows"] if x in rows and rows[x].get("weak")})}
     # a free-text value is a code to open only where a table counts it alone, as the claims an answer cites are
     shared = {k: c for k, c in shared.items() if not c.pop("free", False) or c["cell"]}
     for r in rows.values():
@@ -1780,25 +1801,33 @@ def tagged(sid, s, D, static=False):
     return f'<h4>{esc(step_title(D, sid))}</h4>' + (f"<ul>{items}</ul>" if items else '<p class="small">No claim was tagged.</p>')
 
 
-METHOD_INTRO = ("The analysis was written down as a workflow before it was counted: what to look for, how to code it, what to "
-                "count. It was then counted directly from the coded passages rather than by the AI, so anyone can check a "
-                "number, and another coder can follow the same definitions and code the interviews afresh.")
-#: The same, for a run whose passages were cited by the AI for an answer it had already written (a code step's `cited`)
-CITED_INTRO = ("The answer was written first, and the passages each of its numbers rests on were cited afterwards. Each count "
-               "was then made directly from the passages cited rather than by the AI, so anyone can check a number against "
-               "the passages behind it. Whether the passages cited are all that the documents hold on each point is not checked.")
+def method_intro(from_facts):
+    return ("The analysis was written down as a workflow before it was counted: what to look for, how to code it, what to "
+            f"count. It was then counted directly from {procedure.from_said('the coded passages', from_facts)} rather than by the AI, so anyone can check a "
+            "number, and another coder can follow the same definitions and code the interviews afresh.")
+
+
+def cited_intro(from_facts):
+    """The same, for a run whose passages were cited by the AI for an answer it had already written (a code step's `cited`)."""
+    return ("The answer was written first, and the passages each of its numbers rests on were cited afterwards. Each count "
+            f"was then made directly from {procedure.from_said('the passages cited', from_facts)} rather than by the AI, so anyone can check a number against "
+            "the passages behind it. Whether the passages cited are all that the documents hold on each point is not checked.")
+
+
+METHOD_INTRO, CITED_INTRO = method_intro(False), cited_intro(False)  # for a run whose counts all rest on passages
 
 
 def cited(R) -> bool:
     """Whether the run's passages were cited for an answer already written rather than coded from the documents."""
     return any(st.get("cited") for st in (R.get("workflow") or {}).get("steps", []) if st.get("kind") == "code")
 
-RECORD_CHECK = ("It is the SHA-256 of the zip's SHA256SUMS file, which lists the SHA-256 of every other file in the zip, so "
-                "changing any file breaks the match. To check that the zip is the one this report was created from, unzip it, run "
-                "<code>sha256sum -c SHA256SUMS</code>, then <code>sha256sum SHA256SUMS</code>, and compare the result with the "
-                "fingerprint above. Rubicon's own fixed rules check the rest: <code>python verify.py "
-                "&lt;report&gt; &lt;zip&gt;</code> recounts every number from the coded passages in the zip, creates "
-                "the report again from the zip and says whether it matches this one exactly.")
+def record_check(from_facts):
+    return ("It is the SHA-256 of the zip's SHA256SUMS file, which lists the SHA-256 of every other file in the zip, so "
+            "changing any file breaks the match. To check that the zip is the one this report was created from, unzip it, run "
+            "<code>sha256sum -c SHA256SUMS</code>, then <code>sha256sum SHA256SUMS</code>, and compare the result with the "
+            "fingerprint above. Rubicon's own fixed rules check the rest: <code>python verify.py "
+            f"&lt;report&gt; &lt;zip&gt;</code> recounts every number in the zip from {procedure.from_said('the coded passages', from_facts)}, creates "
+            "the report again from the zip and says whether it matches this one exactly.")
 
 
 def hashed(*shown):
@@ -1976,7 +2005,7 @@ def annex(R, D, static=False, earlier=None, number=None):
         gcounts[d.get(D["group"], "")] = gcounts.get(d.get(D["group"], ""), 0) + 1
     gutter = "" if static else '<div class="wf-gutter"></div>'
     said = again(hashed("method", *(["cited"] if cited(R) else [])), "The method is the same as in")
-    out.append(f'<div class="method" id="method"><h3>{STEP_BY_STEP}</h3>' + (said or f"<p>{CITED_INTRO if cited(R) else METHOD_INTRO}</p>") + gutter)
+    out.append(f'<div class="method" id="method"><h3>{STEP_BY_STEP}</h3>' + (said or f"<p>{(cited_intro if cited(R) else method_intro)(counts_from_facts(R, D))}</p>") + gutter)
     given = "given to the AI that wrote the answer" if cited(R) else "read in full"
     said = again(hashed("read", [d["id"] for d in R["index"]], *(["cited"] if cited(R) else [])), f"The same {n} documents, {given}, as in")
     out.append("<h4>What was read</h4>" + (said or f"<p>All {n} documents, {given}: "
@@ -2096,8 +2125,8 @@ def annex(R, D, static=False, earlier=None, number=None):
                   + (f", {said_rough} more only approximately" if said_rough else "")
                   + " (a quotation of under twelve characters, such as one word, is not checked).</li>" if said is not None else "") +
                f"<li>{a.get('counts_written_by_id',0)} numbers in the answer, "
-               + (counted_said(R, "each written by the AI beside the count the fixed rules made from the passages it cited, and equal to it")
-                  if cited(R) else "every one computed directly from the coded passages rather than written by the AI")
+               + (counted_said(R, "each written by the AI beside the count the fixed rules made from {}, and equal to it", D)
+                  if cited(R) else "every one " + procedure.computed_said(counts_from_facts(R, D)))
                + f"; {len(a.get('numbers_written_bare',[]))} written by the AI without a count behind them.</li>"
                f"<li>{len(a.get('citations_to_no_row',[]))} citations to passages that do not exist; {len(set(a.get('quotations_not_in_what_they_cite',[])))} quotations not in the passage they cite.</li></ul>")
     if R.get("check"):
@@ -2133,7 +2162,7 @@ def annex(R, D, static=False, earlier=None, number=None):
                       "zip's fingerprint, below, names this version of it. " if R.get("run_id") else "")
                    + f"This report was created directly from the run's zip, {esc(R['zip'])}"
                    + (f", with Rubicon {esc(R['version'])}" if R.get("version") else "") + ". The zip's fingerprint is "
-                   f'<code class="fingerprint">{R["fingerprint"]}</code>.' + ("</p>" + checked if checked else f" {RECORD_CHECK}</p>"))
+                   f'<code class="fingerprint">{R["fingerprint"]}</code>.' + ("</p>" + checked if checked else f" {record_check(counts_from_facts(R, D))}</p>"))
     revised = [l.strip()[2:] for l in R.get("revisions", "").splitlines() if l.strip().startswith("- ")]
     if revised:
         out.append(f'<h3 id="{procedure.anchor("revisions")}">Revisions</h3><p>'
@@ -2199,20 +2228,20 @@ HOW_DONE = "How this report was written"
 STEP_BY_STEP = "Step by step"
 
 
-def how_done(R, static=False):
+def how_done(R, static=False, D=None):
     """The procedure this run followed, in words, for a reader new to Rubicon: a short paragraph a stage, each step it
     tells linking to that step further down the same annex. Told from the same steps the workflow x-ray draws."""
     def piece(text, sid):
         return esc(text) if static or not sid else f'<a class="step" href="#{procedure.anchor(sid)}">{esc(text)}</a>'
     paras = "".join(f'<p><b>{esc(st["title"])}.</b> ' + "".join(piece(t, sid) for t, sid in st["parts"]) + "</p>"
-                    for st in procedure.told(R, drawn_steps(R)))
+                    for st in procedure.told(R, drawn_steps(R), counts_from_facts(R, D)))
     return paras + ("" if static else f'<p class="small">The workflow x-ray beside {STEP_BY_STEP}, below, draws the same '
                     "procedure, a box for each stage and what it made.</p>")
 
 
-def further(R):
+def further(R, D=None):
     """What comes after this draft: making sense of it with stakeholders, or, for a test on made-up documents,
-    what the test's result calls for; the run's zip; and help from Causal Map."""
+    what the test's result calls for; the run's zip; and help from Causal Map. `D` is `build_data(R)` where the caller has it."""
     test = bool(R["index"]) and n_synthetic(R) == len(R["index"])
     causal_map = ('<p>The Rubicon plugin for Claude is provided for free by Causal Map Ltd. Causal Map also runs '
                   'workshops and consultancy on analysing qualitative evidence for evaluation: '
@@ -2235,7 +2264,7 @@ def further(R):
             f'<p><b>For evaluation commissioners:</b> Parallel to this report is a zip file ({esc(R["zip"])}), saved in '
             'the same folder, which contains the whole run: the documents, the coded passages and the workflow that '
             f'recounts every number. Its fingerprint, under {HOW_DONE}, ties it to this report: change a file in '
-            'either and they no longer match. With it, anyone can check every number against the coded passages, and code the '
+            f'either and they no longer match. With it, anyone can check every number against {procedure.from_said("the coded passages", counts_from_facts(R, D))}, and code the '
             'documents again to the same definitions without Rubicon or any other particular software. A fresh coding '
             'will not reproduce this report word for word, because AI models are unpredictable, but it should come '
             'close.</p>' + causal_map)
@@ -2298,24 +2327,26 @@ def sentences(md):
     return [t for t in re.split(r"(?<=[.!?])\s+(?=[A-Z\"“(*])", text) if t.strip()]
 
 
-def counted_said(R, every_beside):
+def counted_said(R, every_beside, D=None):
     """How the answer's counts came from the passages the AI cited: `every_beside` where the AI wrote a number beside
-    each (`procedure.stated_beside`), else code's count put where the AI referred to it."""
+    each (`procedure.stated_beside`), else code's count put where the AI referred to it. `{}` in `every_beside` is
+    where it says what the counts were made from."""
     beside = procedure.stated_beside(R)
+    facts = counts_from_facts(R, D)
     if beside is None:
-        return every_beside
-    return ("each counted by fixed rules from the passages the AI cited and put where the AI referred to it"
+        return every_beside.format(procedure.from_said("the passages it cited", facts))
+    return ("each counted by fixed rules from " + procedure.from_said("the passages the AI cited", facts) + " and put where the AI referred to it"
             + (f", {beside} of them also written by the AI beside it and equal to it" if beside else ""))
 
 
-def summary(R, a, nrows):
+def summary(R, a, nrows, D=None):
     """The box under the short answer: what code checked in this report, and, for a checked run, how many of the
     answer's sentences a second AI reader read against the documents; then what nothing checked."""
     counted = (f"<li><b>{a['counts_written_by_id']}</b> numbers, "
-               + (counted_said(R, "each written by the AI and shown beside the count the fixed rules made from the passages it cited, which it must equal") + "."
-                  if cited(R) else "every one computed directly from the coded passages rather than written by the AI.")
+               + (counted_said(R, "each written by the AI and shown beside the count the fixed rules made from {}, which it must equal", D) + "."
+                  if cited(R) else "every one " + procedure.computed_said(counts_from_facts(R, D)) + ".")
                + '</li>') if a.get("counts_written_by_id") else (
-        "<li>No counts: the answer states no number computed from the coded passages, so its findings rest on the "
+        f"<li>No counts: the answer states no number computed from {procedure.from_said('the coded passages', counts_from_facts(R, D))}, so its findings rest on the "
         "passages cited and quoted beside them.</li>")
     out = [f'<li class="head"><span class="vb-t">{BOX_TITLE}<small>{VERIFIED_WHEN}</small></span></li>', counted,
            f"<li><b>{nrows}</b> quotations, every one found word for word in its interview."
@@ -2342,10 +2373,10 @@ NOT_CHECKED = ("<b>Not checked:</b> whether the passages cited are all the docum
 VERIFIED_WHEN = "Checked when this report was created"
 
 
-def word_badge(R, nrows):
+def word_badge(R, nrows, D=None):
     """The verification box for Word, which keeps no class styling: a one-cell table with a red rule, a tick before each
     check and a dash before the line on what was not checked."""
-    items = re.findall(r"<li(?: class=\"(?:unchecked-said|not-checked)\")?>(.*?)</li>", summary(R, R["report"].get("answer", {}), nrows))
+    items = re.findall(r"<li(?: class=\"(?:unchecked-said|not-checked)\")?>(.*?)</li>", summary(R, R["report"].get("answer", {}), nrows, D))
     items = [re.sub(r'<span class="click">.*?</span>|<span class="unchecked">(.*?)</span>', r"\1", i) for i in items]
     mark = lambda i: ('<span style="color:#7d7166;font-weight:bold">&#8211;</span>' if i.startswith("<b>Not checked:") else
                       '<span style="color:#8c1912;font-weight:bold">&#10003;</span>')
@@ -2381,7 +2412,7 @@ def facts(R, D):
     run = f" · Run {esc(R['run_id'])}" if R.get("run_id") else ""
     return (f'<p class="meta">{len(R["index"])} interviews in {len(groups)} groups · {nrows} passages coded · '
             f'{esc(R.get("date", ""))}{run}</p>\n  '
-            f'<ul class="checks">{summary(R, R["report"].get("answer", {}), nrows)}</ul>')
+            f'<ul class="checks">{summary(R, R["report"].get("answer", {}), nrows, D)}</ul>')
 
 
 def annexes(inner):
@@ -2412,7 +2443,7 @@ def page(R, fragment=False):
     map_js = margin_map(R)
     annexed = annexes(f"""<section class="annex" id="how-done">
   <h2>{HOW_DONE}</h2>
-  {how_done(R)}
+  {how_done(R, D=D)}
   {annex(R, D)}
 </section>
 <section class="evidence" id="evidence">
@@ -2422,7 +2453,7 @@ def page(R, fragment=False):
 </section>
 <aside class="next" id="next">
   <h2>What next</h2>
-  {further(R)}
+  {further(R, D)}
 </aside>""")
     content = f"""<title>{esc(heading(R, title))}</title>
 <style>{assets.fonts_css()}{css}</style>
@@ -2471,8 +2502,8 @@ def word(R):
             '.pb{page-break-before:always}</style></head><body>'
             f'<p style="color:#8b7f72;font-size:9pt">RUBICON REPORT</p><h1>{esc(heading(R, title))}</h1>'
             + (f'<p style="color:#8b7f72;font-size:9pt">Run {esc(R["run_id"])}</p>' if R.get("run_id") else "") +
-            f'{asked(R, static=True)}{synthetic(R)}{lead}{word_badge(R, nrows_of(R))}{body}<h1 class="pb">{ANNEXES}</h1><h2>{HOW_DONE}</h2>{how_done(R, static=True)}{annex(R, D, static=True)}{cite_no.listed()}'
-            f'<h2>What next</h2>{further(R)}{carbon_line(R["footprint"], static=True)}{made_with()}</body></html>')
+            f'{asked(R, static=True)}{synthetic(R)}{lead}{word_badge(R, nrows_of(R), D)}{body}<h1 class="pb">{ANNEXES}</h1><h2>{HOW_DONE}</h2>{how_done(R, static=True, D=D)}{annex(R, D, static=True)}{cite_no.listed()}'
+            f'<h2>What next</h2>{further(R, D)}{carbon_line(R["footprint"], static=True)}{made_with()}</body></html>')
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ from pathlib import Path
 
 ENGINE = Path(__file__).resolve().parent
 sys.path.insert(0, str(ENGINE))
-from rubicon_open import console  # noqa: E402
+from rubicon_open import console, procedure  # noqa: E402
 from rubicon_open.seal import engine_fingerprint, seal_broken
 
 
@@ -65,8 +65,11 @@ def verdict(report, zipped):
                         min(len(a.splitlines()), len(b.splitlines())) + 1)
             return 1, (f"NO MATCH: {report.name} names this zip, but is not the report the zip creates: they first "
                        f"differ at line {line}, so the report has been changed since it was created.")
+    # what the numbers were recounted from, in the words the report uses (`render_report.counts_from_facts`)
+    import render_report
+    from_facts = render_report.counts_from_facts(render_report.load(zipped))
     return 0, (f"MATCH: {report.name} was created from {zipped.name}, fingerprint {fingerprint}, by this engine. Every "
-               "file in the zip is as it was made, every number recounts from its coded passages, every number stated "
+               f"file in the zip is as it was made, every number recounts from {procedure.from_said('its coded passages', from_facts)}, every number stated "
                "beside a count equals it, every quotation in the answer is found in a document, and the zip recreates this report byte for byte.")
 
 

@@ -184,9 +184,24 @@ def earlier_said(R: dict, s: dict) -> str:
             "shows how, and are not checked again here.")
 
 
-def told(R: dict, steps: list[dict]) -> list[dict]:
+def from_said(passages: str, from_facts: bool) -> str:
+    """What the numbers were made from: `passages` ("the coded passages"), and the documents' own facts too where a
+    count rests on them (`render_report.counts_from_facts`). Every sentence saying where the numbers come from is built
+    from this or from `computed_said`, so none says "passages" of a count that does not rest on one."""
+    return f"{passages} or the documents' own facts" if from_facts else passages
+
+
+def computed_said(from_facts: bool) -> str:
+    """How the answer's numbers were made, to follow "every one" or "every number ... was": unchanged where every count
+    rests on passages, and naming the documents' own facts as well where some do not."""
+    return ("computed by fixed rules from " + from_said("the coded passages", True) + ", rather than written by the AI"
+            if from_facts else "computed directly from the coded passages rather than written by the AI")
+
+
+def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
     """The procedure as stages, each {"title", "steps", "parts"}: `parts` is the paragraph as (text, step id or None)
-    pieces, a piece with a step id linking to that step's part of the annex. `steps` is the list the x-ray draws."""
+    pieces, a piece with a step id linking to that step's part of the annex. `steps` is the list the x-ray draws.
+    `from_facts` is whether any count rests on the documents' own facts (`render_report.counts_from_facts`)."""
     records = R.get("steps", {})
     by_id = {s["id"]: s for s in steps}
     n = len(R.get("index", []))
@@ -329,7 +344,7 @@ def told(R: dict, steps: list[dict]) -> list[dict]:
         ends_of = lambda s: links_ending(steps, (s.get("inputs") or [s.get("input")])[0])
         shared = {unit_of_table(rec(s)) for s in tables}
         unit = f" {next(iter(shared))}" if len(shared) == 1 else ""
-        lead = (unit.strip()[:1].upper() + unit.strip()[1:]) if unit else "The coded passages"
+        lead = (unit.strip()[:1].upper() + unit.strip()[1:]) if unit else from_said("The coded passages", from_facts)
         k = len(tables)
         if k > MANY_TABLES:
             def is_map(s):
@@ -430,9 +445,8 @@ def told(R: dict, steps: list[dict]) -> list[dict]:
                         + ".", None))
     elif numbers is not None:
         found = f"all {quotes}" if exact == quotes else f"{exact} of the {quotes}"
-        writing.append(((f" Every count in the answer, {numbers} in all, was computed directly from the cited passages" if cited
-                         else f" Every number in the answer, {numbers} in all, was computed directly from the coded "
-                         "passages rather than written by the AI")
+        writing.append(((f" Every count in the answer, {numbers} in all, was computed directly from {from_said('the cited passages', from_facts)}" if cited
+                         else f" Every number in the answer, {numbers} in all, was {computed_said(from_facts)}")
                         + (f", and {found} {'cited' if cited else 'coded'} passages were found word for word in their documents" if quotes else "")
                         + (f"; every quotation in the answer, {said} in all, was found in the documents" if said else "")
                         + ".", None))

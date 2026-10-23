@@ -340,13 +340,14 @@
   // The passages behind a count, a code or a factor, each place once: who says so explicitly and their passages, then
   // the documents and passages held only through rows the coder marked implicit, which no count stands on
   // Where the count is of cases, who is named by case, each opening everything coded for it, rather than by document.
-  function listing(ids, docs, weakDocs, cases, weakRows) {
+  // The cases are the count's own (render_report.case_fields), whether it rests on passages or only on the documents'
+  // facts; the passages are listed beneath them where there are any.
+  function listing(ids, docs, weakDocs, cases, weakRows, weakCases) {
     const isWeak = id => weakRows ? weakRows.includes(id) : (RUN.rows[id] || {}).weak;
     let firmWho = docs.filter(d => !weakDocs.includes(d)), weakWho = weakDocs, link = docLink;
     if (cases) {
-      const firm = new Set(ids.filter(id => RUN.rows[id] && !isWeak(id)).map(id => RUN.rows[id].case));
-      firmWho = cases.filter(k => firm.has(k));
-      weakWho = cases.filter(k => !firm.has(k));
+      weakWho = cases.filter(k => (weakCases || []).includes(k));
+      firmWho = cases.filter(k => !weakWho.includes(k));
       link = caseLink;
     }
     const drawn = keep => byPlace(ids.filter(keep)).map(g => passage(g)).join('');
@@ -364,13 +365,15 @@
           : c.docs.map(d => `<div class="item">${docTag(d)}</div>`).join('')));
     }
     const said = within && within in c.within ? countSaid(c.n, c.within[within], c.unit || 'documents') : c.said;
+    // a count made from the documents' own facts holds no passage; render_report.case_fields decides which, once
+    const fromFacts = !!c.from_facts;
     const both = combined(c) ? '<p class="small">Opposites are combined here, so a passage coded as a factor or as its opposite counts towards this link. Passages coded as an opposite come first, their codes marked ~; the rest were coded as labelled.</p>' : '';
     // passages coded at an opposite pole first, since they are the few a reader looks for
     const listed = c.rows.filter(id => oppositeEnds(c, id).length).concat(c.rows.filter(id => !oppositeEnds(c, id).length));
     open(head(said, c.question ? `Judged by rule: ${c.question}` : '') +
-      (c.told ? `<p class="small">Computed directly from the coded passages: the ${esc(c.unit || 'documents')} ${esc(c.told)}.</p>`
-        : `<p class="small">Computed directly from the coded passages: the ${c.base == null ? 'passages' : esc(c.unit || 'documents')} where</p>${meaning(c.values, c, id)}`) + both +
-      listing(listed, c.docs, c.weak_docs || [], casesOf(c), c.weak_rows));
+      (c.told ? `<p class="small">Computed directly from ${fromFacts ? "the documents' own facts" : 'the coded passages'}: the ${esc(c.unit || 'documents')} ${esc(c.told)}.</p>`
+        : `<p class="small">Computed directly from ${fromFacts ? "the documents' own facts" : 'the coded passages'}: the ${c.base == null ? 'passages' : esc(c.unit || 'documents')} where</p>${meaning(c.values, c, id)}`) + both +
+      listing(listed, c.docs, c.weak_docs || [], casesOf(c), c.weak_rows, c.weak_cases));
   }
   // A case: every passage coded for it, in any code step, grouped by document, each document opening whole with the
   // passage marked (wholeLink), and the passages drawn as everywhere else (passage)
@@ -435,7 +438,7 @@
     const said = id => { const c = RUN.cells[id]; const v = Object.entries(c.values).map(([k, x]) => valueSaid(c, id, k, x)).join(', ');
       return `<div class="item"><button class="n" data-cell="${esc(id)}">${esc(c.said)}</button> ${c.question || c.told ? esc(c.question || c.told) : v || 'documents read'}</div>`; };
     open(head('Evidence') +
-      (cells.length ? `<p class="small">${cells.length} number${cells.length === 1 ? '' : 's'}, computed directly from the coded passages</p>` + cells.map(said).join('') : '') +
+      (cells.length ? `<p class="small">${cells.length} number${cells.length === 1 ? '' : 's'}, computed directly from the coded passages${cells.some(id => RUN.cells[id].from_facts) ? " or the documents' own facts" : ''}</p>` + cells.map(said).join('') : '') +
       (groups.length ? `<p class="small">${passagesSaid(groups)}, quoted</p>` + groups.map(g => passage(g)).join('') : '') +
       (steps.length ? '<p class="small">From these steps</p><p>' + steps.map(s => `<button class="rowlink" data-step="${esc(s)}">${esc(stepSaid(s))}</button>`).join('') + '</p>' : ''));
   }
