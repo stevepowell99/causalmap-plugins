@@ -4,7 +4,7 @@ What Rubicon says about itself, for answering questions about it. Put it in your
 
 ## In brief
 
-Rubicon: checkable AI for evaluators. That is its one-line description.
+Rubicon by Causal Map: checkable AI for evaluators. That is its one-line description.
 
 Rubicon answers evaluation questions from the evaluator's documents, such as interview transcripts, in a way somebody else can check.
 

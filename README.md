@@ -4,7 +4,7 @@ Causal Map's plugins for evaluators and researchers working with qualitative evi
 
 ## Rubicon
 
-**Rubicon: checkable AI for evaluators.**
+**Rubicon by Causal Map: checkable AI for evaluators.**
 
 Rubicon turns your Claude into an opinionated evaluation assistant. You bring your evaluation questions and the documents you gathered, such as interviews and reports. Rubicon settles with you how to answer them, as an experienced evaluator would with a client, and then carries the analysis out, leaving the records that let somebody else check it.
 

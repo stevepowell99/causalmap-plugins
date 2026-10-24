@@ -8,7 +8,7 @@ name from what the workflow already says:
   column where that leaves fewer than three letters,
 - a tabulation for the step it counts and the columns it counts by ("Concern by size"), or for its `description` where it
   reads no step; the description is shown beneath the heading as the paragraph it is,
-- a grouping for the step it groups where its own id is a single letter,
+- a label-grouping step for the step it groups where its own id is a single letter,
 - the claims step "Key claims",
 - any other step for its id without the one-letter prefix (`j_welfare` is "Welfare") that marks its kind.
 
@@ -18,9 +18,9 @@ ids inside text a model wrote (a claim's `found_by`), and touches nothing else i
 import re
 
 #: What each kind of step is called where a reader meets it, in the annex's headings and the side panel's step buttons
-KIND_SAID = {"code": "Coding", "profile": "Profiling", "tabulate": "Counting", "judge": "Judging", "claims": "Tagging claims",
+KIND_SAID = {"code": "Coding", "profile": "Summing up each case", "tabulate": "Counting", "judge": "Judging", "claims": "Evidence for key claims",
              "write": "Writing", "sample": "Sampling",
-             "group": "Grouping", "recode": "Second coding", "check": "Checking"}
+             "group": "Grouping labels", "recode": "Second coding", "check": "Checking"}
 
 
 def label(v):

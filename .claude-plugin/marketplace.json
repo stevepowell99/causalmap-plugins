@@ -9,7 +9,7 @@
     {
       "name": "rubicon",
       "source": "./plugins/rubicon",
-      "description": "Rubicon: checkable AI for evaluators."
+      "description": "Rubicon by Causal Map: checkable AI for evaluators."
     }
   ]
 }

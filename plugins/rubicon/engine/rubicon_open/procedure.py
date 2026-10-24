@@ -284,7 +284,7 @@ def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
     for s in of_kind("group"):
         most = f" at most {s['max_items']}" if s.get("max_items") else ""
         key = f" of {' and '.join(_label(k) for k in key_columns(s))}" if s.get("key_column") else ""
-        coding.append((f" It grouped the answers{key} into{most} themes, which became a codebook"
+        coding.append((f" It grouped the labels{key} into{most} themes, which became a codebook"
                        + (", and placed each passage under one of them." if s.get("assign") else "."), s["id"]))
     if legacy_weak.in_report(R) and any(c.get("weak") for s in codes for c in s.get("columns") or []):  # legacy_weak
         coding.append((" A passage that only implies a code, in the way the code's definition names, was marked implicit "

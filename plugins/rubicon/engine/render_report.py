@@ -1548,7 +1548,7 @@ def matrix(R, D):
 # ---------- the annex: how it was made ----------
 
 #: What each kind of step makes, as the Rubicon page names a step's result (webapp/rubicon/js/model.js PIECE_MADE)
-MADE = {"sample": "documents drawn", "code": "rows", "group": "codebook", "profile": "profile", "tabulate": "table", "judge": "verdicts",
+MADE = {"sample": "documents drawn", "code": "rows", "group": "codebook", "profile": "summaries", "tabulate": "table", "judge": "verdicts",
         "claims": "claims",
         "write": "answer", "recode": "rows", "check": "record"}
 
@@ -1713,7 +1713,7 @@ def grouped(sid, st, s, step_link, D):
             (ch.get("labels_invented"), "Labels the codebook names that no passage carries")]
     out += [f'<p class="small">{what}: {esc("; ".join(map(str, got)))}.</p>' for got, what in said if got]
     if book.get("notes"):
-        out.append(f'<details><summary>What the grouping merged, split or left alone</summary><p>{esc(str(book["notes"]))}</p></details>')
+        out.append(f'<details><summary>What grouping the labels merged, split or left alone</summary><p>{esc(str(book["notes"]))}</p></details>')
     return "".join(out)
 
 
@@ -1842,7 +1842,7 @@ def step_key(st, s):
         return hashed("code", st.get("prompt"), st.get("per_document"), st.get("columns"), s.get("combines"),
                       s.get("rows_by_coding"), s["rows"])
     if st.get("kind") == "tabulate" and s.get("cells"):
-        return hashed("tabulate", st.get("count"), st.get("unit"), st.get("by"), s["cells"])
+        return hashed("tabulate", st.get("count"), st.get("unit"), st.get("by"), s["cells"], s.get("unit"), s.get("of"))
     return None
 
 
@@ -2182,7 +2182,7 @@ def site_link(text=None):
 
 def made_with():
     """The page's last line: what made the report, with the site's address spelled out as the link's own text."""
-    return f'<p class="madewith">Made with Rubicon, free for Claude: {site_link()}</p>'
+    return f'<p class="madewith">Made with Rubicon by Causal Map, free for Claude: {site_link()}</p>'
 
 
 def carbon_line(F, combined=False, static=False):
@@ -2488,6 +2488,17 @@ def page(R, fragment=False):
     return f'<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">{head}</head><body><div class="wrap">{body}</body></html>'
 
 
+#: The Word copy's stylesheet, for `word` and for `bind.binder_word`, so the two cannot drift. Word's HTML import gives a
+#: paragraph with no margin its default paragraph spacing (about a blank line), so a footnote carries its own: Word's own
+#: export sets `MsoFootnoteText` margins in `margin`, and `mso-margin-*-alt` states the same for its HTML reader.
+WORD_CSS = (
+    '<style>body,p,li,td{font-family:Cambria,Georgia,serif;font-size:11pt;line-height:1.35;color:#17130f}'
+    'h1,h2,h3{font-family:Cambria,Georgia,serif;font-weight:normal;color:#8c1912}h1{font-size:20pt}h2{font-size:14pt}'
+    'p.MsoFootnoteText{font-size:9pt;line-height:1.2;margin:0pt 0pt 2pt 0pt;mso-margin-top-alt:0pt;mso-margin-bottom-alt:2pt}'
+    '.MsoFootnoteReference{vertical-align:super}td,th{border:1px solid #e4dcd0;padding:3pt 5pt;font-size:9pt;vertical-align:top}table{border-collapse:collapse}'
+    '.pb{page-break-before:always}</style>')
+
+
 def word(R):
     """The same report for Word: figures as text, each citation as its document with a footnote giving the passage in
     full (`Footnotes`), which Word puts at the foot of the page and a program without footnotes lists at the end."""
@@ -2496,10 +2507,7 @@ def word(R):
     return ('<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" '
             'xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">'
             f'<title>{esc(heading(R, title))}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->'
-            '<style>body,p,li,td{font-family:Cambria,Georgia,serif;font-size:11pt;line-height:1.35;color:#17130f}'
-            'h1,h2,h3{font-family:Cambria,Georgia,serif;font-weight:normal;color:#8c1912}h1{font-size:20pt}h2{font-size:14pt}'
-            'p.MsoFootnoteText{font-size:9pt;line-height:1.2}.MsoFootnoteReference{vertical-align:super}td,th{border:1px solid #e4dcd0;padding:3pt 5pt;font-size:9pt;vertical-align:top}table{border-collapse:collapse}'
-            '.pb{page-break-before:always}</style></head><body>'
+            + WORD_CSS + '</head><body>'
             f'<p style="color:#8b7f72;font-size:9pt">RUBICON REPORT</p><h1>{esc(heading(R, title))}</h1>'
             + (f'<p style="color:#8b7f72;font-size:9pt">Run {esc(R["run_id"])}</p>' if R.get("run_id") else "") +
             f'{asked(R, static=True)}{synthetic(R)}{lead}{word_badge(R, nrows_of(R), D)}{body}<h1 class="pb">{ANNEXES}</h1><h2>{HOW_DONE}</h2>{how_done(R, static=True, D=D)}{annex(R, D, static=True)}{cite_no.listed()}'

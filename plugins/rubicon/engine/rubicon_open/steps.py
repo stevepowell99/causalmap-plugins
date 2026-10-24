@@ -103,12 +103,17 @@ class Run:
         return name.lower() in {c.lower() for c in self.corpus.columns}
 
     def table(self, sid: str) -> list[dict]:
-        """The rows a step stands for: a code step's, or those of the group step that assigned them items."""
-        rec = self.out[sid]
-        if rec.get("table") is not None:
-            return rec["table"]
-        assigned = [r for r in self.out.values() if r.get("kind") == "group" and r.get("input") == sid and r.get("table")]
-        return assigned[-1]["table"] if assigned else rec["rows"]
+        return table_of(self.out, sid)
+
+
+def table_of(out: dict[str, dict], sid: str) -> list[dict]:
+    """The rows a step stands for, from the records of a run's steps by id (a run's own as it goes, or a recount's as
+    recorded): a code step's, or those of the group step that assigned them items."""
+    rec = out[sid]
+    if rec.get("table") is not None:
+        return rec["table"]
+    assigned = [r for r in out.values() if r.get("kind") == "group" and r.get("input") == sid and r.get("table")]
+    return assigned[-1]["table"] if assigned else rec["rows"]
 
 
 def attribute_of(corpus: Corpus, doc: str, name: str):
@@ -598,7 +603,7 @@ def tabulate(run: Run, s: dict) -> dict:
     # those read that share its values on every column describing a document, so a count by kind of submitter is out of
     # that kind; counting the document list itself, every cell is out of all those read
     listing = src == "documents" or run.out.get(src, {}).get("kind") == "sample"
-    whole = [] if listing or s["loops"] or s.get("sequences") else [i for i, c in enumerate(by) if c == "document" or (c not in in_rows and run.is_attribute(c))]
+    whole = base_columns(by, in_rows, run.is_attribute, listing, bool(s["loops"] or s.get("sequences")))
     held, unit_of = units(run, count, read, [] if listing else coded_rows)
     unit_of.update({r["row"]: unit_of.get(r["row"], _unit_of_row(run, count, r)) for r in rows})
 
@@ -1090,6 +1095,54 @@ def base_of(tab: dict, cell: dict) -> int | None:
     """What a cell's count is out of: its own base, or for a record made before cells carried one, the units read.
     None where the count is of passages."""
     return cell.get("base", tab["of"] if tab.get("count", "documents") != "rows" else None)
+
+
+def base_columns(by: list[str], carried, describes: Callable[[str], bool], listing: bool = False,
+                 composite: bool = False) -> list[int]:
+    """Which of a table's columns its cells' bases are taken within, by their place in `by`, so that a count by kind of
+    submitter is out of the units of that kind: the column naming the document, and any column describing documents
+    (`describes`: one of the document list's, or one a per-document code step added to it) that the rows counted do not
+    carry (`carried`, their columns), whose value is then the document's rather than a passage's. None where the table
+    counts the document list itself, or is of loops or told sequences (`composite`): every cell is then out of all the
+    units read. The one definition: `tabulate` takes its bases by it, and `recorded_base_columns` reads it off a record."""
+    if listing or composite:
+        return []
+    return [i for i, c in enumerate(by) if c == "document" or (c not in carried and describes(c))]
+
+
+def recorded_base_columns(tab: dict, out: dict[str, dict], columns) -> list[str]:
+    """`base_columns` for a table as its run recorded it, by name: `out` holds the records of the run's steps by id and
+    `columns` the document list's columns, to which a per-document code step's record adds its own
+    (`document_attributes`), as it added them to the document list when the run was counted."""
+    src = tab.get("input")
+    listing = src == "documents" or out.get(src, {}).get("kind") == "sample"
+    carried = set() if listing or src not in out else {k for r in table_of(out, src) for k in r}
+    described = {str(c).lower() for c in columns} | {str(c).lower() for rec in out.values()
+                                                     for c in (rec.get("document_attributes") or {}).get("columns") or []}
+    by = tab.get("by") or []
+    return [by[i] for i in base_columns(by, carried, lambda c: c.lower() in described, listing,
+                                        bool(tab.get("loops") or tab.get("sequences")))]
+
+
+def base_set(tab: dict, cell: dict, grouped: list[str], specs: dict[str, dict]) -> tuple:
+    """What a cell's base is out of, apart from its unit, as a key two counts can be compared by: the cell's values on
+    the columns its base is taken within (`grouped`, from `base_columns`), and what each sample step the table reads
+    through chose its documents by on purpose (its `where`, or its fixed list of `documents`), from `specs`, the run's
+    steps by id. A seeded draw of `n` is not a choice of what to count, so two counts out of the same set, one of them
+    drawn, keep the same key and their different totals show. Two counts with different keys are out of different sets
+    by design, and their totals say nothing of each other."""
+    chosen, seen, todo = [], set(), [tab.get("input")]
+    while todo:
+        sid = todo.pop()
+        if sid in seen or sid not in specs:
+            continue
+        seen.add(sid)
+        st = specs[sid]
+        if st.get("kind") == "sample":
+            chosen += [("where", json.dumps(st["where"], sort_keys=True, default=str))] if st.get("where") else []
+            chosen += [("documents", json.dumps(sorted(map(str, st["documents"]))))] if st.get("documents") is not None else []
+        todo += [i for i in st.get("inputs") or [] if i != "documents"]
+    return tuple(sorted((c, str(cell["values"].get(c))) for c in grouped)), tuple(sorted(chosen))
 
 
 def unit_of_table(tab: dict) -> str:

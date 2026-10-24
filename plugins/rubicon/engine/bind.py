@@ -34,10 +34,13 @@ point to what it shows.
 What differs stays in its own annex: each part's steps that are its own, its checks, its record and its revisions.
 
 It also warns whoever writes the combined report, in its output and in a `-checks.txt` file beside it, where a value is
-counted out of different totals or in different units by tables counted out of their own base, or a column or code has
-different words in two parts (`differences`), and says how many values and definitions it compared. The report carries
-one line saying the questions were checked and how much was compared, and no list. The warnings read only what each
-part's record already holds, and they are warnings: the parts are bound all the same.
+counted out of the same set of households, documents or other units but with different totals or in different units, or a
+column or code has different words in two parts (`differences`), and says how many values and definitions it compared.
+What a count is out of is the engine's own definition (`steps.base_set`), so a count within a group, or out of the
+documents a sample chose, is never set against a count out of all of them; and a table or coding the report shows once is
+compared once. The report carries one line saying what was compared, and, where anything differs, a short list naming
+each table and the question or annex that holds it (`findings`). The warnings read only what each part's record already
+holds, and they are warnings: the parts are bound all the same.
 
 The combined report is titled `--title`, else from its parts' headings (`default_title`). Its two files are written beside the documents (or into `--out`), named from its title, the day and the
 first eight characters of its own fingerprint, the SHA-256 of its parts' fingerprints in order, so a combined report of the same
@@ -54,10 +57,10 @@ from rubicon_open import console  # noqa: E402
 from rubicon_open import assets, footprint, plan, procedure
 from rubicon_open.run_id import clean as run_id_of
 from rubicon_open.seal import engine_fingerprint
-from rubicon_open.steps import base_of, unit_of_table
+from rubicon_open.steps import base_of, base_set, recorded_base_columns, unit_of_table
 
 ENGINE = Path(__file__).resolve().parent
-COUNT_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
+COUNT_WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
 REVISION = re.compile(r"-revision-(\d+)-[0-9a-f]{8}$")
 
 
@@ -215,47 +218,72 @@ def basis(tab, cell):
     return f"out of {base} {unit_of_table(tab)}" if base is not None else f"as {unit_of_table(tab)}"
 
 
-def questions(ks):
-    return ("question " if len(ks) == 1 else "questions ") + ", ".join(map(str, ks))
+def is_question(p):
+    """Whether a part is one of the combined report's questions, as `part` decided from its role (`asks`), which
+    `number`, the cover and the contents read too; a bare record given no role is one."""
+    return p.get("asks", p.get("role", "question") == "question")
 
 
-def own_base(R, st, tab):
-    """Whether a table's cells are counted out of their own stated base. Not so in a table of paths, told chains or loops,
-    whose total is the households that have the path, nor in a cross-tab by a document attribute (sex, province) with
-    something else, whose total is the size of the group: those totals differ by design and say nothing of the value."""
-    attributes = {key for d in R["index"] for key in d}
-    return not (tab.get("paths") or tab.get("sequences") or tab.get("loops")
-                or (len(st.get("by", [])) > 1 and any(c in attributes for c in st.get("by", []))))
+def place(p):
+    """How a reader names a part, the one way every line about the parts names it: "question 2", or for a part that is
+    not a question, the annex that shows it and what it is ("Annex 1, the background")."""
+    if is_question(p):
+        return f"question {p.get('q') or p['k']}"
+    return f"Annex {p['k']}, {'the steps the questions share' if p['role'] == 'shared' else 'the background'}"
+
+
+def parts_said(parts):
+    """The parts compared, as a reader counts them: the questions, then the shared steps and background they build on."""
+    n = sum(map(is_question, parts))
+    roles = {p.get("role") for p in parts}
+    return listed([f"{COUNT_WORDS.get(n, n)} question{'' if n == 1 else 's'}"]
+                  + (["the steps they share"] if "shared" in roles else []) + (["their background"] if "background" in roles else []))
 
 
 def compared(parts):
     """Every value counted and every column and code defined across the parts, each with the places that say it, and how
-    many tables and cells were read: what `differences` and `findings` both read, so they cannot disagree. A value (a
-    column and one of its values, or the total of documents) maps to each total or unit it is counted on, counting only
-    cells counted out of their own base (`own_base`); a column, or a code in its codebook, maps to each wording it is
-    given. Only what each part's record already holds is read: its tables' cells and its workflow's columns."""
-    counted, defined, tables, cells = {}, {}, 0, 0
-    for p in parts:
-        k, R = p.get("q", p["k"]) or 0, p["R"]  # the question's number, or 0 for shared steps
+    many tables and cells were read: what `differences` and `findings` both read, so they cannot disagree.
+
+    A table or coding a combined report shows once (`render_report.step_key`, which `gather` shows by) is read once, in
+    the first part that has it, since a later part holding the same table says nothing new. A value is counted within
+    what its count is out of (`steps.base_set`): the cell's values on the columns its base is taken within, as the
+    engine took it (`steps.recorded_base_columns`), and what any sample it reads through chose on purpose. So a value maps,
+    within each such set, to each total and unit it is counted on, and a count out of a group, or out of the documents a
+    sample chose, is compared only with counts out of the same. A column, or a code in its codebook, maps to each wording
+    it is given. Places are (the part's place in the report, step id, how a reader finds it). Only what each part's
+    record already holds is read: its tables' cells, its steps' records and its workflow."""
+    counted, defined, tables, cells, seen = {}, {}, 0, 0, set()
+    for i, p in enumerate(parts):
+        R = p["R"]
+        specs = RR.specs_of(R["workflow"])
+        columns = list(R["index"][0]) if R["index"] else []
         for st in R["workflow"]["steps"]:
             tab = R["steps"].get(st["id"], {})
-            if st.get("kind") == "tabulate" and own_base(R, st, tab):
-                tables += 1
+            shown = RR.step_key(st, tab)
+            if shown and shown in seen:
+                continue
+            if shown:
+                seen.add(shown)
+            at = (i, st["id"], f"{RR.step_name(st['id'], specs)} ({place(p)})")
+            if st.get("kind") == "tabulate":
+                grouped = recorded_base_columns(tab, R["steps"], columns)
+                tables += bool(tab.get("cells"))
                 for cell in tab.get("cells", []):
                     cells += 1
-                    for c, v in (cell.get("values") or {"": ""}).items():
-                        counted.setdefault((str(c), str(v)), {}).setdefault(basis(tab, cell), set()).add((k, st["id"]))
+                    within = base_set(tab, cell, grouped, specs)
+                    for c, v in ({c: v for c, v in (cell.get("values") or {}).items() if c not in grouped} or {"": ""}).items():
+                        counted.setdefault((str(c), str(v), within), {}).setdefault(basis(tab, cell), set()).add(at)
             for col in st.get("columns", []) if st.get("kind") == "code" else []:
                 told = lambda x: " | ".join(str(x.get(f) or "") for f in ("means", "counts", "does_not_count", "weak"))
-                defined.setdefault((col["name"], None), {}).setdefault(told(col), set()).add((k, st["id"]))
+                defined.setdefault((col["name"], None), {}).setdefault(told(col), set()).add(at)
                 for v in col.get("values") or []:
-                    defined.setdefault((col["name"], v["name"]), {}).setdefault(told(v), set()).add((k, st["id"]))
+                    defined.setdefault((col["name"], v["name"]), {}).setdefault(told(v), set()).add(at)
     return counted, defined, tables, cells
 
 
 def differs(told):
     """Whether a column or code is given different words in more than one part."""
-    return len(told) > 1 and len({k for held in told.values() for k, _ in held}) > 1
+    return len(told) > 1 and len({i for held in told.values() for i, _, _ in held}) > 1
 
 
 def listed(items):
@@ -264,75 +292,84 @@ def listed(items):
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
-def named(ks):
-    """The parts a finding is about, as a reader names them: "question 2", or "the shared steps"."""
-    return listed(("the shared steps" if k == 0 else f"question {k}") for k in sorted(ks))
+def where(held, most=None):
+    """The places a value or definition is found, as a reader finds them: each table or coding with its part, in the
+    report's order; all of them, or the first `most` and how many more."""
+    places = [said for _, _, said in sorted(held)]
+    most = most or len(places)
+    return listed(places[:most]) + (f" and {len(places) - most} more" if len(places) > most else "")
+
+
+def among(within):
+    """What a count is out of beyond its unit, in words, where it is out of less than every unit read: the group its
+    base is taken within, and a sample chosen on purpose."""
+    group, chosen = within
+    said = [f"those whose {' and '.join(f'{RR.label(c)} is {RR.label(v)}' for c, v in group)}"] if group else []
+    said += ["the documents a sample chose"] if chosen else []
+    return f" (among {' and '.join(said)})" if said else ""
+
+
+def value_named(c, v, within):
+    return (f"{RR.label(c)}: {RR.label(v)}" if c else "The total of documents") + among(within)
 
 
 def findings(parts):
     """What the reader of a combined report is told where the questions do not line up, as two lists of plain sentences:
-    the columns defined in different words, and the values counted out of different totals. A line is not repeated for
-    each table or column: columns defined in different words in the same parts are one line, and values counted out of the
-    same totals in the same parts are one line, naming their columns. Empty where nothing differs."""
+    the columns defined in different words, and the values counted out of different totals, each naming the tables or
+    codings and the parts that hold them (`where`). A line is not repeated for each value or column: columns defined in
+    different words in the same places are one line, and values counted out of the same totals in the same places are
+    one line, naming their columns. Empty where nothing differs."""
     counted, defined, _, _ = compared(parts)
     columns = {}
     for (col, value), told in defined.items():
         if differs(told):
-            group = columns.setdefault(col, {"parts": set(), "codes": set()})
-            group["parts"] |= {k for held in told.values() for k, _ in held}
+            group = columns.setdefault(col, {"at": set(), "codes": set()})
+            group["at"] |= {at for held in told.values() for at in held}
             if value is not None:
                 group["codes"].add(RR.label(value))
-    by_parts = {}
+    by_places = {}
     for col, g in columns.items():
-        by_parts.setdefault((tuple(sorted(g["parts"])), tuple(sorted(g["codes"]))), []).append(RR.label(col))
+        by_places.setdefault((frozenset(g["at"]), tuple(sorted(g["codes"]))), []).append(RR.label(col))
     defs = [(f'The column "{cols[0]}" is' if len(cols) == 1 else f"The columns {listed(chr(34) + c + chr(34) for c in sorted(cols))} are")
-            + f" defined in different words in {named(ks)}" + (f" (the codes that differ: {listed(codes)})" if codes else "") + "."
-            for (ks, codes), cols in by_parts.items()]
+            + f" defined in different words in {where(at)}" + (f" (the codes that differ: {listed(codes)})" if codes else "") + "."
+            for (at, codes), cols in by_places.items()]
     grouped = {}
-    for (c, v), bases in counted.items():
+    for (c, v, within), bases in counted.items():
         if len(bases) > 1:
-            totals = tuple(sorted((b, tuple(sorted({k for k, _ in held}))) for b, held in bases.items()))
-            grouped.setdefault(totals, {}).setdefault(c, set()).add(v)
+            totals = tuple(sorted(((b, frozenset(held)) for b, held in bases.items()), key=lambda x: (min(x[1]), x[0])))
+            grouped.setdefault((totals, within), {}).setdefault(c, set()).add(v)
     counts = []
-    for totals, by_column in grouped.items():
-        said = " but ".join(f"{b} in {named(ks)}" for b, ks in totals) if len(totals) == 2 else             listed(f"{b} in {named(ks)}" for b, ks in totals)
+    for (totals, within), by_column in grouped.items():
+        said = (" but " if len(totals) == 2 else ", ").join(f"{b} in {where(held)}" for b, held in totals)
         if "" in by_column:
-            counts.append(f"The total of documents is counted {said}.")
+            counts.append(f"{value_named('', '', within)} is counted {said}.")
         same_values = {}
         for c, vs in by_column.items():
             if c:
                 same_values.setdefault(frozenset(vs), []).append(RR.label(c))
-        counts += [f"{listed(sorted(cols))}: {listed(sorted(RR.label(v) for v in vs))} {'is' if len(vs) == 1 else 'are'} counted {said}."
-                   for vs, cols in same_values.items()]
+        counts += [f"{listed(sorted(cols))}: {listed(sorted(RR.label(v) for v in vs))}{among(within)} {'is' if len(vs) == 1 else 'are'} "
+                   f"counted {said}." for vs, cols in same_values.items()]
     return defs, counts
 
 
 def differences(parts):
-    """What to warn the writer of a combined report about, as plain sentences, and what was looked at, so that no
-    warnings can be told from nothing looked at. A value (a column and one of its values, or the total of documents) is
-    counted on different terms where its tables, in any parts, give it different totals (the `of`) or units, counting
-    only cells counted out of their own base (`own_base`); and a column, or a code in its codebook, is defined
-    differently where two parts give the same name different words (what it means, counts, does not count, or what is
-    implicit). Only what each part's record already holds is read: its tables' cells and its workflow's columns."""
+    """What to warn the writer of a combined report about, as plain sentences, one for each value and each column or
+    code, and what was looked at, so that no warnings can be told from nothing looked at. A value is counted on
+    different terms where its tables, in any parts, count it out of the same set (`compared`) but give it different
+    totals or units; a column, or a code in its codebook, is defined differently where two parts give the same name
+    different words (what it means, counts, does not count, or what is implicit)."""
     counted, defined, tables, cells = compared(parts)
-    specs = {}
-    for p in parts:  # each question's steps, so that a step is named as the report names it
-        specs.setdefault(p.get("q", p["k"]) or 0, {}).update(RR.specs_of(p["R"]["workflow"]))
-    def where(held, most=3):
-        places = sorted(held)
-        shown = ", ".join(f"{RR.step_name(sid, specs.get(k, {}))} ({questions([k]) if k else 'shared steps'})" for k, sid in places[:most])
-        return shown + (f" and {len(places) - most} more" if len(places) > most else "")
     out = []
-    for (c, v), bases in counted.items():
+    for (c, v, within), bases in counted.items():
         if len(bases) > 1:
-            name = f"{RR.label(c)}: {RR.label(v)}" if c else "The total of documents"
-            out.append(f"{name} is counted " + " but ".join(f"{b} in {where(held)}" for b, held in sorted(bases.items())) + ".")
+            out.append(f"{value_named(c, v, within)} is counted " + " but ".join(f"{b} in {where(held, 3)}" for b, held in sorted(bases.items(), key=lambda x: (min(x[1]), x[0]))) + ".")
     for (col, value), told in defined.items():
         if differs(told):
             name = f"{RR.label(col)}: {RR.label(value)}" if value is not None else f"The column {RR.label(col)}"
-            out.append(f"{name} is defined differently in " + " and in ".join(where(held) for held in sorted(told.values(), key=min)) + ".")
-    looked = (f"Compared {len(counted)} values counted in {cells} cells of {tables} tables and {len(defined)} column and code "
-              f"definitions across {len(parts)} questions.")
+            out.append(f"{name} is defined differently in " + " and in ".join(where(held, 3) for held in sorted(told.values(), key=min)) + ".")
+    many = lambda n, one, more=None: f"{n} {one if n == 1 else more or one + 's'}"
+    looked = (f"Compared {many(len(counted), 'value')} counted in {many(cells, 'cell')} of {many(tables, 'table')} and "
+              f"{many(len(defined), 'column and code definition')} across {parts_said(parts)}.")
     return out, looked
 
 
@@ -488,10 +525,7 @@ def binder_word(parts, title, date):
     return ('<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" '
             'xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">'
             f'<title>{esc(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->'
-            '<style>body,p,li,td{font-family:Cambria,Georgia,serif;font-size:11pt;line-height:1.35;color:#17130f}'
-            'h1,h2,h3{font-family:Cambria,Georgia,serif;font-weight:normal;color:#8c1912}h1{font-size:20pt}h2{font-size:14pt}'
-            'p.MsoFootnoteText{font-size:9pt;line-height:1.2}.MsoFootnoteReference{vertical-align:super}td,th{border:1px solid #e4dcd0;padding:3pt 5pt;font-size:9pt;vertical-align:top}table{border-collapse:collapse}'
-            '.pb{page-break-before:always}</style></head><body>'
+            + RR.WORD_CSS + '</head><body>'
             f'<p style="color:#8b7f72;font-size:9pt">RUBICON COMBINED REPORT</p><h1>{esc(title)}</h1>'
             f'<p style="color:#8b7f72;font-size:9pt">{n} question{"" if n == 1 else "s"} · {esc(date)}</p>{about(parts)}'
             f'<h2>The questions</h2><ol>{index}</ol><div class="pb"></div>{body}<h1 class="pb">{RR.ANNEXES}</h1>{note_on(differences(parts)[1], findings(parts), static=True)}{annexes}'
