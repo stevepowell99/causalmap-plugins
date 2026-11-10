@@ -253,8 +253,10 @@ def resolve_step(s: dict, kind: str | None = None) -> dict:
     ran whatever the defaults later become. `kind` is the piece's own, where the step does not say."""
     from . import models as C
 
-    def fill(defaults: dict, given: dict) -> dict:  # the step's own settings first, then the defaults it left out
-        out = {k: v for k, v in given.items() if v is not None or k in OFF_BY_NULL}
+    def fill(defaults: dict, given: dict) -> dict:  # the step's own settings first, then the defaults it left out;
+        # a null gives way only to a default here, so a setting an earlier fill left null (a model the engine standing
+        # alone does not name) is still a setting the piece reads
+        out = {k: v for k, v in given.items() if v is not None or k in OFF_BY_NULL or k not in defaults}
         return {**out, **{k: v for k, v in defaults.items() if k not in out}}
     k = kind or s.get("kind")
     if k == "sample":
@@ -386,7 +388,8 @@ def settings_of(kind: str) -> set[str]:
     (`combining`) is asked for as "combine": it reads the columns and links its inputs share, which `normalise` fills in."""
     if kind == "combine":
         return {"id", "kind", "inputs", "columns", "links"}
-    switches = {"code": {"columns": [{"name": "x", "type": "nominal", "values": ["a"]}], "check": True},
+    # every switch on, and a second coder named, so the set is the same whether or not a harness has named the models
+    switches = {"code": {"columns": [{"name": "x", "type": "nominal", "values": ["a"]}], "check": True, "second_coder": "a coder"},
                 "group": {"assign": True}, "write": {"review": True, "trail": True}}.get(kind, {})
     return {"id", "kind", "inputs"} | GIVEN.get(kind, set()) | set(resolve_step(switches, kind))
 
@@ -926,10 +929,12 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
 
 def sections(text: str, size: int = SECTION_CHARS) -> list[str]:
     """The text in parts of about `size` characters, cut at line breaks, and a line longer than `size` at sentence
-    ends. (Cutting at blank lines alone left transcripts that have almost none in parts of 27,000 characters.)"""
+    ends, in any script (`text.cut_long`). (Cutting at blank lines alone left transcripts that have almost none in
+    parts of 27,000 characters.)"""
+    from . import text as T
     pieces: list[str] = []
     for line in text.split("\n"):
-        pieces += re.split(r"(?<=[.!?])\s+", line) if len(line) > size else [line]
+        pieces += T.cut_long(line, size)
     parts, cur = [], ""
     for piece in pieces:
         if cur and len(cur) + len(piece) > size:

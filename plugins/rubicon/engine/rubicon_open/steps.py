@@ -14,10 +14,12 @@ import random
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
+from functools import cache
 from pathlib import Path
 from typing import Callable
 
 from . import legacy_weak, locator, node
+from . import text as T
 from .corpus import Corpus
 from .judge import level_counts
 from .units import COUNTS, count_said, unit_noun
@@ -1187,36 +1189,50 @@ def counts_of(run: Run, inputs: list[str]) -> dict[str, int | str]:
     return out
 
 
-#: A number the answer states with the reference to its count beside it, as "10 ({t[x]})" or "10 of 15 ({t[x]})"
-STATED = re.compile(r"(?<![\w.])(\d+)(?:\s+of\s+(\d+))?\s*\(\s*\{(" + COUNT_ID + r")\}\s*\)")
+@cache
+def stated_re() -> re.Pattern:
+    """A number the answer states with the reference to its count beside it, as "10 ({t[x]})", or a count and what it
+    is out of, joined by a slash or a word or two of any language and in either order, as "10 of 15 ({t[x]})",
+    "10 sur 15 ({t[x]})" or "10/15 ({t[x]})"."""
+    word = T.letter_pattern() + "+"
+    return re.compile(rf"(?<![\w.])(\d+)(?:\s*(?:/|{word}(?:\s+{word})?)\s*(\d+))?\s*\(\s*\{{({COUNT_ID})\}}\s*\)")
 
 
 def is_a_name(before: str, numeral: str, names=(), source: str = "") -> bool:
     """Whether `numeral`, written straight after the text `before`, is part of a name rather than a number: the end of
     a document's name (the 3 of MNY-3), or, with the word before it, a phrase of the documents' own text (`source`),
-    such as "Organisation 2" (or the 2 of "Organisation 1/2")."""
+    such as "Organisation 2" (or the 2 of "Organisation 1/2", "Organisation 1 and 2", "Organisation 1 et 2")."""
     if any(re.search(rf"(?<![\w-]){re.escape(n)}$", before + numeral) for n in names):
         return True
-    w = source and re.search(r"([A-Za-z]\w*)\s+(?:\d+\s*(?:/|,|and|or)\s*)*$", before)
+    letter, word = T.letter_pattern(), T.word_pattern()
+    w = source and re.search(rf"({letter}{word}*)\s+(?:\d+\s*(?:[/,&+]|{letter}+)\s*)*$", before[-200:])
     return bool(w and re.search(rf"(?<!\w){re.escape(w.group(1))}\s+{re.escape(numeral)}(?![\w.]*\d)", source))
 
 
 def stated_beside(answer: str, names=(), source: str = "") -> list[re.Match]:
-    """Each number the answer writes beside a count's reference (`STATED`), leaving out a numeral that is part of a
-    name (`is_a_name`), as in "MNY-3 ({t[x]})", which states no number. An answer that writes the reference in place of
-    the number has none: the count is then said once, as code made it."""
-    return [m for m in STATED.finditer(answer)
-            if m.group(2) or not is_a_name(answer[:m.start(1)], m.group(1), names, source)]
+    """Each number the answer writes beside a count's reference (`stated_re`), leaving out one whose last numeral is
+    part of a name (`is_a_name`), as in "MNY-3 ({t[x]})" or "Organisation 1 and 2 ({t[x]})", which state no number.
+    An answer that writes the reference in place of the number has none: the count is then said once, as code made
+    it."""
+    return [m for m in stated_re().finditer(answer)
+            if not is_a_name(answer[:m.start(k := 2 if m.group(2) else 1)], m.group(k), names, source)]
 
 
 def stated_counts_that_differ(answer: str, counts: dict[str, int | str], names=(), source: str = "") -> list[str]:
     """Each number the answer states beside a count's reference (`stated_beside`) that differs from the count, or from
     what the count is out of, with what the count reads: a stated number is the writer's, the count is code's, and the
-    two must agree."""
+    two must agree. Two numbers stated together agree where they are the count and its base, in either order, since
+    languages differ in which they say first; where the one beside the reference is the count, as in "2 ({t[a]}) of 7
+    and 1 ({t[b]})", where the 7 belongs to something else; or, for a count out of nothing stated, where either is."""
     out = []
     for m in stated_beside(answer, names, source):
-        got = re.match(r"(\d+)(?:\s+of\s+(\d+))?", str(counts.get(m.group(3), "")))
-        if got and (m.group(1) != got.group(1) or (m.group(2) and got.group(2) and m.group(2) != got.group(2))):
+        got = re.match(r"(\d+)(?: of (\d+))?", str(counts.get(m.group(3), "")))
+        if not got:
+            continue
+        value, base = got.group(1, 2)
+        beside = m.group(2) or m.group(1)
+        pair = bool(m.group(2) and base and sorted(m.group(1, 2)) == sorted((value, base)))
+        if not (pair or beside == value or (base is None and value == m.group(1))):
             out.append(f"{m.group(0)}, where the count reads {counts[m.group(3)]}")
     return out
 
@@ -1224,7 +1240,7 @@ def stated_counts_that_differ(answer: str, counts: dict[str, int | str], names=(
 def put_counts(answer: str, counts: dict[str, int | str], names=(), source: str = "") -> tuple[str, list[str], list[str], list[str]]:
     """The answer with each {count id} replaced by its count; the ids used, those that name no count, and the numerals
     written bare in the prose (outside quotations, citations and the documents' `names`), which no count stands behind; a
-    number stated beside its count's reference (`STATED`) has one behind it, and is checked by `stated_counts_that_differ`. Numerals only: a number
+    number stated beside its count's reference (`stated_re`) has one behind it, and is checked by `stated_counts_that_differ`. Numerals only: a number
     written in words is in some language, and a list of one language's number words is no check on another's. A numeral
     that is part of a name (`is_a_name`) is not written bare."""
     used, unknown = [], []
@@ -1269,18 +1285,14 @@ def quoted_elsewhere(run: Run, text: str, row_documents: dict[str, str], claims:
     docs = {row_documents[c] for c in cites if row_documents.get(c)} | {d for c in cites if (d := cited_document(run, c))}
     out = []
     for q in quotations(text) if docs else []:
-        parts = [p for p in re.split(r"\s*(?:\.\.\.|…)\s*", q) if len(p.strip()) >= 4] or [q]
-        if not any(all(h is not None for h in locator.locate_all(run.corpus.text(d), parts)) for d in docs):
+        if not any(locator.locate_quoted(run.corpus.text(d), [q])[0] is not None for d in docs):
             out.append(q)
     return out
 
 
 def quotations(text: str) -> list[str]:
-    """Quotations of twelve characters or more, with straight and curly marks paired separately, so that the text
-    between one quotation's closing mark and the next one's opening mark is never taken for a quotation. The marks are
-    paired from left to right whatever the length between them and the short ones dropped afterwards: requiring the
-    length while pairing took the closing mark of a short quotation ("Improved", "Increased") for an opening one."""
-    return [q for q in re.findall(r'"([^"\n]*)"', text) + re.findall(r"“([^”\n]*)”", text) if len(q) >= 12]
+    """Quotations of twelve characters or more, in any of the world's double quotation marks (`text.quotations`)."""
+    return T.quotations(text)
 
 
 #: A row's own bookkeeping, which a model reading it is not shown: its id, document and quotation lead the line instead
@@ -1364,8 +1376,8 @@ def _sentences_with_scope(answer: str) -> list[tuple[str, str]]:
 
 
 def sentences_placed(answer: str) -> list[tuple[str, str, tuple[int, int]]]:
-    """Each sentence of four words or more outside headings and tables, with its scope (`_sentences_with_scope`) and
-    where it stands in the answer, as (start, end)."""
+    """Each sentence (`text.sentence_spans`) outside headings and tables, of `text.SENTENCE_WORDS` words or more
+    (`text.words_in`), with its scope (`_sentences_with_scope`) and where it stands in the answer, as (start, end)."""
     out, lines = [], answer.splitlines(keepends=True)
     at = 0
     for n, raw in enumerate(lines):
@@ -1376,18 +1388,7 @@ def sentences_placed(answer: str) -> list[tuple[str, str, tuple[int, int]]]:
         if not line.strip() or line.startswith(("#", "|")):
             continue
         first = len(out)
-        # a sentence ends at . ! or ? followed by a space, never inside a quotation, which may hold several
-        start, inside = 0, False
-        for i, ch in enumerate(line):
-            if ch in "“”" or (ch == '"'):
-                inside = (not inside) if ch == '"' else (ch == "“")
-            nxt = line[i + 1:i + 3]
-            ends = ch in ".!?" or (ch in '"”' and line[i - 1:i] in (".", "!", "?"))  # or a quotation closing one
-            if not inside and ends and nxt[:1] == " " and re.match(r" [A-Z\"“*(]", nxt):
-                out.append((start, i + 1))
-                start = i + 1
-        if line[start:].strip():
-            out.append((start, len(line)))
+        out += T.sentence_spans(line)
         placed = []
         for a, b in out[first:]:  # each without the spaces around it, placed in the whole answer
             a += len(line[a:b]) - len(line[a:b].lstrip())
@@ -1407,7 +1408,7 @@ def sentences_placed(answer: str) -> list[tuple[str, str, tuple[int, int]]]:
                     break
                 items.append(nxt.strip())
             out[-1] = (out[-1][0], "\n".join([out[-1][0], *items]), out[-1][2])
-    return [(x, scope, span) for x, scope, span in out if len(x.split()) >= 4]
+    return [(x, scope, span) for x, scope, span in out if T.words_in(x) >= T.SENTENCE_WORDS]
 
 
 #: A heading, and whether it heads the answer's closing section on its limits, which `render_report.limitations_of` also reads

@@ -18,7 +18,7 @@
  * second node list is how the status chip and the diagram came to be two different greens.
  */
 
-import { stateWord, nameInWords } from './words.js?v=2026-10-07T08:36:34Z'
+import { stateWord, nameInWords } from './words.js'
 
 /**
  * How hard the map leans on the kind axis: a step sits this far left of centre and an

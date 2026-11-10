@@ -26,9 +26,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder
 from rubicon_open import console  # noqa: E402
 from rubicon_open.corpus import BACKGROUND, CORPUS  # noqa: E402
 from rubicon_open.run_id import new_run_id  # noqa: E402
+from rubicon_open import text as T  # noqa: E402
 
 def slug(words: str) -> str:
-    return "-".join(re.findall(r"[a-z0-9]+", re.sub(r"['’]", "", words.lower()))[:8]) or "run"
+    return "-".join(T.words(re.sub(r"['’]", "", words.lower()))[:8]) or "run"
 
 
 def start(docs: Path, name: str, question: str, copy: list[Path] = ()) -> dict:

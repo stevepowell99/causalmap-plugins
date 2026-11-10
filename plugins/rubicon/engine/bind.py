@@ -20,6 +20,8 @@ gives its role and the parts come in its order; `--question`, `--shared` or `--b
 instead, and adds the report to those named where it is not already, in the place it is given. A run the plan does not list
 is left out of a `--folder` report, and named in the output, and comes after the listed ones where its report was named.
 Where neither says, a run is a question if its answer holds prose and shared material if not (`answers_a_question`).
+A run that answered a task of several questions in one answer is one part that answers each of them: the report counts
+and numbers its questions as the run's own report does (`number`), so its part is "Questions 3 to 5 of 6".
 Shared material and background come before the questions, in the first annexes. A background run is a run with an answer
 that is context for the chapter rather than one of its questions: it is titled as background, not counted or numbered
 as a question, and its answer is drawn at the head of its annex, beside the shared material.
@@ -55,6 +57,7 @@ import register
 import render_report as RR
 from rubicon_open import console  # noqa: E402
 from rubicon_open import assets, footprint, plan, procedure
+from rubicon_open import text as T
 from rubicon_open.run_id import clean as run_id_of
 from rubicon_open.seal import engine_fingerprint
 from rubicon_open.steps import base_of, base_set, recorded_base_columns, unit_of_table
@@ -170,11 +173,27 @@ ROLES = plan.ROLES
 
 
 def number(parts):
-    """Gives each part that answers a question its number among the questions (`q`), and each that does not, None."""
+    """Gives each part that answers a question the number of the first question it answers among the report's questions
+    (`q`) and how many it answers (`qs`): a run that answered a task of several questions answers each of them, counted
+    as its own report counts them (`render_report.questions_of`). A part that answers no question has None and 0."""
     n = 0
     for p in parts:
-        n += p["asks"]
-        p["q"] = n if p["asks"] else None
+        several = RR.questions_of(p["R"]["workflow"].get("question_as_agreed", "").strip()) if p["asks"] else None
+        p["qs"] = len(several[1]) if several else int(p["asks"])
+        p["q"] = n + 1 if p["asks"] else None
+        n += p["qs"]
+
+
+def questions_in(parts):
+    """How many questions the parts answer between them, as `number` counts them."""
+    return sum(p.get("qs", 1) for p in parts if is_question(p))
+
+
+def numbered(p):
+    """The questions a part answers, as a reader names them: "Question 2", "Questions 2 and 3", "Questions 3 to 5"."""
+    first, many = p.get("q") or p["k"], p.get("qs", 1)
+    return (f"Question {first}" if many == 1 else f"Questions {first} and {first + 1}" if many == 2
+            else f"Questions {first} to {first + many - 1}")
 
 
 def gather(parts):
@@ -225,16 +244,16 @@ def is_question(p):
 
 
 def place(p):
-    """How a reader names a part, the one way every line about the parts names it: "question 2", or for a part that is
-    not a question, the annex that shows it and what it is ("Annex 1, the background")."""
+    """How a reader names a part, the one way every line about the parts names it: "question 2" (`numbered`), or for a
+    part that is not a question, the annex that shows it and what it is ("Annex 1, the background")."""
     if is_question(p):
-        return f"question {p.get('q') or p['k']}"
+        return numbered(p).lower()
     return f"Annex {p['k']}, {'the steps the questions share' if p['role'] == 'shared' else 'the background'}"
 
 
 def parts_said(parts):
     """The parts compared, as a reader counts them: the questions, then the shared steps and background they build on."""
-    n = sum(map(is_question, parts))
+    n = questions_in(parts)
     roles = {p.get("role") for p in parts}
     return listed([f"{COUNT_WORDS.get(n, n)} question{'' if n == 1 else 's'}"]
                   + (["the steps they share"] if "shared" in roles else []) + (["their background"] if "background" in roles else []))
@@ -250,13 +269,16 @@ def compared(parts):
     engine took it (`steps.recorded_base_columns`), and what any sample it reads through chose on purpose. So a value maps,
     within each such set, to each total and unit it is counted on, and a count out of a group, or out of the documents a
     sample chose, is compared only with counts out of the same. A column, or a code in its codebook, maps to each wording
-    it is given. Places are (the part's place in the report, step id, how a reader finds it). Only what each part's
-    record already holds is read: its tables' cells, its steps' records and its workflow."""
+    it is given where a table of its part counts by it: a column no table counts, such as the free label of an open
+    coding, makes no number a reader could set beside another. Places are (the part's place in the report, step id, how a
+    reader finds it). Only what each part's record already holds is read: its tables' cells, its steps' records and its
+    workflow."""
     counted, defined, tables, cells, seen = {}, {}, 0, 0, set()
     for i, p in enumerate(parts):
         R = p["R"]
         specs = RR.specs_of(R["workflow"])
         columns = list(R["index"][0]) if R["index"] else []
+        counts_by = named_in([st for st in R["workflow"]["steps"] if st.get("kind") in ("tabulate", "judge")])
         for st in R["workflow"]["steps"]:
             tab = R["steps"].get(st["id"], {})
             shown = RR.step_key(st, tab)
@@ -274,11 +296,23 @@ def compared(parts):
                     for c, v in ({c: v for c, v in (cell.get("values") or {}).items() if c not in grouped} or {"": ""}).items():
                         counted.setdefault((str(c), str(v), within), {}).setdefault(basis(tab, cell), set()).add(at)
             for col in st.get("columns", []) if st.get("kind") == "code" else []:
+                if col["name"] not in counts_by:
+                    continue
                 told = lambda x: " | ".join(str(x.get(f) or "") for f in ("means", "counts", "does_not_count", "weak"))
                 defined.setdefault((col["name"], None), {}).setdefault(told(col), set()).add(at)
                 for v in col.get("values") or []:
                     defined.setdefault((col["name"], v["name"]), {}).setdefault(told(v), set()).add(at)
     return counted, defined, tables, cells
+
+
+def named_in(x):
+    """Every word a step's settings name, keys and values alike, however deep: where the steps that count are given,
+    the columns they count by, filter by or judge by, whatever setting names them."""
+    if isinstance(x, dict):
+        return set(x) | {w for v in x.values() for w in named_in(v)}
+    if isinstance(x, list):
+        return {w for v in x for w in named_in(v)}
+    return {x} if isinstance(x, str) else set()
 
 
 def differs(told):
@@ -436,7 +470,7 @@ def about(parts):
         run_folder = p["report"].parent
         folder = run_folder.parent
         held[folder] = max(held.get(folder, 0), len(p["R"]["index"]))
-    n = sum(p["asks"] for p in parts)
+    n = questions_in(parts)
     facts = any(RR.counts_from_facts(p["R"], p["D"]) for p in parts)
     return (f"<p>This report answers {COUNT_WORDS.get(n, n)} question{'' if n == 1 else 's'} from {sum(held.values())} documents. Each answer was "
             "reached and checked separately. Its numbers were counted from "
@@ -447,18 +481,18 @@ def about(parts):
 
 def binder_html(parts, title, date):
     gather(parts)
-    esc, n, total = RR.esc, sum(p["asks"] for p in parts), len(parts)
+    esc, n, total = RR.esc, questions_in(parts), len(parts)
     asked = [(i, p) for i, p in enumerate(parts) if p["asks"]]
     css = (ENGINE / "report.css").read_text(encoding="utf-8") + BINDER_CSS
     js = RR.report_js()
     index = "".join(
-        f'<li><a href="#q-{p["k"]}">{esc(p["heading"])}</a>'
+        f'<li value="{p["q"]}"><a href="#q-{p["k"]}">{esc(p["heading"])}</a>'
         + (f'<span class="qanswer">{esc(plain(p["page"]["lead"]))}</span>' if p["page"]["lead"] else "")
         + f'<span class="small">{"Run " + esc(p["R"]["run_id"]) + " · " if p["R"].get("run_id") else ""}'
           f'<a href="#annex-{p["k"]}">annex</a></span></li>' for _, p in asked)
     sections = "".join(f"""
 <section class="part" id="q-{p["k"]}" data-run="{i}">
-  <p class="eyebrow">Question {p["q"]} of {n}</p>
+  <p class="eyebrow">{numbered(p)} of {n}</p>
   <h2 class="part-title">{esc(p["heading"])}</h2>
   {RR.asked(p["R"])}
   {RR.synthetic(p["R"])}
@@ -475,7 +509,7 @@ def binder_html(parts, title, date):
   {background(p)}
   {p["page"]["annex"]}
   {p["page"]["glance"]}
-  {f'<p class="small"><a href="#q-{p["k"]}">Back to question {p["q"]}</a></p>' if p["asks"] else ""}
+  {f'<p class="small"><a href="#q-{p["k"]}">Back to {numbered(p).lower()}</a></p>' if p["asks"] else ""}
 </section>""" for i, p in enumerate(parts)))
     toc = RR.contents([("contents", "The questions")] + [(f'q-{p["k"]}', p["heading"]) for _, p in asked], annexes)
     packed, held_in = share_texts(parts)
@@ -514,10 +548,10 @@ document.addEventListener('click', e => {{
 
 def binder_word(parts, title, date):
     gather(parts)
-    esc, n = RR.esc, sum(p["asks"] for p in parts)
-    index = "".join(f'<li>{esc(p["heading"])}{": " + esc(plain(p["page"]["lead"])) if p["page"]["lead"] else ""}</li>' for p in parts if p["asks"])
+    esc, n = RR.esc, questions_in(parts)
+    index = "".join(f'<li value="{p["q"]}">{esc(p["heading"])}{": " + esc(plain(p["page"]["lead"])) if p["page"]["lead"] else ""}</li>' for p in parts if p["asks"])
     body = "".join(
-        f'<h2>Question {p["q"]} of {n}: {esc(p["heading"])}</h2>{RR.asked(p["R"], static=True)}{RR.synthetic(p["R"])}'
+        f'<h2>{numbered(p)} of {n}: {esc(p["heading"])}</h2>{RR.asked(p["R"], static=True)}{RR.synthetic(p["R"])}'
         f'{p["word"]["lead"]}{p["word"]["body"]}' for p in parts if p["asks"])
     annexes = "".join(
         f'<h2>Annex {p["k"]}: {esc(p["heading"])}</h2>{provenance(p, static=True)}{background(p, static=True)}{p["word"]["annex"]}'
@@ -548,16 +582,18 @@ BINDER_CSS = """
 """
 
 
-def default_title(headings):
+def default_title(headings, counts=None):
     """The title a combined report takes when the evaluator gives none: its parts' own headings, the first three in turn
-    and a count of the rest. Never the folder's name, which is the file system's word for the work rather than the reader's."""
-    shown = [h.strip() for h in headings if h.strip()][:3]
-    rest = len([h for h in headings if h.strip()]) - len(shown)
+    and a count of the questions the rest answer (`counts`, one for each heading, else one question each). Never the
+    folder's name, which is the file system's word for the work rather than the reader's."""
+    held = [(h.strip(), c) for h, c in zip(headings, counts or [1] * len(headings)) if h.strip()]
+    shown = [h for h, _ in held[:3]]
+    rest = sum(c for _, c in held[3:])
     return " · ".join(shown) + (f" · and {rest} more question{'s' if rest > 1 else ''}" if rest > 0 else "")
 
 
 def name_for(title, fingerprints):
-    words, slug = re.findall(r"[a-z0-9]+", re.sub(r"['’]", "", title.lower())), ""
+    words, slug = T.words(re.sub(r"['’]", "", title.lower())), ""
     for w in words:
         if len(slug) + len(w) > 50:
             break
@@ -642,7 +678,7 @@ def main(argv):
     warned, looked = differences(parts)
     run_folders = [p["report"].parent for p in parts]
     folders = list(dict.fromkeys(f.parent for f in run_folders))  # each documents folder, the one holding corpus/
-    title = opt("--title") or default_title([p["heading"] for p in parts if p["asks"]])
+    title = opt("--title") or default_title([p["heading"] for p in parts if p["asks"]], [p["qs"] for p in parts if p["asks"]])
     date = opt("--date") or f"{datetime.date.today().day} {datetime.date.today():%B %Y}"
     out = Path(opt("--out")).resolve() if opt("--out") else folders[0]
     name = name_for(title, [p["R"]["fingerprint"] for p in parts])
@@ -653,7 +689,7 @@ def main(argv):
     for warning in warned:
         print(f"Warning: {warning}")
     print(f"wrote {name}.html, {name}.doc and {name}-checks.txt in {out}, binding:\n"
-          + "\n".join(f"{p['q'] or p['role']}. {p['heading']} ({p['report'].name})" for p in parts))
+          + "\n".join(f"{numbered(p).split(' ', 1)[1] if p['asks'] else p['role']}. {p['heading']} ({p['report'].name})" for p in parts))
 
 
 if __name__ == "__main__":

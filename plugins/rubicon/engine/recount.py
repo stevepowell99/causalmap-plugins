@@ -27,9 +27,11 @@ linked to the row (`answer.resolved.md`); and the report adds ids naming no cell
 row citations naming no row, quotations found in no document, quotations not in what they cite, the claims cited and
 where each sentence stands that nothing ties to the passages. The report also holds an
 `audit` (`rubicon_open/audits.py`): warnings from checks code makes without a model, which a writer and a check weigh
-against the documents and which never stop a recount. `recount/` is then
-a run's folder in the open format (`rubicon/docs/open-format.md`), with `workflow.json`, `run.json` and the write
-step's record beside the others, so the page draws it as it draws any run of pieces.
+against the documents and which never stop a recount; and `format`, every place the workflow it wrote departs from
+the open format's schema (`rubicon_open/format.py`, which also defines every file named here for a reader outside
+Rubicon, published at app.causalmap.app/rubicon/spec/latest/). `recount/` is then a run's folder in that format,
+with `workflow.json`, `run.json` and the write step's record beside the others, so the page draws it as it draws any
+run of pieces.
 """
 from __future__ import annotations
 
@@ -44,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder
 from rubicon_open import console  # noqa: E402
 from rubicon_open.corpus import load_corpus
 from rubicon_open import audits, earlier, legacy_weak, locator
+from rubicon_open import format as open_format
 from rubicon_open import steps as S
 from rubicon_open import workflow as W
 from rubicon_open.guidance import NoModel
@@ -86,7 +89,9 @@ if any(W.combining(st, {x.get("id"): x for x in wf["steps"][:k]}) for k, st in e
     # a step that puts codings together has the columns and links they share filled in, which the report and the page read
     (out / "workflow.json").write_text(json.dumps(wf, indent=1, ensure_ascii=False), encoding="utf-8", newline="\n")
 report: dict = {"workflow_faults": taken_faults + W.check(wf, W.attribute_sizes(corpus), len(corpus.documents))
-                + ([] if cell_ids in S.CELL_IDS else [f"cell_ids is {cell_ids!r}; it is one of {', '.join(S.CELL_IDS)}"])}
+                + ([] if cell_ids in S.CELL_IDS else [f"cell_ids is {cell_ids!r}; it is one of {', '.join(S.CELL_IDS)}"]),
+                # the workflow as this recount wrote it, which is what the run's zip carries, against the published schema
+                "format": open_format.checked(json.loads((out / "workflow.json").read_text(encoding="utf-8")))}
 if taken:
     report["earlier_runs"] = taken
 report["workflow_faults"] = [f for f in report["workflow_faults"] if "does not end by writing" not in f or not wf.get("steps")]
@@ -228,11 +233,19 @@ if a.answer:
     tagged = {f"{sid}.{c['id']}": c for sid, rec in run.out.items() if rec["kind"] == "claims" for c in rec["claims"]}
     cited = [c for c in S.citation_ids(text) if re.fullmatch(r"[\w-]+\.[\w.-]+", c) and c not in corpus.documents]
     quoted = S.quotations(text)
-    # word for word in one document, each part either side of an ellipsis included; else perhaps approximately anywhere
+    # word for word in one document, each part either side of an ellipsis included; else perhaps approximately anywhere,
+    # and where neither, the words of a document it reads as with some left out unmarked (`locator.locate_quoted`)
     exact = audits.place(run, [(corpus.documents, q) for q in quoted]) if quoted else []
-    rough = [q for q, h in zip(quoted, exact) if h is None]
-    rough = dict(zip(rough, locator.locate_all(whole, rough))) if rough else {}
+    unplaced = [q for q, h in zip(quoted, exact) if h is None]
+    rough = dict(zip(unplaced, locator.locate_quoted(whole, unplaced))) if unplaced else {}
     placed = [h or rough.get(q) for q, h in zip(quoted, exact)]
+    skipping = [q for q in unplaced if rough.get(q) is None]
+    starts = [0]
+    for d in corpus.documents:  # where each document starts in `whole`, in the locator's UTF-16 units
+        starts.append(starts[-1] + len(corpus.text(d).encode("utf-16-le")) // 2 + 1)
+    skipping = [{"quote": q, "document": list(corpus.documents)[sum(st <= h.start for st in starts[1:])], "passage": h.quote,
+                 "left_out": h.skipped}
+                for q, h in zip(skipping, locator.left_out(whole, skipping) if skipping else []) if h is not None]
     report["answer"] = {
         "counts_written_by_id": len(used), "ids_naming_no_count": sorted(set(unknown)), "numbers_written_bare": bare,
         # where each stands in answer.md, years too, so the report can mark it as the writer's own (render_report.unchecked)
@@ -252,6 +265,9 @@ if a.answer:
         "quotations_in_the_answer": len(quoted),
         "quotations_found_in_no_document": [q for q, h in zip(quoted, placed) if h is None],
         "quotations_placed_approximately": [q for q, h in zip(quoted, exact) if h is None and rough.get(q) is not None],
+        # those found in no document that a document holds otherwise: with words between them the quotation leaves out
+        # unmarked, which an ellipsis would mark, or with letters written otherwise, such as an accent dropped
+        "quotations_held_otherwise": skipping,
         "quotations_not_in_what_they_cite": [q for _, scope in S._sentences_with_scope(text)
                                              for q in S.quoted_elsewhere(run, scope, {k: r["document"] for k, r in rows.items()},
                                                                          {k: c["rows"] + c["against"] for k, c in tagged.items()})]}
@@ -279,6 +295,10 @@ except Exception as e:  # a broken audit must not lose the recount, and must say
 (out / "run.json").write_text(json.dumps({"question": wf.get("question_as_agreed") or "", "recounted_from": "free+w"},
                                          indent=1, ensure_ascii=False), encoding="utf-8", newline="\n")
 print(json.dumps(report, indent=1, ensure_ascii=False))
+if report["format"]["faults"]:
+    print(f"\nWORKFLOW NOT IN THE OPEN FORMAT {open_format.VERSION}, so a reader with only the format could not read it "
+          f"as written (recount/report.json, format; {report['format']['schema']}):\n"
+          + "\n".join(f"- {x}" for x in report["format"]["faults"]))
 for t_ in taken:  # said here and not kept in the report, which must read the same however many revisions follow
     for later in earlier.revised_since(folder, t_["run_id"], t_["fingerprint"]):
         print(f"\nEARLIER RUN REVISED: {t_['step']} is taken from run {t_['run_id']} as it was at {t_['fingerprint'][:8]}, "
@@ -294,8 +314,11 @@ if audit_lines:
     print("\n".join(f"- {x}" for x in audit_lines))
 print(f"\nwritten: {out / 'tables.md'}, {out / 'rows.md'}, {out / 'counts.json'}" + (f", {out / 'answer.resolved.md'}" if a.answer else ""))
 if a.answer and report["answer"]["quotations_found_in_no_document"]:
+    gaps = {s["quote"]: s for s in report["answer"]["quotations_held_otherwise"]}
     print("\nQUOTATIONS IN THE ANSWER FOUND IN NO DOCUMENT, so no report will be created until each is copied word for word "
-          "from its document or its quotation marks are removed:\n" + "\n".join(f"- \"{q}\"" for q in report["answer"]["quotations_found_in_no_document"]))
+          "from its document, with an ellipsis wherever it leaves words out, or its quotation marks are removed:\n"
+          + "\n".join(f"- \"{q}\"" + (f" ({gaps[q]['document']} has it as \"{gaps[q]['passage']}\")" if q in gaps else "")
+                      for q in report["answer"]["quotations_found_in_no_document"]))
 if a.answer and report["answer"]["ids_naming_no_count"]:
     # an error, not a note: the answer states a count of a cell the tables no longer hold (a value recoded or renamed, a
     # step removed), so its sentence would stand without the number it was written for

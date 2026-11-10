@@ -48,12 +48,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
 from rubicon_open import console  # noqa: E402
 from rubicon_open import assets, footprint, legacy_weak, locator, node, plan, procedure
+from rubicon_open import text as T
 from rubicon_open.corpus import INDEX_FIELDS, Corpus, as_read
 from rubicon_open.names import in_words, label, made_of, specs_of, step_name, step_said
 from rubicon_open.legacy_weak import CHAIN_EXPLICIT
 from rubicon_open.run_id import clean as run_id_of
 from rubicon_open.seal import engine_fingerprint, engine_version, seal_broken
-from rubicon_open.steps import LIMITS, ROW_ID, base_of, cited_as, group_ids, said_with_unit, step_of, unit_of_table
+from rubicon_open.steps import LIMITS, ROW_ID, base_of, cited_as, group_ids, said_with_unit, sentences_placed, step_of, unit_of_table
 from rubicon_open.units import base_said, count_said
 from rubicon_open.workflow import arrow_parts, codebook_of, column_values, derived, links_ending, loop_markers, normalise, order_of, sign_of, value_key
 
@@ -69,7 +70,7 @@ def name_of(workflow, revisions, date="", titled=""):
     `--date` given, so a report drawn again keeps its day, else today), then the revision number where the run has been
     revised, so a revised report never overwrites the one before it. A run that answers no question has no agreed
     question, so it is named from `titled`, the words it goes by (`titled_as`), by the same rule."""
-    words, slug = re.findall(r"[a-z0-9]+", re.sub(r"['\u2019]", "", (workflow.get("question_as_agreed", "").strip() or titled).lower())), ""
+    words, slug = T.words(re.sub(r"['\u2019]", "", (workflow.get("question_as_agreed", "").strip() or titled).lower())), ""
     for w in words:
         if len(slug) + len(w) > 50:
             break
@@ -127,20 +128,25 @@ def recount_differs(run):
         return sorted(n for n in old.keys() | new.keys() if n not in old or n not in new or not same(n, old[n], new[n]))
 
 
+#: What a recount writes in the engine's own voice rather than from the coded rows and the answer, which a later engine
+#: may word or find differently while no count, row or quotation moves: the chat that runs made before 10 October 2026
+#: recorded, the audit's advice to whoever writes the answer (none of its findings is a fault a report must clear, and no
+#: report draws on it), the workflow check's account of what it found and the check against the open format, which a
+#: later version of the format may word or find otherwise. A recount compared with a stored one leaves these aside; the
+#: counts, the steps' tables and rows, and the checks on the coding and the answer are compared whole.
+OWN_VOICE = {"run.json": ("chat",), "report.json": ("audit", "workflow_faults", "format")}
+
+
 def same(name, a, b):
-    """Whether two copies of a recount file are the same. `run.json` is compared without the `chat` that runs made
-    before 10 October 2026 recorded, which no recount now writes, so those runs still draw."""
-    if name == "run.json":
-        try:
-            drop = lambda p: {k: v for k, v in json.loads(p.read_text(encoding="utf-8")).items() if k != "chat"}
-            return drop(a) == drop(b)
-        except (OSError, ValueError, AttributeError):
-            pass
+    """Whether two copies of a recount file are the same, leaving aside what the engine says in its own voice
+    (`OWN_VOICE`)."""
     if name.endswith(".json"):
         # A newer engine records more about the same run (a judgement's margin, say), so a recount it makes may add
         # fields the run's own recount never had; it may not change or drop any it has, which is what a report reads
         try:
             old, new = json.loads(a.read_text(encoding="utf-8")), json.loads(b.read_text(encoding="utf-8"))
+            if isinstance(old, dict) and isinstance(new, dict):
+                old, new = ({k: v for k, v in x.items() if k not in OWN_VOICE.get(name, ())} for x in (old, new))
             # a tabulation recounted before cases were counted says it counted documents; where each case is one
             # document, counting cases is the same count
             if isinstance(old, dict) and old.get("count") == "documents" and isinstance(new, dict) and new.get("count") == "cases"                     and new.get("cases_are_documents"):
@@ -615,7 +621,9 @@ SEE = re.compile(r"\[§\s*([^\]]+)\]")
 
 
 def anchor(heading):
-    return "s-" + "-".join(re.findall(r"[a-z0-9]+", heading.lower()))
+    """A section's id, from its heading's words in any script (`text.words`), so two headings in a script other than
+    Latin keep ids, and links, of their own."""
+    return "s-" + "-".join(T.words(heading.lower()))
 
 
 #: a count as steps.stated writes it: "n of base", or "n passages" where it counts passages and has no base
@@ -1234,7 +1242,7 @@ def xlsx_button(step=None, cells=None, title=""):
     cells named. The file is named after the report and the first words of the table's title (the step's name as a
     reader sees it, or the loop's), so a report's several downloads keep apart."""
     which = f'data-xlsx-step="{esc(step)}"' if step else f'data-xlsx-cells="{esc("|".join(cells))}"'
-    words = re.findall(r"[a-z0-9]+", (title or label(re.sub(r"^[a-z]_", "", step or "loop"))).lower())[:5]
+    words = T.words((title or label(re.sub(r"^[a-z]_", "", step or "loop"))).lower())[:5]
     which += f' data-xlsx-name="{esc("-".join(words) or "links")}"'
     return (f'<p class="xlsx-row"><button class="xlsx" type="button" {which} title="{esc(XLSX_SAID)}">'
             f'Download for Causal Map (.xlsx)</button> <span class="small">holds the documents’ full text</span></p>')
@@ -1325,8 +1333,12 @@ NUMBER_WORDS = ["one", "two", "three", "four", "five", "six", "seven", "eight", 
 def questions_of(q):
     """The questions a task holds, when it holds several: (what comes before the first, [(label, question)], the
     paragraphs after them), else None. Several questions are numbered in the evaluator's own labels ("q1: ... q2: ...",
-    or a numbered list), counting up from one, or are several sentences each ending in a question mark. The questions
-    are the first paragraph's: later paragraphs are how it was to be answered, which may number the same questions again."""
+    or a numbered list), counting up from one, or stand one to a line, as the skill writes a task down: the run of lines
+    from the first that ends in a question mark while each ends in one, with any lines after them, such as how it will
+    be answered, kept after the questions. Sentences are never split apart: a question may hold several sentences, some
+    of them questions, such as a rubric whose criteria are asked as questions, and every word of the task is kept in
+    what this returns. The questions are the first paragraph's: later paragraphs are how it was to be answered, which
+    may number the same questions again."""
     head, _, after = q.partition("\n\n")
     marks = []
     for m in QUESTION_LABEL.finditer(head):
@@ -1340,11 +1352,12 @@ def questions_of(q):
                 head[m.end():(marks[i + 1][1].start() if i + 1 < len(marks) else len(head))].strip().strip("\"“”").strip())
                for i, (n, m) in enumerate(marks)]
         return lead, got, [p.strip() for p in after.split("\n\n") if p.strip()]
-    sentences = [s.strip() for s in re.split(r"(?<=[.?!])\s+", head) if s.strip()]
-    asks = [s for s in sentences if s.endswith("?")]
-    if len(asks) > 1:
-        lead = " ".join(sentences[:sentences.index(asks[0])])
-        return lead, [("", s) for s in asks], [p.strip() for p in after.split("\n\n") if p.strip()]
+    lines = [l.strip() for l in head.splitlines() if l.strip()]
+    first = next((i for i, l in enumerate(lines) if l.endswith("?")), len(lines))
+    last = next((i for i in range(first, len(lines)) if not lines[i].endswith("?")), len(lines))
+    if last - first > 1:
+        return (" ".join(lines[:first]), [("", l) for l in lines[first:last]],
+                lines[last:] + [p.strip() for p in after.split("\n\n") if p.strip()])
     return None
 
 
@@ -1837,12 +1850,15 @@ def hashed(*shown):
 def step_key(st, s):
     """What a step shows in the annex, as a key, or None where it shows nothing a combined report could draw once. It is
     what the step shows (its instruction, columns, passages or cells), not its name or the steps that feed it, so two
-    runs that coded the same documents the same way share one."""
+    runs that coded the same documents the same way share one. A row's or a cell's own id is left out, since it is made
+    from the step's name (`steps.row_id`, `steps.cell_id`): the passage and its coding, or the cell's values and counts,
+    are what it shows."""
+    unnamed = lambda items: [{k: v for k, v in x.items() if k != "id"} if isinstance(x, dict) else x for x in items]
     if st.get("kind") == "code" and s.get("rows"):
         return hashed("code", st.get("prompt"), st.get("per_document"), st.get("columns"), s.get("combines"),
-                      s.get("rows_by_coding"), s["rows"])
+                      s.get("rows_by_coding"), unnamed(s["rows"]))
     if st.get("kind") == "tabulate" and s.get("cells"):
-        return hashed("tabulate", st.get("count"), st.get("unit"), st.get("by"), s["cells"], s.get("unit"), s.get("of"))
+        return hashed("tabulate", st.get("count"), st.get("unit"), st.get("by"), unnamed(s["cells"]), s.get("unit"), s.get("of"))
     return None
 
 
@@ -2322,9 +2338,9 @@ def margin_map(R):
 
 
 def sentences(md):
-    """The answer's sentences, headings left out: what the check read one by one."""
-    text = " ".join(l.strip().removeprefix("- ") for l in md.splitlines() if l.strip() and not l.lstrip().startswith(("#", "|", "{{")))
-    return [t for t in re.split(r"(?<=[.!?])\s+(?=[A-Z\"“(*])", text) if t.strip()]
+    """The answer's sentences, headings, tables and figures left out (`steps.sentences_placed`): what the check read
+    one by one."""
+    return [x for x, _, _ in sentences_placed(md) if not x.startswith("{{")]
 
 
 def counted_said(R, every_beside, D=None):

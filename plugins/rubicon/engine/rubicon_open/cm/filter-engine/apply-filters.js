@@ -39,27 +39,70 @@ function linkTagsList(link) {
 }
 
 /** Match DataService.applySourceJoinInPlace: expose source custom_columns/metadata on each row for label-by-group + map bundles. */
+// A source's metadata as the link columns the engine filters on, [column, name, value]: each custom column as
+// s_<name with spaces and slashes as underscores>, each other scalar field as source_<name>. One function, so what the
+// engine filters on and what a source-groups filter is resolved against cannot drift apart.
+function sourceMetadataColumns(source) {
+  const md = source?.metadata && typeof source.metadata === 'object' ? source.metadata : {}
+  const cc = md.custom_columns && typeof md.custom_columns === 'object' ? md.custom_columns : {}
+  const out = []
+  for (const key of Object.keys(cc)) out.push([`s_${String(key).replace(/[\s/]/g, '_')}`, key, cc[key]])
+  for (const key of Object.keys(md)) {
+    if (key === 'custom_columns') continue
+    const value = md[key]
+    if (typeof value !== 'object' || value === null) out.push([`source_${key}`, key, value])
+  }
+  return out
+}
+
 function mergeSourceMetadataOntoLinks(links, sourceById) {
   return links.map((link) => {
     const sid = String(link?.source_id ?? '').trim()
     const source = sourceById.get(sid)
     if (!source || typeof link !== 'object') return link
     const out = { ...link }
-    const md = source.metadata && typeof source.metadata === 'object' ? source.metadata : {}
-    const cc = md.custom_columns && typeof md.custom_columns === 'object' ? md.custom_columns : {}
-    for (const key of Object.keys(cc)) {
-      const safeKey = String(key).replace(/[\s/]/g, '_')
-      out[`s_${safeKey}`] = cc[key]
-    }
-    for (const key of Object.keys(md)) {
-      if (key === 'custom_columns') continue
-      const value = md[key]
-      if (typeof value !== 'object' || value === null) {
-        out[`source_${key}`] = value
-      }
-    }
+    for (const [column, , value] of sourceMetadataColumns(source)) out[column] = value
     return out
   })
+}
+
+/** Every source column a source-groups filter can name, under the key the engine filters on, with its name and the
+ *  values the sources hold in it (trimmed, list values counted one by one). */
+export function sourceGroupColumns(sources) {
+  const columns = new Map()
+  for (const source of Array.isArray(sources) ? sources : []) {
+    for (const [column, name, value] of sourceMetadataColumns(source)) {
+      if (!columns.has(column)) columns.set(column, { name, values: new Set() })
+      for (const v of Array.isArray(value) ? value : [value]) {
+        if (v !== null && v !== undefined && String(v).trim() !== '') columns.get(column).values.add(String(v).trim())
+      }
+    }
+  }
+  return columns
+}
+
+const compactKey = (value) => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+
+/**
+ * Requested source-group values as the column spells them: exact, then ignoring case, then ignoring everything but
+ * letters and digits, so "mnx-4" is "MNX4". A value with no match is kept as asked and named in `absent`, since the
+ * filter's exact match would drop every link for it.
+ */
+export function canonicalSourceGroupValues(requested, available) {
+  const values = [...(available || [])].map((v) => String(v ?? '').trim()).filter(Boolean)
+  const exact = new Set(values)
+  const byLower = new Map(values.map((v) => [v.toLowerCase(), v]))
+  const byCompact = new Map(values.map((v) => [compactKey(v), v]))
+  const out = []
+  const absent = []
+  for (const raw of Array.isArray(requested) ? requested : []) {
+    const r = String(raw ?? '').trim()
+    if (!r) continue
+    const hit = exact.has(r) ? r : (byLower.get(r.toLowerCase()) || byCompact.get(compactKey(r)))
+    if (!hit) absent.push(r)
+    out.push(hit || r)
+  }
+  return { values: [...new Set(out)], absent }
 }
 
 // Factors whose cause/effect matches the filter's selected labels. Exposed so the webapp can reuse
@@ -254,8 +297,36 @@ export function applyFactorFrequencyFilter(links, filter) {
   return links.filter((link) => allowedFactors.has((link.cause || '').trim()) && allowedFactors.has((link.effect || '').trim()))
 }
 
+const normalizeSourceFieldSuffix = (suffix) => String(suffix || '').trim().replace(/[\s/]/g, '_').toLowerCase()
+
+/**
+ * The flattened link column (s_* or source_*, as mergeSourceMetadataOntoLinks writes them) that a source-group field
+ * name means. `available` is the column names, or link rows to read them from. A name that is already a column is
+ * kept; a legacy custom_<name> alias or a plain source column name (as a person or a model writes it, such as
+ * "#Sex of the respondent") becomes its s_* column; anything else is returned unchanged.
+ */
+export function resolveSourceGroupsField(field, available) {
+  const requested = String(field || '').trim()
+  if (!requested) return requested
+  const names = new Set()
+  for (const item of available instanceof Set || Array.isArray(available) ? available : []) {
+    if (typeof item === 'string') names.add(item.trim())
+    else if (item && typeof item === 'object') Object.keys(item).forEach((k) => names.add(k))
+  }
+  if (names.size === 0 || names.has(requested)) return requested
+  const plain = requested.startsWith('custom_') ? requested.substring(7) : requested
+  const flattened = `s_${plain.replace(/[\s/]/g, '_')}`
+  if (names.has(flattened)) return flattened
+  if (names.has(`source_${plain}`)) return `source_${plain}`
+  const wanted = normalizeSourceFieldSuffix(plain)
+  for (const name of names) {
+    if (name.startsWith('s_') && normalizeSourceFieldSuffix(name.substring(2)) === wanted) return name
+  }
+  return requested
+}
+
 // Membership over a resolved source-group column flattened onto each link (s_*/source_*).
-// The caller resolves filter.selectedField to that key first. Exact value match, trimmed.
+// The caller resolves filter.selectedField to that key first (resolveSourceGroupsField). Exact value match, trimmed.
 export function applySourceGroupsFilter(links, filter) {
   const field = filter.selectedField
   const values = Array.isArray(filter.selectedValues) ? filter.selectedValues : []
@@ -268,8 +339,13 @@ export function applySourceGroupsFilter(links, filter) {
   })
 }
 
+// The one test of whether a link runs from a factor to itself; recode's loop refusal uses it too.
+export function isSelfLoop(cause, effect) {
+  return String(cause ?? '').trim() === String(effect ?? '').trim()
+}
+
 export function applyExcludeSelfLoops(links) {
-  return links.filter((link) => (link.cause || '').trim() !== (link.effect || '').trim())
+  return links.filter((link) => !isSelfLoop(link.cause, link.effect))
 }
 
 // Canonical per-label transforms (match the webapp's applyZoomToLabel / applyCollapseToLabel /
@@ -513,6 +589,31 @@ export function applyCombineOppositesFilter(links, filter) {
   })
 }
 
+// Every link filter type the engine applies, and how. This registry is the vocabulary: applyOrderedLinkFilters reads
+// it, and anything that describes or checks a chain (the MCP server's schema and filter reference) lists its keys, so a
+// new type is one entry here.
+const LINK_FILTERS = {
+  sources: applySourcesFilter,
+  everything: applyEverythingFilter,
+  label: applyLabelFilter,
+  'exclude-label': applyExcludeLabelFilter,
+  'path-tracing': applyPathTracingFilter,
+  tags: applyTagsFilter,
+  'exclude-tags': applyExcludeTagsFilter,
+  'source-groups': (rows, filter) => applySourceGroupsFilter(rows, { ...filter, selectedField: resolveSourceGroupsField(filter.selectedField, rows) }),
+  'link-frequency': applyLinkFrequencyFilter,
+  'factor-frequency': applyFactorFrequencyFilter,
+  'custom-links-label': applyLabelByGroupToFactors,
+  // Reserved map columns are attached after ordered row filters have run.
+  'map-custom-columns': (rows) => rows,
+  'exclude-self-loops': (rows) => applyExcludeSelfLoops(rows),
+  zoom: applyZoomFilter,
+  collapse: (rows, filter) => applyCollapseFilter(rows, filter).rows,
+  'replace-brackets': applyReplaceBracketsFilter,
+  'combine-opposites': applyCombineOppositesFilter,
+}
+export const LINK_FILTER_TYPES = Object.freeze(Object.keys(LINK_FILTERS))
+
 /**
  * Apply an ordered list of link filters. Pure: data in, data out.
  * @param {Array} links   Enriched link rows.
@@ -530,25 +631,7 @@ export function applyOrderedLinkFilters(links, filters, sources = []) {
     const filter = raw && typeof raw === 'object' ? raw : null
     if (!filter || filter.enabled === false) continue
     const type = String(filter.type || '').trim()
-    if (type === 'sources') rows = applySourcesFilter(rows, filter)
-    else if (type === 'everything') rows = applyEverythingFilter(rows, filter)
-    else if (type === 'label') rows = applyLabelFilter(rows, filter)
-    else if (type === 'exclude-label') rows = applyExcludeLabelFilter(rows, filter)
-    else if (type === 'path-tracing') rows = applyPathTracingFilter(rows, filter)
-    else if (type === 'tags') rows = applyTagsFilter(rows, filter)
-    else if (type === 'exclude-tags') rows = applyExcludeTagsFilter(rows, filter)
-    else if (type === 'source-groups') rows = applySourceGroupsFilter(rows, filter)
-    else if (type === 'link-frequency') rows = applyLinkFrequencyFilter(rows, filter)
-    else if (type === 'factor-frequency') rows = applyFactorFrequencyFilter(rows, filter)
-    else if (type === 'custom-links-label') rows = applyLabelByGroupToFactors(rows, filter)
-    else if (type === 'map-custom-columns') {
-      // Reserved map columns are attached after ordered row filters have run.
-    }
-    else if (type === 'exclude-self-loops') rows = applyExcludeSelfLoops(rows)
-    else if (type === 'zoom') rows = applyZoomFilter(rows, filter)
-    else if (type === 'collapse') rows = applyCollapseFilter(rows, filter).rows
-    else if (type === 'replace-brackets') rows = applyReplaceBracketsFilter(rows, filter)
-    else if (type === 'combine-opposites') rows = applyCombineOppositesFilter(rows, filter)
+    if (Object.prototype.hasOwnProperty.call(LINK_FILTERS, type)) rows = LINK_FILTERS[type](rows, filter)
     else unsupported.push(type || '(missing type)')
   }
 

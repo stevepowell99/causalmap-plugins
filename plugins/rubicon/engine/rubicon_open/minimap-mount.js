@@ -10,7 +10,7 @@
  * report. `opened(node, id)` is told when a click on a node has scrolled to its block, so the
  * page can open the result itself; `owned(stop)` is handed what lets everything go.
  */
-import { layout, draw, lineageOf, neighboursOf, edgeAt, keyEntries, paintKeyEntry } from './minimap.js?v=2026-10-07T08:36:34Z'
+import { layout, draw, lineageOf, neighboursOf, edgeAt, keyEntries, paintKeyEntry } from './minimap.js'
 
 const escape = s => String(s ?? '').replace(/[&<>"]/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])

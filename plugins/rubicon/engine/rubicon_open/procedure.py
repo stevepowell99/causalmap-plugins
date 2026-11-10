@@ -14,6 +14,7 @@ from __future__ import annotations
 import re
 
 from . import legacy_weak
+from . import text as T
 from .names import step_name
 from .steps import unit_of_table
 from .workflow import key_columns, links_ending
@@ -38,7 +39,7 @@ FILTER_SAID = {"combine-opposites": "each factor and its opposite drawn as one"}
 def anchor(sid: str) -> str:
     """The id of a step's part of the annex, which each stage's link opens. Begins `s-` so that a combined report,
     which makes each part's section ids its own (`bind.scoped`), does the same for these."""
-    return "s-howdone-" + re.sub(r"[^a-z0-9]+", "-", sid.lower()).strip("-")
+    return "s-howdone-" + "-".join(T.words(sid.lower()))
 
 
 def _label(v) -> str:
@@ -57,9 +58,9 @@ def _listed(items: list[str]) -> str:
 def _first_sentence(text: str, most: int = 160) -> str:
     """A definition's opening, which is what a column means in brief: its first sentence, cut at a colon or semicolon
     where that sentence runs long."""
-    t = re.split(r"(?<=[.!?])\s", str(text or "").strip(), maxsplit=1)[0].rstrip(".")
+    t = T.after_marks().split(str(text or "").strip(), maxsplit=1)[0].rstrip(T.STOPS)
     if len(t) > most:
-        t = re.split(r"[:;]\s", t, maxsplit=1)[0]
+        t = re.split(r"[:;]\s|[：；]", t, maxsplit=1)[0]
     return t[:1].lower() + t[1:] if t[:2] != t[:2].upper() else t
 
 

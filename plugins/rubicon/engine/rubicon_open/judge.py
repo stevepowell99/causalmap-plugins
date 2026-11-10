@@ -61,8 +61,10 @@ NO_RATING, NO_RATING_ID = "No rating can be given", "no-rating"
 
 
 def verdict_id(verdict) -> str:
-    """A level's verdict as it goes in a count's id: lower case, words joined by hyphens."""
-    return re.sub(r"[^a-z0-9]+", "-", str(verdict).lower()).strip("-") if verdict is not None else NO_RATING_ID
+    """A level's verdict as it goes in a count's id: lower case, its words (`text.words`, in any script) joined by
+    hyphens, so two levels named in a script other than Latin keep ids of their own."""
+    from . import text as T
+    return "-".join(T.words(str(verdict).lower())) if verdict is not None else NO_RATING_ID
 COMBINE = ("weakest", "best", "separate")
 #: How `check_rubric` ends the fault naming a step's proposed levels: a wait on the evaluator rather than a fault in
 #: the workflow, which only their acceptance clears (`awaits_evaluator`).
@@ -71,11 +73,12 @@ AWAITING = "wait for the evaluator to accept them"
 
 
 def _quoted(quote: str, text: str) -> bool:
-    """Whether the evaluator's words hold the quotation, allowing for elision, case, spacing and curly marks."""
-    def norm(x):
-        return re.sub(r"\s+", " ", x.replace("\u2019", "'").replace("\u2018", "'").replace("\u201c", '"').replace("\u201d", '"')).strip().lower()
-    body = norm(text)
-    return all(norm(p) in body for p in re.split(r"\s*(?:\.\.\.|\u2026)\s*", quote) if p.strip())
+    """Whether the evaluator's words hold the quotation as written (`locator.locate_quoted`), each part either side of
+    an ellipsis in one run, allowing for case, spacing and the shape of quotation marks but not for a letter written
+    otherwise, such as an accent dropped."""
+    from . import locator
+    got = locator.locate_quoted(text, [quote])[0] if text.strip() and quote.strip() else None
+    return got is not None and got.tier in locator.AS_QUOTED
 
 
 def awaits_evaluator(fault: str) -> bool:
@@ -86,8 +89,21 @@ def awaits_evaluator(fault: str) -> bool:
 
 
 def _numbers(text: str) -> set[float]:
-    """The numerals a text holds, thousands separators dropped: "1,051" is 1051."""
-    return {float(x.replace(",", "")) for x in re.findall(r"(?<![\w.])\d[\d,]*(?:\.\d+)?", text)}
+    """The numbers a text's numerals can be read as, whichever mark its language puts between thousands and before a
+    decimal: a comma or stop before three digits may be either ("1,051" is 1051 or 1.051), one before any other count
+    of digits is a decimal mark ("3,5" is 3.5), and a non-breaking or thin space only joins thousands ("1 051")."""
+    out = set()
+    for x in re.findall(r"(?<![\w.,])\d+(?:[.,   ]\d+)*", text):
+        parts = re.split(r"([.,   ])", x)
+        digits, marks = parts[0::2], parts[1::2]
+        # every mark joins thousands: one kind of mark, each group after the first three digits long
+        if len(set(marks)) <= 1 and all(len(g) == 3 for g in digits[1:]):
+            out.add(float("".join(digits)))
+        # the last mark is a decimal one, and any before it join thousands with a mark of another kind
+        if marks and marks[-1] in ".," and len(set(marks[:-1])) <= 1 and marks[-1] not in marks[:-1] \
+                and all(len(g) == 3 for g in digits[1:-1]):
+            out.add(float("".join(digits[:-1]) + "." + digits[-1]))
+    return out
 
 
 def find_stated(c: dict, background: dict[str, str]) -> tuple[object, list[str]]:
@@ -274,7 +290,8 @@ def check_rubric(sid: str, s: dict, made: dict, attrs: set[str], n_documents: in
                     faults.append(f"{cid}: level {lv.get('verdict')!r} has no descriptor to read against")
         else:
             faults.append(f"{cid}: kind {c.get('kind')!r}; a criterion is a rule, a stated number or a reading")
-        blanks = re.findall(r"_{3,}|\[\s*\]|\bTBD\b|\?\?\?", json.dumps(c))
+        # blanks marked as any language marks them, never by one language's word for "to be decided"
+        blanks = re.findall(r"_{3,}|\[\s*\]|[?？]{3,}", json.dumps(c, ensure_ascii=False))
         if blanks:
             faults.append(f"{cid}: has blanks left for somebody to fill ({', '.join(blanks)})")
     if proposed and not s.get("accepted"):
@@ -588,10 +605,13 @@ KIND_IN_WORDS = {"rule": "a count of {unit}, set against the thresholds below",
                  "reading": "judged by a language model reading the coded passages against each level's description"}
 
 
-def accepted_in_words(accepted: str | None) -> str:
-    """Who accepted proposed levels and when, said to a reader who saw none of the planning, with the date written out."""
+def accepted_in_words(accepted: str | bool | None) -> str:
+    """Who accepted proposed levels and when, said to a reader who saw none of the planning, with the date written out.
+    `true`, which a workflow written by hand may give, is an acceptance whose date was not recorded."""
     if not accepted:
         return ""
+    if not isinstance(accepted, str):
+        return "accepted by the evaluator"
     m = re.search(r"(\d{4})-(\d{2})-(\d{2})", accepted)
     when = f" on {int(m.group(3))} {MONTHS[int(m.group(2)) - 1]} {m.group(1)}" if m else ""
     return f"accepted for a test{when}" if accepted.startswith("for a test") else f"accepted by the evaluator{when}"

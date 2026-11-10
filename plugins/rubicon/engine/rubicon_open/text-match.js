@@ -105,6 +105,20 @@ function canonicalizeWithMap(s, dropPunct) {
     return { out, map }
 }
 
+// Lowercase without changing the length, so an offset into the lowercased text is the same offset into the original.
+// A character whose lowercase is longer (Turkish "İ" lowercases to "i" plus a combining dot) is kept as it is, which
+// would otherwise put every match after it one character out; the canonical tier still matches it case-insensitively.
+function lowerSameLength(s) {
+    const lower = s.toLowerCase()
+    if (lower.length === s.length) return lower
+    let out = ''
+    for (const ch of s) {
+        const l = ch.toLowerCase()
+        out += l.length === ch.length ? l : ch
+    }
+    return out
+}
+
 // Count of differing characters; length difference is penalised heavily (no indel alignment).
 // Bails out early once differences exceed limit (the caller only cares about <= limit).
 function simpleDistance(str1, str2, limit) {
@@ -175,7 +189,7 @@ function scanGapped(needle, hay, from, resync, maxGap, maxGaps, maxTotalGap, tai
 export function createQuoteLocator(sourceText, opts = {}) {
     const src = sourceText ? String(sourceText) : ''
     const wideGap = !!(opts && opts.wideGap)
-    const lowerSource = src.toLowerCase()
+    const lowerSource = lowerSameLength(src)
     let normWs = null        // normalizeWhitespaceWithMap(lowerSource)
     let canon = null         // canonicalizeWithMap(src, false)
     let canonNoPunct = null  // canonicalizeWithMap(src, true)
@@ -184,7 +198,7 @@ export function createQuoteLocator(sourceText, opts = {}) {
         if (!src || !selectedText) return null
         const strippedSelected = String(selectedText).replace(/\s+/g, ' ').trim()
         if (!strippedSelected || strippedSelected.length < 3) return null
-        const lowerSelected = strippedSelected.toLowerCase()
+        const lowerSelected = lowerSameLength(strippedSelected)
 
         // Strategy 1: case-insensitive literal match.
         const literalIndex = lowerSource.indexOf(lowerSelected)
@@ -277,7 +291,7 @@ export function createQuoteLocator(sourceText, opts = {}) {
         const maxDistance = Math.min(5, Math.floor(strippedSelected.length * 0.05))
         for (let i = 0; i <= src.length - strippedSelected.length; i += 5) {
             const window = src.substring(i, i + strippedSelected.length)
-            if (simpleDistance(window.toLowerCase(), lowerSelected, maxDistance) <= maxDistance) {
+            if (simpleDistance(lowerSameLength(window), lowerSelected, maxDistance) <= maxDistance) {
                 return { start: i, end: i + strippedSelected.length, confidence: 'fuzzy' }
             }
         }
