@@ -2196,9 +2196,12 @@ def site_link(text=None):
     return f'<a class="site" href="https://{SITE}" target="_blank" rel="noopener">{text or SITE}</a>'
 
 
-def made_with():
-    """The page's last line: what made the report, with the site's address spelled out as the link's own text."""
-    return f'<p class="madewith">Made with Rubicon by Causal Map, free for Claude: {site_link()}</p>'
+def made_with(version=None):
+    """The page's last line: what made the report, naming the Rubicon version that created it where that is known (the
+    version The record gives), so the release is seen without opening the annexes, and the site's address spelled out as
+    the link's own text."""
+    named = f" (version {esc(version)})" if version else ""
+    return f'<p class="madewith">Made with Rubicon by Causal Map{named}, free for Claude: {site_link()}</p>'
 
 
 def carbon_line(F, combined=False, static=False):
@@ -2488,7 +2491,7 @@ def page(R, fragment=False):
 <article class="answer rb-block" data-node="asset:answer">{body}</article>
 {annexed}
 {carbon_line(R["footprint"])}
-{made_with()}
+{made_with(R.get("version"))}
 </main>
 <aside class="panel" id="panel" hidden><button class="close" id="panel-close" aria-label="Close">×</button><div id="panel-body"></div></aside>
 </div>
@@ -2527,7 +2530,7 @@ def word(R):
             f'<p style="color:#8b7f72;font-size:9pt">RUBICON REPORT</p><h1>{esc(heading(R, title))}</h1>'
             + (f'<p style="color:#8b7f72;font-size:9pt">Run {esc(R["run_id"])}</p>' if R.get("run_id") else "") +
             f'{asked(R, static=True)}{synthetic(R)}{lead}{word_badge(R, nrows_of(R), D)}{body}<h1 class="pb">{ANNEXES}</h1><h2>{HOW_DONE}</h2>{how_done(R, static=True, D=D)}{annex(R, D, static=True)}{cite_no.listed()}'
-            f'<h2>What next</h2>{further(R, D)}{carbon_line(R["footprint"], static=True)}{made_with()}</body></html>')
+            f'<h2>What next</h2>{further(R, D)}{carbon_line(R["footprint"], static=True)}{made_with(R.get("version"))}</body></html>')
 
 
 if __name__ == "__main__":

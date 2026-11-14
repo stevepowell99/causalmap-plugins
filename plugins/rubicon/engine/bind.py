@@ -59,7 +59,7 @@ from rubicon_open import console  # noqa: E402
 from rubicon_open import assets, footprint, plan, procedure
 from rubicon_open import text as T
 from rubicon_open.run_id import clean as run_id_of
-from rubicon_open.seal import engine_fingerprint
+from rubicon_open.seal import engine_fingerprint, engine_version
 from rubicon_open.steps import base_of, base_set, recorded_base_columns, unit_of_table
 
 ENGINE = Path(__file__).resolve().parent
@@ -532,7 +532,7 @@ def binder_html(parts, title, date):
 {sections}
 {annexes}
 {RR.carbon_line(footprint.combined([p["R"]["footprint"] for p in parts]), combined=True)}
-{RR.made_with()}
+{RR.made_with(engine_version(ENGINE))}
 </main>
 <aside class="panel" id="panel" hidden><button class="close" id="panel-close" aria-label="Close">×</button><div id="panel-body"></div></aside>
 </div>
@@ -563,7 +563,7 @@ def binder_word(parts, title, date):
             f'<p style="color:#8b7f72;font-size:9pt">RUBICON COMBINED REPORT</p><h1>{esc(title)}</h1>'
             f'<p style="color:#8b7f72;font-size:9pt">{n} question{"" if n == 1 else "s"} · {esc(date)}</p>{about(parts)}'
             f'<h2>The questions</h2><ol>{index}</ol><div class="pb"></div>{body}<h1 class="pb">{RR.ANNEXES}</h1>{note_on(differences(parts)[1], findings(parts), static=True)}{annexes}'
-            f'{RR.carbon_line(footprint.combined([p["R"]["footprint"] for p in parts]), combined=True, static=True)}{RR.made_with()}</body></html>')
+            f'{RR.carbon_line(footprint.combined([p["R"]["footprint"] for p in parts]), combined=True, static=True)}{RR.made_with(engine_version(ENGINE))}</body></html>')
 
 
 BINDER_CSS = """

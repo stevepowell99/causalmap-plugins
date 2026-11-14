@@ -16,7 +16,11 @@ Answering an evaluation question usually takes a workflow of several steps: spli
 - It can pause for stakeholders to agree the definitions or the draft. Where a verdict has real consequences, it can first test the workflow on two made-up sets of documents, one written to pass and one to fail, to show the workflow can tell them apart.
 - Every count is made by fixed rules, out of a stated base, and every quotation is checked word for word against its document.
 
-A later run can build on an earlier one's coding rather than repeat it. You get a report in which every number and quotation can be clicked to see what it rests on, a Word copy, and the whole run in one file, so that somebody else can check and rebuild the analysis. It runs on your own Claude plan; nothing is sent to Causal Map. More, with example reports: [rubicon.causalmap.app/plugin](https://rubicon.causalmap.app/plugin/).
+A later run can build on an earlier one's coding rather than repeat it. You get a report in which every number and quotation can be clicked to see what it rests on, a Word copy, and the whole run in one file, so that somebody else can check and rebuild the analysis. It runs on your own Claude plan; nothing is sent to Causal Map.
+
+It uses much more of that plan than a chat, since a run reads every document, often several times over. On our test set of 100 interview transcripts (about 156,000 words), answering one question on Opus took 31 minutes and about 1.2 million tokens read fresh or written, which can use up a Pro plan's five-hour session; Max gives five times Pro's usage in each five-hour session; verified Ultra accounts do not have a five-hour limit ([Anthropic's plans](https://claude.com/pricing)). Before a run starts, Rubicon estimates the tokens and time your task will take and says what that means on each plan.
+
+More, with example reports: [rubicon.causalmap.app/plugin](https://rubicon.causalmap.app/plugin/).
 
 ## Install
 

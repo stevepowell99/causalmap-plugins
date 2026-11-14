@@ -90,6 +90,23 @@ class Corpus:
 INDEX_FIELDS = ("id", "title", "file", "case", "characters", "synthetic")
 
 
+def find_documents(docs: Path) -> tuple[list[str], list[dict], dict[str, Path | None]]:
+    """A documents folder's index before any run is started: its columns, its rows, and each document's file, found in
+    `corpus/` or, where the documents are already plain-text files in the folder itself, beside it (None where neither
+    holds it). Raises SystemExit where `corpus/index.csv` does not exist."""
+    index = docs / CORPUS / "index.csv"
+    if not index.is_file():
+        raise SystemExit(f"{index} does not exist: write the documents' index first")
+    with index.open(encoding="utf-8", newline="") as fh:
+        reader = csv.DictReader(fh)
+        fields, rows = list(reader.fieldnames or []), list(reader)
+    found = {}
+    for r in rows:
+        file = (r.get("file") or "").strip() or f"{r.get('id')}.txt"
+        found[r.get("id")] = next((p for p in (docs / CORPUS / file, docs / file) if p.is_file()), None)
+    return fields, rows, found
+
+
 def load_corpus(run: Path) -> Corpus:
     folder = run / CORPUS
     index = folder / "index.csv"

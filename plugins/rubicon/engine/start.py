@@ -24,7 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
 from rubicon_open import console  # noqa: E402
-from rubicon_open.corpus import BACKGROUND, CORPUS  # noqa: E402
+from rubicon_open.corpus import BACKGROUND, CORPUS, find_documents  # noqa: E402
 from rubicon_open.run_id import new_run_id  # noqa: E402
 from rubicon_open import text as T  # noqa: E402
 
@@ -34,20 +34,10 @@ def slug(words: str) -> str:
 
 def start(docs: Path, name: str, question: str, copy: list[Path] = ()) -> dict:
     index = docs / CORPUS / "index.csv"
-    if not index.is_file():
-        raise SystemExit(f"{index} does not exist: write the documents' index first")
-    with index.open(encoding="utf-8", newline="") as fh:
-        reader = csv.DictReader(fh)
-        fields, rows = list(reader.fieldnames or []), list(reader)
+    fields, rows, found = find_documents(docs)
     if not rows or "id" not in fields:
         raise SystemExit(f"{index} lists no documents: it needs an id column and a row for each document")
-    found, missing = {}, []
-    for r in rows:
-        file = (r.get("file") or "").strip() or f"{r['id']}.txt"
-        src = next((p for p in (docs / CORPUS / file, docs / file) if p.is_file()), None)
-        if src is None:
-            missing.append(file)
-        found[r["id"]] = src
+    missing = [(r.get("file") or "").strip() or f"{r['id']}.txt" for r in rows if found[r["id"]] is None]
     if absent := [str(c) for c in copy if not c.is_dir()]:
         raise SystemExit(f"--copy names folders that do not exist: {', '.join(absent)}")
     if missing:
