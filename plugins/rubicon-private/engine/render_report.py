@@ -1,16 +1,19 @@
-"""Draw a Rubicon run folder as a report to read and click through, the same report for Word, and the run as a zip.
+"""Draw a Rubicon run folder as a report to read and click through and the run as a zip, and on request the same report
+for Word.
 
-    python render_report.py <run folder> [--date "6 October 2026"] [--fragment]
+    python render_report.py <run folder> [--date "6 October 2026"] [--fragment] [--word]
     python render_report.py <run .zip>   [the same options]
 
-The three files share one name, made from the question, the day and the first eight characters of the run's
-fingerprint: `<question>-<yyyy-mm-dd>-<fingerprint>.html`, `.doc` and `.zip`, with `-revision-<n>` before the
+`--word` adds a copy for editing in Word, which opens with a note saying it is a copy and naming the report
+(`word_note`). Given a report's zip, `--word` writes only that copy beside the report, laying the run out out of sight.
+The files share one name, made from the question, the day and the first eight characters of the run's
+fingerprint: `<question>-<yyyy-mm-dd>-<fingerprint>.html`, `.zip` and `.doc`, with `-revision-<n>` before the
 fingerprint once the run has been revised (`revisions.md`), so a report and its zip are seen to match by their names. The zip is the recounted run in the open format (`recount/`: `workflow.json`, `run.json`, `steps/*.json`,
 `corpus/` and `background/`), which the Rubicon page's "Open a downloaded run (.zip)" reads in the browser and
 never saves. It holds the documents, because the page needs them to show each quotation in its place, and
 `answer.md`, `counts.json` and `report.json`, so that given the zip in place of a folder this draws the report again
 from the zip alone, under the name and date it was first drawn with: the run is laid out again in a folder named after the zip (`unpack`), and the
-report and its Word copy are written beside the zip. Where the zip's own report is already beside it, nothing is
+report is written beside the zip. Where the zip's own report is already beside it, nothing is
 overwritten: the report is written into that folder instead, and the output says so.
 
 The report is drawn from the zip and from nothing else: given a folder, this makes the zip first, then reads only the
@@ -42,7 +45,7 @@ LibreOffice shows as a bracketed number with the notes listed at the end. A caus
 no SVG in an HTML file, and the grid stands in its place.
 --fragment writes the page without <html>/<head>/<body>, for publishing as an Artifact.
 """
-import base64, csv, datetime, gzip, hashlib, html, io, json, re, shutil, subprocess, sys, tempfile, zipfile
+import atexit, base64, csv, datetime, gzip, hashlib, html, io, json, re, shutil, subprocess, sys, tempfile, zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
@@ -1545,7 +1548,9 @@ def matrix(R, D):
                 implicit = all(legacy_weak.carries(old, r) for r in rs)  # legacy_weak: held only through implicit passages
                 rid = ",".join(r["row"] for r in rs)
                 why = f"Coded {label(nominal['name'])}: {label(v)} in {did}" + (", only implicitly" if implicit else "")
-                tds += (f'<td><button class="dot {"own" if own else "raised"}{" implicit" if implicit else ""}" data-rows="{esc(rid)}" data-why="{esc(why)}" '
+                # what the dot means in words, for its table's copy (report.js `cellText`): its passages, and its shading
+                copy = f"{len(rs)}" + (f" ({label(binary['name'])})" if own else "") + (" (implicit)" if implicit else "")
+                tds += (f'<td><button class="dot {"own" if own else "raised"}{" implicit" if implicit else ""}" data-rows="{esc(rid)}" data-why="{esc(why)}" data-copy="{esc(copy)}" '
                         f'aria-label="{esc(did)}: {esc(label(v))}, {len(rs)} passage{"s" if len(rs) > 1 else ""}{", implicit" if implicit else ""}">'
                         f'{len(rs) if len(rs) > 1 else ""}</button></td>')
             body += (f'<tr><th class="doc"><button class="doclink" data-doc="{esc(did)}" title="Read {esc(did)} whole">'
@@ -2189,6 +2194,10 @@ def annex(R, D, static=False, earlier=None, number=None):
 
 
 SITE = "rubicon.causalmap.app"
+#: The sign-up page of Rubicon updates, the email about new versions, fixes and worked examples
+UPDATES = "buttondown.com/causal-map"
+#: Where a reader writes for help with Rubicon or to ask about it
+HELP = "hello@causalmap.app"
 
 
 def site_link(text=None):
@@ -2199,9 +2208,13 @@ def site_link(text=None):
 def made_with(version=None):
     """The page's last line: what made the report, naming the Rubicon version that created it where that is known (the
     version The record gives), so the release is seen without opening the annexes, and the site's address spelled out as
-    the link's own text."""
+    the link's own text; then where to sign up for Rubicon updates and where to write for help, each spelled out the same
+    way, so a printed copy keeps them."""
     named = f" (version {esc(version)})" if version else ""
-    return f'<p class="madewith">Made with Rubicon by Causal Map{named}, free for Claude: {site_link()}</p>'
+    updates = f'<a class="site" href="https://{UPDATES}" target="_blank" rel="noopener">{UPDATES}</a>'
+    help_ = f'<a class="site" href="mailto:{HELP}">{HELP}</a>'
+    return (f'<p class="madewith">Made with Rubicon by Causal Map{named}, free for Claude: {site_link()}. '
+            f'Rubicon updates by email: {updates}. Help and information: {help_}</p>')
 
 
 def carbon_line(F, combined=False, static=False):
@@ -2518,15 +2531,25 @@ WORD_CSS = (
     '.pb{page-break-before:always}</style>')
 
 
+def word_note(page_name):
+    """The note at the very top of a Word copy, before its title, so whoever is given the copy alone knows it is not the
+    report and where the report is."""
+    return ('<p class="word-note" style="border:1pt solid #c9bfb3;padding:6pt;margin:0 0 12pt;font-size:10pt;color:#3d352e">'
+            "<b>This is a copy for editing in Word.</b> Its numbers and quotations do not open the passages they rest on, "
+            "and it draws no causal maps. The full report, where every number opens its passages and every count was "
+            f"made by fixed rules that can be checked, is the file <b>{esc(page_name)}</b> beside this one.</p>")
+
+
 def word(R):
-    """The same report for Word: figures as text, each citation as its document with a footnote giving the passage in
-    full (`Footnotes`), which Word puts at the foot of the page and a program without footnotes lists at the end."""
+    """The same report for Word, made only when asked for (`--word`): figures as text, each citation as its document
+    with a footnote giving the passage in full (`Footnotes`), which Word puts at the foot of the page and a program
+    without footnotes lists at the end, under a note saying it is a copy and naming the report (`word_note`)."""
     D = build_data(R)
     title, lead, body, cite_no = answer_html(R, D, static=True)
     return ('<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" '
             'xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">'
             f'<title>{esc(heading(R, title))}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->'
-            + WORD_CSS + '</head><body>'
+            + WORD_CSS + '</head><body>' + word_note(f"{R['name']}.html") +
             f'<p style="color:#8b7f72;font-size:9pt">RUBICON REPORT</p><h1>{esc(heading(R, title))}</h1>'
             + (f'<p style="color:#8b7f72;font-size:9pt">Run {esc(R["run_id"])}</p>' if R.get("run_id") else "") +
             f'{asked(R, static=True)}{synthetic(R)}{lead}{word_badge(R, nrows_of(R), D)}{body}<h1 class="pb">{ANNEXES}</h1><h2>{HOW_DONE}</h2>{how_done(R, static=True, D=D)}{annex(R, D, static=True)}{cite_no.listed()}'
@@ -2537,8 +2560,12 @@ if __name__ == "__main__":
     console.utf8()
     run = Path(sys.argv[1])
     frag = "--fragment" in sys.argv
+    wanted_word = "--word" in sys.argv
     if run.suffix.lower() == ".zip":  # a run's zip lays out its run beside it, named after it, and draws as it was drawn
         folder = run.with_suffix("")
+        if wanted_word:  # a Word copy asked for after the hand-over: the run is laid out out of sight
+            folder = Path(tempfile.mkdtemp(prefix="rubicon-word-")) / run.stem
+            atexit.register(shutil.rmtree, folder.parent, True)
         given = unpack(run, folder)
         zipped = folder / f"{given['name']}.zip.part"
         shutil.copy2(run, zipped)
@@ -2566,27 +2593,39 @@ if __name__ == "__main__":
         print(f"This engine is not the one that made the zip (Rubicon {R['version'] or 'of unknown version'}), so the "
               "report created here may differ from the one created when the zip was made.")
     out_dir = folder
+    page_name, doc_name = f"{R['name']}{'.fragment' if frag else ''}.html", f"{R['name']}.doc"
+    write_page = True
     if run.suffix.lower() == ".zip":
         # the report is written beside the zip it was drawn from; where that would overwrite the report already there
         # (the same zip draws under the same name), it is written into the folder the run was laid out in, and said
         out_dir = run.resolve().parent
-        held = [n for n in (f"{R['name']}{'.fragment' if frag else ''}.html", f"{R['name']}.doc") if (out_dir / n).exists()]
-        if held:
+        held = [n for n in (page_name, doc_name) if (out_dir / n).exists()]
+        if wanted_word:
+            if doc_name in held:
+                sys.exit(f"{doc_name}, the Word copy of this report, is already beside {run.name}.")
+            write_page = page_name not in held  # its report is already beside it, and only the Word copy is new
+        elif held:
             out_dir = folder.resolve()
             print(f"{' and '.join(held)} already beside {run.name}, so left as they are; the report is written into {out_dir} instead.")
         if not (out_dir / R["zip"]).exists():  # the zip it was drawn from stays where it is; a copy goes only where the report's name finds none
             shutil.copy2(zipped, out_dir / R["zip"])
     else:
         zipped = zipped.replace(out_dir / R["zip"])
-    out = out_dir / f"{R['name']}{'.fragment' if frag else ''}.html"
-    drawn, doc = page(R, frag), word(R)
+    out = out_dir / page_name
+    drawn, doc = page(R, frag), word(R) if wanted_word else None
     if R["unfilled"]:
         sys.exit("No report is created: the answer writes " + ", ".join("{" + u + "}" for u in R["unfilled"])
                  + ", which no count in the run is called, so a reader would see the braces. Write a count's id as the "
                  "answer's tables give it, or the number in words.")
-    out.write_text(drawn, encoding="utf-8", newline="\n")
-    (out_dir / f"{R['name']}.doc").write_text(doc, encoding="utf-8", newline="\n")
-    print(f"wrote {out.name}, {R['name']}.doc and {R['zip']} in {out_dir}")
+    written = []
+    if write_page:
+        out.write_text(drawn, encoding="utf-8", newline="\n")
+        written += [out.name, R["zip"]]
+    if doc is not None:
+        (out_dir / doc_name).write_text(doc, encoding="utf-8", newline="\n")
+        written.insert(1 if write_page else 0, doc_name)
+    print(f"wrote {', '.join(written[:-1]) + ' and ' if len(written) > 1 else ''}{written[-1]} in {out_dir}"
+          + ("" if write_page else f", beside {page_name}"))
     if R.get("missing_sections"):
         print("[§ ] references naming no section of the answer: " + ", ".join(sorted(set(R["missing_sections"]))))
     if R.get("missing_figures"):

@@ -1,7 +1,7 @@
 """A run's ID: the date it was made and four characters, such as `2026-10-09-k7q2`.
 
 Minted once, when the run's folder is made, named in the folder and recorded in `workflow.json` as `run_id`, so the
-folder, the report, the Word copy and the zip are matched by it. It stays the same through every revision of the run,
+folder, the report, the zip and any Word copy are matched by it. It stays the same through every revision of the run,
 whereas the zip's fingerprint changes with each version and names that version alone. A run made before IDs existed
 has none, and nothing is drawn for it.
 """

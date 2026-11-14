@@ -532,6 +532,7 @@
     const b = e.target.closest('button');
     if (!b) return;
     if (b.id === 'panel-close') { panel.hidden = true; return; }
+    if (b.classList.contains('copy-table')) return copyTable(b);
     if (b.classList.contains('choices')) return showChoices(b);
     if (b.dataset.xlsxStep || b.dataset.xlsxCells) return downloadXlsx(b);
     if (b.dataset.cell) return showCell(b.dataset.cell, b.dataset.within);
@@ -583,6 +584,67 @@
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  // Every table in the page carries a "Copy table" button under it, which puts the table on the clipboard as
+  // tab-separated text, one line per row with the header first, so that it pastes into a spreadsheet as cells. It
+  // copies what the table shows: a count that opens its passages as its number, a quotation as its words, never markup,
+  // ids or the words of a popover waiting to open; a mark that shows no words copies what its `data-copy` says
+  // (render_report.matrix). A table added later, such as one the panel opens, gets its button as it arrives.
+  const tableOf = new WeakMap();
+  function cellText(cell) {
+    const c = cell.cloneNode(true);
+    c.querySelectorAll('template, .copy-row').forEach(x => x.remove());
+    c.querySelectorAll('[data-copy]').forEach(x => { x.textContent = x.dataset.copy; });
+    // words in separate blocks, or either side of a line break, stay apart
+    c.querySelectorAll('br, p, div, li, summary, details').forEach(x => { x.before(' '); x.after(' '); });
+    return c.textContent.replace(/\s+/g, ' ').trim();
+  }
+  // a cell spanning several columns keeps the cells after it in their columns
+  const tableText = table => [...table.rows].map(tr => [...tr.cells]
+    .flatMap(td => [cellText(td), ...Array(Math.max(0, td.colSpan - 1)).fill('')]).join('\t')).join('\n');
+  function copyable(table) {
+    if (table.closest('.copy-row') || table.dataset.copyable != null) return;
+    table.dataset.copyable = '';
+    const row = document.createElement('p');
+    row.className = 'copy-row';
+    row.innerHTML = '<button type="button" class="copy-table">Copy table</button><span class="copy-said" role="status" aria-live="polite"></span>';
+    tableOf.set(row.firstChild, table);
+    const wrap = table.parentElement;
+    (wrap && wrap.classList.contains('scroll') && wrap.children.length === 1 ? wrap : table).after(row);
+  }
+  const copyables = root => {
+    if (root.matches && root.matches('table')) copyable(root);
+    if (root.querySelectorAll) root.querySelectorAll('table').forEach(copyable);
+  };
+  copyables(document);
+  if (typeof MutationObserver === 'function' && document.body) {
+    new MutationObserver(changes => {
+      for (const m of changes) for (const n of m.addedNodes) if (n.nodeType === 1) copyables(n);
+    }).observe(document.body, { childList: true, subtree: true });
+  }
+  // The clipboard where the browser offers it, else a selected scratch box copied the older way, which a report opened
+  // from the computer's own files may need; the button says which happened
+  async function copyTable(b) {
+    const table = tableOf.get(b), said = b.nextElementSibling;
+    if (!table) return;
+    const text = tableText(table);
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; } catch (e) { ok = false; }
+    if (!ok) {
+      const box = document.createElement('textarea');
+      box.className = 'copy-scratch';
+      box.value = text;
+      box.setAttribute('readonly', '');
+      document.body.appendChild(box);
+      box.select();
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      box.remove();
+      b.focus();
+    }
+    said.textContent = ok ? 'Copied' : 'Could not copy: this browser did not allow it. Select the table and copy it instead.';
+    clearTimeout(b.copyTimer);
+    b.copyTimer = setTimeout(() => { said.textContent = ''; }, ok ? 1600 : 8000);
   }
 
   // Each map is carried as DOT and drawn here by Graphviz (Viz.js), which the report carries inside itself

@@ -315,9 +315,10 @@ FOLDER = [
     ("recount/", "the recount", "What fixed rules recount from the files above (see The recount)."),
     ("recount-before/", "the analyst", "The recount as it stood before a substantive revision, which `stale.py` "
                                        "compares with the new one."),
-    ("`<question>-<date>-<fingerprint>.html`, `.doc` and `.zip`", "`render_report.py`",
-     "The report, its Word copy and the run's sealed zip, sharing one name; `-revision-<n>` comes before the "
-     "fingerprint once the run has been revised, and each earlier revision's three files stay beside them."),
+    ("`<question>-<date>-<fingerprint>.html`, `.zip` and `.doc`", "`render_report.py`",
+     "The report, the run's sealed zip and, where one was asked for, a copy for Word, sharing one name; "
+     "`-revision-<n>` comes before the fingerprint once the run has been revised, and each earlier revision's files "
+     "stay beside them."),
 ]
 
 #: What `recount/` holds.

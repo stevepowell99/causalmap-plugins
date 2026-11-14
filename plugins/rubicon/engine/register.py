@@ -5,7 +5,7 @@
     python register.py --find <folder> --data <plugin data folder>
 
 Each documents folder already keeps its own record of the runs answered from it, `rubicon-runs.md` beside `corpus/`,
-one line per handed-over report linking its report, Word copy and zip. The register is only the list of those folders,
+one line per handed-over report linking its report and zip, and its Word copy where one was asked for. The register is only the list of those folders,
 `folders.txt` in the plugin's own data folder (`${CLAUDE_PLUGIN_DATA}`), so nothing about a run is kept twice: what a
 run asked, when, and its fingerprint are read from its zip whenever the list is drawn.
 
@@ -109,7 +109,8 @@ def add(report, data):
     if f"]({urllib.parse.quote(rel)})" not in text:
         q = " ".join(run["question"].split())
         link = lambda kind, label: f"[{label}]({urllib.parse.quote(report.with_suffix(kind).relative_to(documents).as_posix())})"
-        text = text.rstrip("\n") + ("\n" if "\n- " in text else "\n\n") + (f"- {run['date']}: {q} {link('.html', 'report')}, {link('.doc', 'Word')}, "
+        word = f"{link('.doc', 'Word')}, " if report.with_suffix(".doc").is_file() else ""  # made only when asked for
+        text = text.rstrip("\n") + ("\n" if "\n- " in text else "\n\n") + (f"- {run['date']}: {q} {link('.html', 'report')}, {word}"
                                            f"{link('.zip', 'zip')}, fingerprint {run['fingerprint'][:8]}"
                                            + "".join(f", builds on run {i or 'without an ID'} at {f}" for i, f in run.get("builds_on", [])) + "\n")
         runs.write_text(text, encoding="utf-8", newline="\n")

@@ -1,7 +1,7 @@
 {
   "name": "rubicon",
   "displayName": "Rubicon",
-  "version": "0.1.10+8ae73510e2bb",
+  "version": "0.1.11+12bce0097142",
   "description": "Rubicon by Causal Map: checkable AI for evaluators. Sends Causal Map each run's size and outline, never its content.",
   "author": {
     "name": "Causal Map",

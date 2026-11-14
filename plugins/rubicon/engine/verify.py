@@ -52,7 +52,8 @@ def verdict(report, zipped):
     with tempfile.TemporaryDirectory() as t:
         copy = Path(t) / zipped.name
         shutil.copy2(zipped, copy)
-        done = subprocess.run([sys.executable, "-I", "-S", str(ENGINE / "render_report.py"), str(copy)],
+        word = ["--word"] if report.suffix.lower() == ".doc" else []  # a Word copy is created only when asked for
+        done = subprocess.run([sys.executable, "-I", "-S", str(ENGINE / "render_report.py"), str(copy), *word],
                               capture_output=True, text=True, encoding="utf-8")
         if done.returncode:
             return 1, f"NO MATCH: the zip does not create a report: {done.stderr.strip()}"

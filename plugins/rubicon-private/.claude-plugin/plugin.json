@@ -1,7 +1,7 @@
 {
   "name": "rubicon-private",
   "displayName": "Rubicon (private)",
-  "version": "0.1.10+8ae73510e2bb",
+  "version": "0.1.11+12bce0097142",
   "description": "Rubicon by Causal Map: checkable AI for evaluators. This copy sends nothing to Causal Map: no usage counts and no update check.",
   "author": {
     "name": "Causal Map",

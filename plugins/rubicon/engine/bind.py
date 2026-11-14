@@ -1,9 +1,12 @@
 """Combine the reports of several Rubicon runs into one combined report: a cover, the questions with their short answers, each answer in
-turn, and every run's annex gathered at the end, as a page to read and click through and the same for Word.
+turn, and every run's annex gathered at the end, as a page to read and click through and, on request, the same for Word.
 
-    python bind.py <report .html> <report .html> [...] [--title "..."] [--date "9 October 2026"] [--out <folder>]
+    python bind.py <report .html> <report .html> [...] [--title "..."] [--date "9 October 2026"] [--out <folder>] [--word]
     python bind.py --folder <documents folder> [the same options]
     ... [--question <report>] [--shared <report>] [--background <report>]
+
+`--word` adds a copy for editing in Word, opening with the note that says it is a copy and names the combined report
+(`render_report.word_note`); run with the same reports, title and date, it writes the same page again beside it.
 
 Given reports, it combines them in the order given; given a documents folder, it combines every run listed in its
 `rubicon-runs.md` or lying in one of its run folders (`register.runs_in`), each at its latest revision, in the order the
@@ -546,7 +549,7 @@ document.addEventListener('click', e => {{
 </body></html>"""
 
 
-def binder_word(parts, title, date):
+def binder_word(parts, title, date, page_name):
     gather(parts)
     esc, n = RR.esc, questions_in(parts)
     index = "".join(f'<li value="{p["q"]}">{esc(p["heading"])}{": " + esc(plain(p["page"]["lead"])) if p["page"]["lead"] else ""}</li>' for p in parts if p["asks"])
@@ -559,7 +562,7 @@ def binder_word(parts, title, date):
     return ('<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" '
             'xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">'
             f'<title>{esc(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->'
-            + RR.WORD_CSS + '</head><body>'
+            + RR.WORD_CSS + '</head><body>' + RR.word_note(page_name) +
             f'<p style="color:#8b7f72;font-size:9pt">RUBICON COMBINED REPORT</p><h1>{esc(title)}</h1>'
             f'<p style="color:#8b7f72;font-size:9pt">{n} question{"" if n == 1 else "s"} · {esc(date)}</p>{about(parts)}'
             f'<h2>The questions</h2><ol>{index}</ol><div class="pb"></div>{body}<h1 class="pb">{RR.ANNEXES}</h1>{note_on(differences(parts)[1], findings(parts), static=True)}{annexes}'
@@ -683,12 +686,13 @@ def main(argv):
     out = Path(opt("--out")).resolve() if opt("--out") else folders[0]
     name = name_for(title, [p["R"]["fingerprint"] for p in parts])
     (out / f"{name}.html").write_text(binder_html(parts, title, date), encoding="utf-8", newline="\n")
-    (out / f"{name}.doc").write_text(binder_word(parts, title, date), encoding="utf-8", newline="\n")
+    if "--word" in argv:  # a copy for Word only when asked for, under the note naming the report
+        (out / f"{name}.doc").write_text(binder_word(parts, title, date, f"{name}.html"), encoding="utf-8", newline="\n")
     (out / f"{name}-checks.txt").write_text(checks_file(warned, looked), encoding="utf-8", newline="\n")
     print(checks_file(warned, looked).split("\n")[0])
     for warning in warned:
         print(f"Warning: {warning}")
-    print(f"wrote {name}.html, {name}.doc and {name}-checks.txt in {out}, binding:\n"
+    print(f"wrote {name}.html, {name + '.doc, ' if '--word' in argv else ''}and {name}-checks.txt in {out}, binding:\n"
           + "\n".join(f"{numbered(p).split(' ', 1)[1] if p['asks'] else p['role']}. {p['heading']} ({p['report'].name})" for p in parts))
 
 
