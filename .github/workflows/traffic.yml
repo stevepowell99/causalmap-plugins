@@ -18,7 +18,8 @@ jobs:
       - name: Fetch the script alone, without cloning the repo
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api "repos/${{ github.repository }}/contents/.github/traffic.py?ref=${{ github.ref_name }}" -H "Accept: application/vnd.github.raw" > traffic.py
+        run: |
+          gh api "repos/${{ github.repository }}/contents/.github/traffic.py?ref=${{ github.ref_name }}" -H "Accept: application/vnd.github.raw" > traffic.py
       - name: Merge the last 14 days into the saved counts
         env:
           TRAFFIC_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
