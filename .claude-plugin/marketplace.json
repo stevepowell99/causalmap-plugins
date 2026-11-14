@@ -9,7 +9,12 @@
     {
       "name": "rubicon",
       "source": "./plugins/rubicon",
-      "description": "Rubicon by Causal Map: checkable AI for evaluators."
+      "description": "Rubicon by Causal Map: checkable AI for evaluators. Sends Causal Map each run's size and outline, never its content."
+    },
+    {
+      "name": "rubicon-private",
+      "source": "./plugins/rubicon-private",
+      "description": "Rubicon by Causal Map: checkable AI for evaluators. This copy sends nothing to Causal Map: no usage counts and no update check."
     }
   ]
 }

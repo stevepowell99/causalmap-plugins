@@ -1,0 +1,26 @@
+# Saves GitHub's daily clone and view counts for this repo to the `traffic` branch once a day, since GitHub keeps only
+# the last 14 days (.github/traffic.py). Written by Rubicon's build.py from causal-map-extension; edit it there.
+# Needs the repo secret TRAFFIC_TOKEN: a fine-grained token for this repo alone that can read its traffic.
+name: Save traffic counts
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  save:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch the script alone, without cloning the repo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api "repos/${{ github.repository }}/contents/.github/traffic.py?ref=${{ github.ref_name }}" -H "Accept: application/vnd.github.raw" > traffic.py
+      - name: Merge the last 14 days into the saved counts
+        env:
+          TRAFFIC_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 traffic.py --save

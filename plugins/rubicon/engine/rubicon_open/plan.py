@@ -29,9 +29,10 @@ def cells(line: str) -> list[str]:
     return [c.strip() for c in line.strip().strip("|").split("|")]
 
 
-def read(documents) -> list[dict]:
+def read(documents, every: bool = False) -> list[dict]:
     """The plan's rows that name a run, in plan order, each as {label, role, title, runs, fingerprints, line}; empty where
-    the folder has no plan or the plan names no run."""
+    the folder has no plan or the plan names no run. With `every`, the rows not answered yet as well, which say how the
+    questions are being taken before their runs are made."""
     f = Path(documents) / PLAN
     if not f.is_file():
         return []
@@ -54,7 +55,7 @@ def read(documents) -> list[dict]:
         for row in table[2:]:
             row = row + [""] * (len(head) - len(row))
             runs, prints = ID.findall(row[run]), FINGERPRINT.findall(row[run])
-            if not runs and not prints:
+            if not runs and not prints and not every:
                 continue
             label = row[0].replace("*", "").strip()
             said = (re.findall(r"[a-z]+", row[role].lower()) or [""])[0] if role is not None else ""

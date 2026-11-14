@@ -1,0 +1,296 @@
+/* Layout: one reading column; a side panel opens beside it on wide screens and as a sheet from the foot on phones. */
+:root {
+  --ink: #17130f; --paper: #f7f4ee; --panel: #fdfbf6; --wash: #f2ece2; --line: #e4dcd0;
+  --annex: #ece5d9; --quiet: #7d7166; --red: #8c1912; --red-wash: #f3e3de; --bar-no: #d9cfc2; --mark: #f7ed73; --mark-ink: #17130f;
+  --opp: #c4524c; /* an opposite pole's ~: the red of the opposites scale (link-display-transforms.js), 3:1 or more on either theme */
+  --serif: "Newsreader", Georgia, "Times New Roman", serif;
+  --sans: "Libre Franklin", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --measure: 40rem;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; /* a chart's series, in this order */
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --ink: #ece5da; --paper: #1a1714; --panel: #221e1a; --wash: #2a2520; --line: #3a332c;
+  --annex: #13110f; --quiet: #a3978a; --red: #e07a6c; --red-wash: #3a221e; --bar-no: #4a4239; --mark: #5c5418; --mark-ink: #f6f0c0; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --ink: #ece5da; --paper: #1a1714; --panel: #221e1a; --wash: #2a2520; --line: #3a332c;
+  --annex: #13110f; --quiet: #a3978a; --red: #e07a6c; --red-wash: #3a221e; --bar-no: #4a4239; --mark: #5c5418; --mark-ink: #f6f0c0; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; color-scheme: dark }
+
+body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.55; margin: 0; }
+.wrap { padding-inline: 16px; padding-block: 2rem 4rem; position: relative; overflow-x: clip; }
+main { max-width: var(--measure); margin-inline: auto; display: grid; gap: 2.5rem; }
+main > *, .fig, .bar-row > * { min-width: 0; }
+h1, h2, h3, h4, h5 { font-family: var(--serif); font-weight: 500; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(1.7rem, 4.5vw, 2.4rem); line-height: 1.15; }
+h2 { font-size: 1.45rem; margin-top: 2rem; margin-bottom: .5rem; }
+h3 { font-size: 1.15rem; margin-top: 1.6rem; margin-bottom: .3rem; }
+h4 { font-size: 1.05rem; margin-top: 1.4rem; margin-bottom: .3rem; }
+h5 { font-family: var(--sans); font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--quiet); margin-top: 1rem; }
+p { margin: .6rem 0; }
+ul { padding-left: 1.2rem; margin: .6rem 0; display: grid; gap: .45rem; }
+code { font-size: .85em; background: var(--wash); padding: 0 .25em; border-radius: 3px; }
+.fingerprint { overflow-wrap: anywhere; }
+.small { font-size: .85rem; color: var(--quiet); }
+.scroll { overflow-x: auto; }
+
+.cover { display: grid; gap: .8rem; padding-bottom: 1.6rem; border-bottom: 1px solid var(--line); }
+.eyebrow { font-size: .75rem; text-transform: uppercase; letter-spacing: .12em; color: var(--red); margin: 0; font-weight: 600; }
+.eyebrow a.site { color: inherit; text-decoration: none; }
+.eyebrow a.site:hover { text-decoration: underline; }
+.madewith { margin: 1rem 0 0; font-size: .85rem; color: var(--quiet); }
+.madewith a { color: inherit; }
+.asked { margin: 0; font-size: .95rem; color: var(--quiet); }
+.how-to { margin: .3rem 0 0; font-size: .9rem; color: var(--quiet); }
+.asked b { color: var(--ink); font-weight: 600; margin-right: .3rem; }
+.asked summary { cursor: pointer; }
+.asked p { margin: .4rem 0 0; }
+.carbon { margin: 2rem 0 0; padding-top: 1rem; border-top: 1px solid var(--line); font-size: .9rem; color: var(--quiet); }
+.carbon summary { cursor: pointer; }
+.carbon .flame { white-space: nowrap; }
+.carbon-more { margin-top: .6rem; font-size: .85rem; }
+.synthetic { margin: 0; padding: .6rem .8rem; border: 1px solid var(--red); border-radius: 6px; font-size: .92rem; }
+.synthetic b { color: var(--red); }
+.lead p { font-family: var(--serif); font-size: 1.3rem; line-height: 1.45; margin: 0; }
+.lead strong { font-weight: 500; color: var(--red); }
+.meta { font-size: .85rem; color: var(--quiet); margin: 0; font-variant-numeric: tabular-nums; }
+/* The verification box: a title, one ticked line per kind of check, and a dashed line on what was not checked */
+.checks { list-style: none; padding: 0; margin: 0; background: var(--panel); border: 1px solid color-mix(in srgb, var(--red) 35%, var(--line)); border-left: 4px solid var(--red); border-radius: 6px; font-size: .88rem; overflow: hidden; }
+.checks li { position: relative; padding: .45rem 1rem .45rem 2.6rem; }
+.checks li::before { content: "✓"; position: absolute; left: 1rem; top: .45rem; color: var(--red); font-weight: 700; }
+.checks li b { font-variant-numeric: tabular-nums; }
+.checks .head { display: flex; align-items: center; gap: .7rem; padding: .7rem 1rem; border-bottom: 1px solid var(--line); color: var(--red); font-family: var(--serif); font-size: 1.15rem; font-weight: 500; }
+.checks .head::before { content: none; }
+.checks li.not-checked::before { content: "–"; color: var(--quiet); }
+.vb-t { display: flex; flex-direction: column; line-height: 1.2; }
+.vb-t small { font-family: var(--sans); font-size: .78rem; font-weight: 400; color: var(--quiet); }
+
+.answer { font-size: 1.02rem; }
+.answer p, .answer li { max-width: var(--measure); }
+
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+/* Everything clickable in the running text (a count, a citation, a source's id, a code's label, a link to a section), and each
+   place in a citation's list, looks alike: the text as it is, with a light dotted underline, lighter than the text, that firms
+   up on hover. What each opens differs; how it looks does not. */
+.n, .cite, .src, .doclink, .code-label, a.see, a.step, .choices-pop button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-decoration: underline dotted color-mix(in srgb, var(--ink) 60%, transparent); text-decoration-thickness: 1.5px; text-underline-offset: .2em; }
+.n { font-variant-numeric: tabular-nums; }
+/* A count, a citation and a source's id are each at least 24px high to tap: padding above and below, taken back by an
+   equal negative margin so the lines stay as far apart as before, and the hover wash kept to the words */
+.n, .cite, .src, .doclink { padding-block: .2em; margin-block: -.2em; background-clip: content-box; }
+/* A citation's brackets stay on the line with the ids beside them (render_report.bracketed) */
+.nw { white-space: nowrap; }
+/* A number the writer wrote with no count behind it (a year, a number quoted from a source): set a little quieter, never
+   underlined, since it opens nothing; the verification box says what the grey means */
+.unchecked { color: var(--quiet); cursor: help; }
+.unchecked-said .unchecked { cursor: inherit; }
+.n:hover, .cite:hover, .cite.on, .src:hover, .doclink:hover, .code-label:hover, a.see:hover, a.step:hover, .choices-pop button:hover, .choices-pop button:focus-visible { text-decoration-color: var(--red); background: var(--wash); border-radius: 2px; }
+a.see { color: var(--quiet); font-size: .85em; white-space: nowrap; }
+/* A step named in the plain account links to its record, underlined only under the pointer, since whole clauses carry the link */
+a.step { text-decoration-color: transparent; }
+.based { font-family: var(--sans); font-size: .62rem; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; vertical-align: middle; margin-left: .6rem; padding: .1rem .45rem; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--red); cursor: pointer; }
+
+.fig { margin: 1.2rem 0; padding: 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+.map svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+/* combined opposites (class opp) keep the colours Graphviz gives them (rubicon_open/map-dot.js) */
+.map :not(.edge.opp) > text { fill: var(--ink); }
+.map .node path, .map .node polygon { fill: var(--paper); }
+.map .node:not(.opp) path, .map .node:not(.opp) polygon { stroke: var(--ink); }
+.map .edge:not(.opp) path { stroke: var(--ink); }
+.map .edge:not(.opp) polygon { stroke: var(--ink); fill: var(--ink); }
+.map g.edge { cursor: pointer; }
+.map g.edge:hover path, .map g.edge:hover polygon { stroke: var(--red); }
+.map g.node:not(.inert) { cursor: pointer; }
+.map g.node:not(.inert):hover path, .map g.node:not(.inert):hover polygon { stroke: var(--red); }
+.fig figcaption { font-size: .8rem; color: var(--quiet); margin-top: .6rem; }
+/* a map's counts as a grid beneath it, behind one control that names what it will do (render_report `causal_map`) */
+.map-table { margin: .6rem 0 0; }
+.map-table > summary { font-size: .85rem; color: var(--red); }
+.map-table .open, .map-table[open] .shut { display: none; }
+.map-table[open] .open { display: inline; }
+.legend { font-size: .8rem; color: var(--quiet); display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: center; margin-bottom: .6rem; }
+.key { display: inline-block; width: .9em; height: .6em; border-radius: 2px; margin-right: .3rem; vertical-align: middle; }
+.key.yes { background: var(--red); } .key.no { background: var(--bar-no); }
+/* a chart along an ordered column (render_report `ordered_chart`): lines, or columns stacked where groups split a whole */
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { fill: var(--quiet); font-family: var(--sans); font-size: 10px; }
+.chart .axis-name { fill: var(--ink); font-size: 11px; }
+@media (max-width: 560px) { .chart text { font-size: 14px; } .chart .axis-name { font-size: 15px; } }
+.chart .rule { stroke: var(--line); stroke-width: 1; }
+.chart .s1 { --c: var(--s1); } .chart .s2 { --c: var(--s2); } .chart .s3 { --c: var(--s3); }
+.chart .s4 { --c: var(--s4); } .chart .s5 { --c: var(--s5); } .chart .s6 { --c: var(--s6); }
+.chart .line { fill: none; stroke: var(--c); stroke-width: 2; stroke-linejoin: round; }
+.chart .ci { stroke: var(--c); stroke-width: 1.5; opacity: .45; }
+.chart .pt { fill: var(--c); stroke: var(--panel); stroke-width: 2; }
+.chart .seg { fill: var(--c); stroke: var(--panel); stroke-width: 2; }
+.chart .hit { fill: transparent; }
+.chart [data-cell] { cursor: pointer; }
+.chart [data-cell]:hover .pt, .chart [data-cell]:focus .pt { r: 6; }
+.chart [data-cell]:hover .seg, .chart [data-cell]:focus .seg { filter: brightness(1.12); }
+.chart [data-cell]:focus { outline: none; }
+.key.s1 { background: var(--s1); } .key.s2 { background: var(--s2); } .key.s3 { background: var(--s3); }
+.key.s4 { background: var(--s4); } .key.s5 { background: var(--s5); } .key.s6 { background: var(--s6); }
+.bars { display: grid; gap: .55rem; }
+.bar-row { display: grid; grid-template-columns: minmax(6rem, 11rem) 1fr; gap: .2rem .8rem; align-items: center; font-size: .85rem; }
+.bar-row:not(.pair) { grid-template-columns: minmax(6rem, 11rem) 1fr 3rem; }
+.pair-bars { display: grid; grid-template-columns: 1fr 1.6rem; gap: 2px .4rem; align-items: center; }
+.bar-track { background: var(--wash); border-radius: 2px; height: .9rem; display: flex; }
+.bar-track.thin { height: .6rem; }
+.bar { display: block; height: 100%; border: 0; padding: 0; border-radius: 2px; background: var(--red); }
+.bar.no { background: var(--bar-no); }
+.bar.implicit { opacity: .35; border-radius: 0 2px 2px 0; }
+.implicit { color: var(--quiet); font-size: .9em; white-space: nowrap; }
+.bar:hover { filter: brightness(1.15); }
+.bar-n { font-variant-numeric: tabular-nums; font-size: .78rem; color: var(--quiet); text-align: right; }
+
+table { border-collapse: collapse; font-size: .82rem; }
+.md { margin: 1rem 0; }
+.md th, .md td { padding: .3rem .5rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.md thead th { font-weight: 500; color: var(--quiet); }
+.md td.heat { text-align: center; background: color-mix(in srgb, var(--red) calc(var(--a) * 70%), transparent); font-variant-numeric: tabular-nums; }
+.grid th, .grid td { padding: .3rem .4rem; text-align: center; border-bottom: 1px solid var(--line); }
+.grid tbody th { text-align: left; font-weight: 500; }
+.grid thead th { font-weight: 500; color: var(--quiet); }
+.cellbtn { border: 0; width: 100%; border-radius: 3px; padding: .25rem .3rem; background: color-mix(in srgb, var(--red) calc(var(--a) * 70%), transparent); font-variant-numeric: tabular-nums; }
+.cellbtn small { color: var(--quiet); }
+.zero { color: var(--quiet); }
+
+.matrix { width: 100%; }
+.matrix thead th { height: 7.5rem; vertical-align: bottom; padding: 0 .1rem; }
+.matrix thead th span { writing-mode: vertical-rl; transform: rotate(180deg); font-weight: 500; font-size: .78rem; white-space: nowrap; }
+.matrix td { text-align: center; padding: .1rem; border-bottom: 1px solid var(--line); width: 2.2rem; }
+.matrix th.doc { text-align: left; font-weight: 400; font-family: var(--sans); font-size: .78rem; color: var(--quiet); padding-right: .6rem; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.matrix tr.band th { text-align: left; font-family: var(--serif); font-size: .95rem; font-weight: 500; padding-top: .8rem; border-bottom: 1px solid var(--ink); }
+.dot { width: 1.25rem; height: 1.25rem; border-radius: 50%; border: 2px solid var(--red); padding: 0; font-size: .62rem; line-height: 1; font-weight: 600; display: inline-grid; place-items: center; }
+.dot.own { background: var(--red); color: var(--paper); }
+.dot.raised { background: transparent; color: var(--red); }
+.dot.implicit { border-style: dashed; opacity: .55; }
+.dot.k { width: .8rem; height: .8rem; vertical-align: middle; margin-right: .3rem; display: inline-block; }
+
+/* Everything after the answer: one heading over it, on a slightly darker ground that runs the width of the window */
+.annexes { position: relative; isolation: isolate; display: grid; gap: 2.5rem; padding-block: 2rem 4rem; margin-bottom: -4rem; }
+.annexes::before { content: ""; position: absolute; z-index: -1; inset: 0 -100vmax; background: var(--annex); border-top: 1px solid var(--line); }
+.annexes-title { font-size: clamp(1.6rem, 4vw, 2rem); margin: 0; padding-bottom: .4rem; border-bottom: 2px solid var(--red); }
+.annexes > * { min-width: 0; }
+.annexes > section > h2:first-child, .annexes > aside > h2:first-child { margin-top: 0; }
+.annex { border-top: 1px solid var(--line); padding-top: 1rem; position: relative; }
+
+/* The contents, floating at the top left where the window leaves room beside the reading column, and gone where it does not */
+.toc { display: none; }
+@media (min-width: 1400px) {
+  .toc { display: block; position: absolute; top: 2rem; bottom: 0; left: 16px; width: min(15rem, calc(50vw - var(--measure) / 2 - 13rem - 3rem)); z-index: 2; }
+  .toc > div { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; font-size: .8rem; line-height: 1.35; }
+  .toc ol { list-style: none; padding: 0; margin: 0; display: grid; gap: .45rem; }
+  .toc a { color: var(--quiet); text-decoration: none; display: block; border-left: 2px solid transparent; padding-left: .5rem; }
+  .toc a:hover { color: var(--ink); }
+  .toc a.on { color: var(--red); border-left-color: var(--red); }
+  .toc .toc-part { margin: 1.1rem 0 .45rem; }
+  .toc .toc-part a { font-size: .7rem; text-transform: uppercase; letter-spacing: .1em; font-weight: 600; color: var(--ink); }
+}
+/* The margin map (minimap-mount.js): the page's own markup and behaviour, placed beside the annex. */
+:root { --rb-paper: var(--paper); --rb-panel: var(--panel); --rb-ink: var(--ink); --rb-red: var(--red); --rb-red-wash: var(--red-wash); }
+.method { position: relative; }
+.wf-gutter { position: absolute; top: 0; bottom: 0; right: 0; pointer-events: none; }
+.wf-gutter > * { pointer-events: auto; }
+.rb-minimap { position: sticky; top: calc(100vh - 3.5rem); padding: 6px 0; }
+.rb-minimap canvas.rb-map { display: block; width: 100%; }
+.wf-title { margin: 0 0 .45rem; font-size: .7rem; text-transform: uppercase; letter-spacing: .1em; font-weight: 600; color: var(--ink); }
+.rb-minimap:not(.rb-map-open) > :not(.rb-map-toggle) { display: none; }
+.rb-minimap.rb-map-open { position: fixed; top: 12px; right: 10px; bottom: auto; z-index: 4; width: 176px; padding: 6px 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 14px rgb(0 0 0 / .18); }
+.rb-map-toggle { display: block; margin-left: auto; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); box-shadow: 0 1px 4px rgb(0 0 0 / .18); font-size: 12px; letter-spacing: .04em; color: var(--red); cursor: pointer; }
+@media (min-width: 1100px) {
+  .wf-gutter { right: auto; left: 100%; margin-left: 1.5rem; width: 9rem; }
+  .rb-minimap, .rb-minimap.rb-map-open { position: sticky; top: 12px; width: auto; padding: 6px 0; background: none; border: 0; box-shadow: none; }
+  .rb-minimap:not(.rb-map-open) > :not(.rb-map-toggle) { display: block; }
+  .rb-map-toggle { display: none; }
+}
+.rb-map-key { margin: 6px 0 0; font-size: 10px; letter-spacing: .04em; color: var(--quiet); }
+.rb-map-key > summary { display: flex; align-items: center; gap: 5px; cursor: pointer; list-style: none; padding: 2px 0; font-weight: 400; }
+.rb-map-key > summary::-webkit-details-marker { display: none; }
+.rb-map-key[open] > summary { color: var(--red); }
+.rb-map-marks { display: flex; align-items: center; gap: 2px; }
+.rb-map-items { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 2px 0 0; }
+.rb-map-item { display: flex; align-items: center; gap: 4px; }
+.rb-map-item canvas, .rb-map-marks canvas { width: 16px; height: 16px; flex: none; }
+.rb-map-tips { position: absolute; inset: 6px 0 0 0; pointer-events: none; z-index: 3; }
+.rb-map-tip { position: absolute; right: calc(100% - 6px); transform: translateY(-50%); max-width: 42ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 1px 6px; border-radius: 3px; background: var(--paper); box-shadow: 0 1px 3px rgb(0 0 0 / .18); font-size: 10.5px; line-height: 1.5; color: var(--quiet); }
+.rb-map-tip.rb-on { color: var(--ink); font-weight: 600; }
+.annex .rb-block { border-left: 3px solid transparent; padding-left: .7rem; margin-left: -.85rem; }
+.annex .record { overflow-wrap: anywhere; font-size: .92rem; }
+@keyframes rb-found-fade { from { background: var(--mark); } to { background: transparent; } }
+.rb-found { animation: rb-found-fade 3.5s ease-out; }
+/* a count in the annex, opening who it counts; in a counting table shaded by its share, as the figures' grids are (render_report `heat`) */
+.annex .num { font: inherit; font-variant-numeric: tabular-nums; min-width: 2.2rem; border: 0; border-radius: 3px; padding: .1rem .4rem; cursor: pointer; color: inherit; background: color-mix(in srgb, var(--red) calc(var(--a, 0) * 70%), transparent); text-decoration: underline dotted color-mix(in srgb, var(--ink) 40%, transparent); text-underline-offset: .2em; }
+.annex .num:hover { text-decoration-color: var(--red); }
+.annex > p:first-of-type { font-family: var(--serif); font-size: 1.08rem; }
+details { margin: .5rem 0; }
+summary { cursor: pointer; font-weight: 500; }
+blockquote { margin: .6rem 0; padding: .6rem .9rem; background: var(--panel); border-left: 3px solid var(--line); font-size: .88rem; }
+.codebook th, .codebook td { text-align: left; vertical-align: top; padding: .4rem .5rem; border-bottom: 1px solid var(--line); min-width: 9rem; overflow-wrap: anywhere; }
+.codebook thead th { color: var(--quiet); font-weight: 500; }
+/* An item's open labels, folded under its row (render_report.py `grouped`) */
+.codebook tr:has(+ tr.gathered) > * { border-bottom: 0; }
+.codebook tr.gathered td { padding-top: 0; font-size: .85em; color: var(--quiet); }
+.codebook tr.gathered p { margin: .3rem 0 0; color: var(--ink); }
+.quotes { list-style: none; padding: 0; font-size: .88rem; }
+.rowlink { border: 0; background: var(--wash); border-radius: 3px; font-size: .75rem; padding: .05rem .35rem; margin-right: .4rem; color: var(--quiet); }
+/* a trigger standing in a sentence ("Rests on: 16 passages in 8 grantees.") keeps its full stop against it */
+span.small > .rowlink { margin-right: 0; }
+
+.next { background: var(--red-wash); border-radius: 6px; padding: 1rem 1.2rem; }
+.next h2 { margin-top: 0; font-size: 1.2rem; }
+
+.panel { position: fixed; z-index: 5; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 8px 30px rgb(0 0 0 / .12); overflow-y: auto; padding: 1.2rem 1.2rem 1.6rem; }
+@media (min-width: 1100px) { .panel { top: calc(1rem + env(safe-area-inset-top, 0px)); right: 1rem; bottom: 1rem; width: min(26rem, calc(100vw - var(--measure) - 5rem)); border-radius: 8px; } main { margin-left: max(16px, calc(50vw - var(--measure) / 2 - 13rem)); } }
+@media (max-width: 1099.98px) { .panel { left: 0; right: 0; bottom: 0; max-height: 62vh; border-radius: 12px 12px 0 0; padding-bottom: calc(1.6rem + env(safe-area-inset-bottom, 0px)); } }
+.close { position: absolute; top: .5rem; right: .6rem; border: 0; background: transparent; font-size: 1.4rem; color: var(--quiet); }
+.panel h3 { margin-top: 0; padding-right: 1.5rem; }
+.panel .doc-tag { font-size: .78rem; color: var(--quiet); text-transform: uppercase; letter-spacing: .06em; }
+.panel .ctx { font-family: var(--serif); font-size: 1rem; line-height: 1.6; white-space: pre-wrap; color: var(--quiet); }
+.panel .ctx mark { background: var(--mark); color: var(--mark-ink); padding: 0 .1em; }
+.panel .codes { display: flex; flex-wrap: wrap; gap: .3rem; margin: .6rem 0; }
+.panel .codes > span, .panel .codes > .code { font: inherit; font-size: .75rem; color: inherit; background: var(--wash); border: 0; border-radius: 99px; padding: .1rem .55rem; }
+/* a code that opens every passage given it (report.js showCode) is marked as the report's other links are */
+.panel .codes .code { cursor: pointer; text-decoration: underline dotted color-mix(in srgb, var(--ink) 40%, transparent); text-underline-offset: .2em; }
+.panel .codes .code:hover { text-decoration-color: var(--red); }
+.panel .why { margin: .2rem 0 0; }
+.panel .links { margin: .3rem 0; }
+.panel .twice { margin: .4rem 0 0; }
+.panel .item { border-top: 1px solid var(--line); padding-top: .7rem; margin-top: .7rem; }
+.panel .item q { font-family: var(--serif); }
+.panel .whole { font-family: var(--serif); font-size: 1rem; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.panel .whole .span { border-radius: 2px; cursor: pointer; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.panel .whole .span.from { box-shadow: 0 0 0 2px var(--red); }
+.panel .layers { display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-size: .78rem; color: var(--quiet); }
+.panel .layers i { display: inline-block; width: .9em; height: .9em; border-radius: 2px; margin-right: .35rem; vertical-align: -.1em; }
+/* How a coded stretch of a whole interview was coded, shown while it is pointed at or focused (report.js showTip) */
+/* an opposite pole's ~ (report.js `named`), and the popover that says what it means */
+.tilde { color: var(--opp); font-weight: 700; font-size: 1.12em; line-height: 1; padding: 0 .06em; cursor: help; border-radius: 3px; }
+.tilde:hover, .tilde:focus-visible { background: var(--red-wash); outline: none; }
+.tilde-pop { position: absolute; z-index: 30; max-width: min(22rem, calc(100vw - 16px)); background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-left: 3px solid var(--opp); border-radius: 6px; box-shadow: 0 4px 14px rgb(0 0 0 / .16); padding: .4rem .6rem; font: .82rem/1.4 var(--sans); }
+/* one entry's several places (report.js showChoices): a list in the panel's colours, each place a row of its own */
+.choices-pop { position: absolute; z-index: 30; min-width: 12rem; max-width: min(24rem, calc(100vw - 16px)); max-height: min(60vh, 24rem); overflow-y: auto; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 14px rgb(0 0 0 / .16); padding: .3rem 0; font: .85rem/1.4 var(--sans); }
+.choices-pop button { display: block; width: 100%; text-align: left; margin: 0; padding: .35rem .75rem; border: 0; border-radius: 0; background: none; background-clip: border-box; color: inherit; font: inherit; cursor: pointer; }
+.choices-pop button:hover, .choices-pop button:focus-visible { background: var(--wash); outline: none; }
+.choices-pop .claim { font-weight: 600; border-bottom: 1px solid var(--line); }
+.choices-pop button:first-child:not(.claim) { border-bottom: 1px solid var(--line); }
+.choices[aria-expanded="true"] { text-decoration-color: var(--red); background: var(--wash); border-radius: 2px; }
+.panel .tip { position: absolute; left: 1rem; right: 1rem; z-index: 2; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 14px rgb(0 0 0 / .16); padding: .5rem .7rem; font-size: .82rem; pointer-events: none; }
+.panel .tip .coding + .coding { border-top: 1px solid var(--line); margin-top: .4rem; padding-top: .4rem; }
+.panel .coding .doc-tag { margin: 0; }
+.panel .coding .codes { margin: .3rem 0; }
+.panel .second { margin: .3rem 0 0; font-size: .8rem; color: var(--quiet); }
+.panel .second b { color: var(--ink); font-weight: 600; }
+.panel .whole .span:focus-visible { outline: 2px solid var(--red); outline-offset: 1px; }
+
+@media print {
+  .wf-gutter { display: none !important; }
+  .panel, .next, .checks .click, .based, .toc, .choices-pop { display: none !important; }
+  .annexes::before { background: none; }
+  .n, .cite, .src, .doclink, .code-label { text-decoration: none; }
+  details { display: block; } details > * { display: block; }
+  body { background: #fff; color: #000; }
+}
+@media (prefers-reduced-motion: no-preference) { .panel { transition: transform .15s ease-out; } }
+/* A links-shaped table's download for Causal Map (render_report.xlsx_button): small and quiet, under what it downloads */
+.xlsx-row { margin: .4rem 0 0; font-size: .8rem; line-height: 1.4; }
+.xlsx { border: 1px solid var(--line); background: var(--panel); border-radius: 4px; padding: .15rem .55rem; font-size: .8rem; color: var(--ink); }
+.xlsx:hover, .xlsx:focus-visible { border-color: var(--red); color: var(--red); }

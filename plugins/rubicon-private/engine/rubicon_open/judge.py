@@ -1,0 +1,768 @@
+"""The judge piece: an evaluator's rubric applied to a workflow's tables (`rubicon/docs/pieces.md`).
+
+The standard comes from a person, in advance and under their name (`guidance/skills/rubrics-and-verdicts/SKILL.md`),
+so the step carries it written out and the check refuses one with blanks. A judge step:
+
+    {"id": "j", "kind": "judge", "inputs": ["tab", "code"],
+     "source": "whose standard it is, or the document it is quoted from",
+     "verdicts": [{"name": "Strong", "means": "..."}, {"name": "Weak", "means": "..."}],     # best first
+     "criteria": [
+       {"id": "reach", "question": "...", "kind": "rule", "table": "tab", "where": {"item": "TIME"},
+        "base": {"role": "attender"},                    # the documents counted over; omitted, all of them
+        "base_where": {"item": "DELIVERED"},             # or as well: the documents in these cells of the same table
+        "levels": [{"verdict": "Strong", "at_least": 8, "where": {"item": "TIME_AND_BACKING"}},  # a level's own cells
+                   {"verdict": "Weak"}]},                                                  # tried in order
+       {"id": "fit", "question": "...", "kind": "reading", "rows_from": "code", "where": {"item": "FIT"},
+        "levels": [{"verdict": "Strong", "descriptor": "..."}, {"verdict": "Weak", "descriptor": "..."}]},
+       {"id": "uptake", "question": "...", "kind": "stated", "document": "doc:<id>",
+        "quote": "the background document's exact words holding both numbers", "n": 31, "base": 705,
+        "levels": [{"verdict": "Strong", "share_at_least": 0.5}, {"verdict": "Weak"}]},
+       {"id": "quality", ..., "scale": ["good", "adequate", "poor"],   # a criterion rated on a scale of its own
+        "levels": [{"verdict": None, "share_at_least": 0.5, "where": {...}},   # the standard's "no rating can be given"
+                   {"verdict": "good", ...}, ...]}],
+     "combine": "weakest" | "best" | "separate"
+                | [{"verdict": "Strong", "when": {"reach": ["good", "adequate"], "quality": "good"}}, {"verdict": "Weak"}]}
+
+A rule is applied by code: the documents in the base that appear in the table's cells matching `where`, against the
+first level whose threshold they meet (`at_least`, `at_most`, `share_at_least`, `share_at_most`); a level with no
+threshold is the one reached when none above it is. The base is every document, narrowed by document attributes (`base`)
+and by cells of the same table (`base_where`), so that a share can be out of those the coding found doing something,
+such as those who delivered; the count is always of documents inside the base. A level may name its own cells
+(`where`), for a standard whose levels test different things (good where most have both time and backing, adequate
+where most have backing at all): each level is tested on its own cells in order, and every count tested is kept. A stated criterion is a number a background document states, such
+as a monitoring record's count of those who did something out of those who could: code finds the quotation in that
+document, refuses it unless both numbers are in it, and applies the levels to them as a rule does to a count, so the
+number walks back to the document's own words as a count walks back to its rows. A reading is a model weighing the rows against the descriptors:
+it gives a verdict, the rows it relied on and those that pull the other way, or says it cannot place the criterion.
+Where the run calls no model, as a recount does, the reading is the analyst's, recorded in the same form
+(`Run.readings`, from `judged/<step id>.json`), and code checks it as it checks a model's: a verdict that is not one
+of the criterion's levels leaves it unplaced, and a cited row the criterion does not read is listed.
+Criteria combine by rules, tried in order, the first whose every condition holds deciding; a rule that would hold but
+for a criterion that could not be placed leaves the verdict open rather than passing to a later one. Where the standard
+rates each criterion on a scale of its own (`scale`) and says how those ratings make the overall verdict, the combine is
+its rules as written. "weakest" (a chain, or "all must hold") and "best" (two routes to one end) are shorthands for
+rules on the rubric's own verdicts (`as_rules`), so one path applies them all; never an average. A rule or stated level whose verdict is null is the standard's own
+test for when no rating can be given. Each combining rule, like each level, says whose it is.
+"""
+from __future__ import annotations
+
+import json
+import re
+
+from . import legacy_weak
+from .guidance import NoModel
+from .units import _one
+from .workflow import resolve_step, value_faults, value_key
+
+THRESHOLDS = ("at_least", "at_most", "share_at_least", "share_at_most")
+#: A level whose verdict is null is the standard's own test for when no rating can be given: said so to a reader, and
+#: `no-rating` in the id of its count. `webapp/rubicon/js/model.js` says it the same way.
+NO_RATING, NO_RATING_ID = "No rating can be given", "no-rating"
+
+
+def verdict_id(verdict) -> str:
+    """A level's verdict as it goes in a count's id: lower case, its words (`text.words`, in any script) joined by
+    hyphens, so two levels named in a script other than Latin keep ids of their own."""
+    from . import text as T
+    return "-".join(T.words(str(verdict).lower())) if verdict is not None else NO_RATING_ID
+COMBINE = ("weakest", "best", "separate")
+#: How `check_rubric` ends the fault naming a step's proposed levels: a wait on the evaluator rather than a fault in
+#: the workflow, which only their acceptance clears (`awaits_evaluator`).
+AWAITING = "wait for the evaluator to accept them"
+#: The model that makes a reading. Unmeasured against a cheaper one as yet.
+
+
+def _quoted(quote: str, text: str) -> bool:
+    """Whether the evaluator's words hold the quotation as written (`locator.locate_quoted`), each part either side of
+    an ellipsis in one run, allowing for case, spacing and the shape of quotation marks but not for a letter written
+    otherwise, such as an accent dropped."""
+    from . import locator
+    got = locator.locate_quoted(text, [quote])[0] if text.strip() and quote.strip() else None
+    return got is not None and got.tier in locator.AS_QUOTED
+
+
+def awaits_evaluator(fault: str) -> bool:
+    """Whether a fault `check` names is proposed levels waiting for the evaluator to accept them. Nobody but the
+    evaluator can clear it, so it is kept from the repair round, which would otherwise clear it the one way open to a
+    model: by relabelling the proposal as the evaluator's own standard."""
+    return AWAITING in fault
+
+
+def _numbers(text: str) -> set[float]:
+    """The numbers a text's numerals can be read as, whichever mark its language puts between thousands and before a
+    decimal: a comma or stop before three digits may be either ("1,051" is 1051 or 1.051), one before any other count
+    of digits is a decimal mark ("3,5" is 3.5), and a non-breaking or thin space only joins thousands ("1 051")."""
+    out = set()
+    for x in re.findall(r"(?<![\w.,])\d+(?:[.,   ]\d+)*", text):
+        parts = re.split(r"([.,   ])", x)
+        digits, marks = parts[0::2], parts[1::2]
+        # every mark joins thousands: one kind of mark, each group after the first three digits long
+        if len(set(marks)) <= 1 and all(len(g) == 3 for g in digits[1:]):
+            out.add(float("".join(digits)))
+        # the last mark is a decimal one, and any before it join thousands with a mark of another kind
+        if marks and marks[-1] in ".," and len(set(marks[:-1])) <= 1 and marks[-1] not in marks[:-1] \
+                and all(len(g) == 3 for g in digits[1:-1]):
+            out.add(float("".join(digits[:-1]) + "." + digits[-1]))
+    return out
+
+
+def find_stated(c: dict, background: dict[str, str]) -> tuple[object, list[str]]:
+    """A stated criterion's quotation found in its background document, and what is wrong with it: a document that
+    is not a background document, words the document does not hold, or numbers the found words do not contain."""
+    from . import locator
+    doc, quote = c.get("document"), str(c.get("quote") or "").strip()
+    if doc not in background:
+        return None, [f"names {doc!r}, which is not one of the background documents ({', '.join(background) or 'there are none'})"]
+    if not quote:
+        return None, ["quotes nothing of the document"]
+    got = locator.locate_all(background[doc], [quote])[0]
+    if got is None:
+        return None, [f"quotes {quote[:80]!r}, which {doc} does not hold"]
+    faults = []
+    for k in ("n", "base"):
+        v = c.get(k)
+        if not isinstance(v, (int, float)) or isinstance(v, bool):
+            faults.append(f"{k} is not a number: {v!r}")
+        elif float(v) not in _numbers(got.quote):
+            faults.append(f"{k} {v} is not among the numbers its quotation holds")
+    if not faults and (c["base"] <= 0 or not 0 <= c["n"] <= c["base"]):
+        faults.append(f"{c['n']} of {c['base']} is not a count out of a base")
+    return got, faults
+
+
+def _thresholds_faults(cid: str, levels: list[dict], most: int | float | None, of_what: str) -> list[str]:
+    faults = []
+    for i, lv in enumerate(levels):
+        given = {k: lv[k] for k in THRESHOLDS if k in lv}
+        if any(not isinstance(v, (int, float)) or isinstance(v, bool) for v in given.values()):
+            faults.append(f"{cid}: level {lv.get('verdict')!r} has a threshold that is not a number: {given}")
+        if not given and i < len(levels) - 1:
+            faults.append(f"{cid}: only the last level may have no threshold")
+        for k, v in given.items():
+            if isinstance(v, (int, float)) and k.startswith("share") and not 0 <= v <= 1:
+                faults.append(f"{cid}: {k} {v} is not a share between 0 and 1")
+            if isinstance(v, (int, float)) and k == "at_least" and most is not None and v > most:
+                faults.append(f"{cid}: at_least {v} is more than {of_what} ({most}), so no count could reach it")
+    return faults
+
+
+def scale(s: dict, c: dict) -> list:
+    """The names a criterion's levels may give, best first: its own `scale` where the standard rates it on one, as most
+    rubrics rate each criterion good, adequate or poor before a rule combines them, and otherwise the rubric's verdicts."""
+    own = c.get("scale")
+    return list(own) if isinstance(own, list) else [v.get("name") for v in s.get("verdicts") or [] if isinstance(v, dict)]
+
+
+def standard_parts(s: dict):
+    """Every part of a judge step's standard that says whose it is: each criterion's levels, as (criterion id, level),
+    and each rule of a combine given as rules, as (None, rule). One list, for the check, the reader's account of whose
+    the standard is and the evaluator's acceptance alike."""
+    for c in s.get("criteria") or []:
+        for lv in c.get("levels") or []:
+            if isinstance(lv, dict):
+                yield c.get("id"), lv
+    if isinstance(s.get("combine"), list):
+        for r in s["combine"]:
+            if isinstance(r, dict):
+                yield None, r
+
+
+def _combine_faults(sid: str, s: dict, names: list, scales: dict) -> list[str]:
+    """What stops a rubric's way of combining being applied: the weakest or the best needs every criterion on the
+    rubric's own verdicts, since otherwise there is nothing to rank across; rules name the rubric's verdicts and
+    criteria, with values on each criterion's scale, tried in order, only the last of them without a condition."""
+    combine = s.get("combine", "weakest")
+    if isinstance(combine, str):
+        if combine not in COMBINE + ("all", "none"):
+            return [f"{sid}: combine {combine!r}; it is weakest, best, separate, or a list of the evaluator's rules"]
+        own = [str(c.get("id")) for c in s.get("criteria") or [] if c.get("scale") is not None]
+        if own and combine != "separate":
+            return [f"{sid}: combine {combine!r} ranks the criteria on the rubric's verdicts, but {', '.join(own)} "
+                    "have scales of their own; give the evaluator's rules for combining them, or keep them separate"]
+        return []
+    if not isinstance(combine, list) or not combine:
+        return [f"{sid}: combine {combine!r}; it is weakest, best, separate, or a list of the evaluator's rules"]
+    faults = []
+    for i, r in enumerate(combine):
+        if not isinstance(r, dict):
+            faults.append(f"{sid}: a combining rule {r!r} is not {{verdict, when}}")
+            continue
+        if r.get("verdict") not in names:
+            faults.append(f"{sid}: a combining rule gives {r.get('verdict')!r}, which is not one of the rubric's verdicts")
+        when = r.get("when")
+        if when is None:
+            if i < len(combine) - 1:
+                faults.append(f"{sid}: only the last combining rule may have no condition")
+            continue
+        if not isinstance(when, dict) or not when:
+            faults.append(f"{sid}: the combining rule for {r.get('verdict')!r} has a condition that is not {{criterion: level}}")
+            continue
+        for k, v in when.items():
+            if k not in scales:
+                faults.append(f"{sid}: the combining rule for {r.get('verdict')!r} names {k!r}, which is not a criterion")
+                continue
+            for x in (v if isinstance(v, list) else [v]):
+                if x not in scales[k]:
+                    faults.append(f"{sid}: the combining rule for {r.get('verdict')!r} asks for {k} {x!r}, which is not on its scale")
+    return faults
+
+
+def check_rubric(sid: str, s: dict, made: dict, attrs: set[str], n_documents: int | None, standard_text: str | None = None,
+                 background: dict[str, str] | None = None, attribute_values: dict[str, list[str] | None] | None = None) -> list[str]:
+    """Every fault in a judge step's rubric that would stop it being applied as written. Each level says whether the
+    evaluator gave it, quoting their words (checked against `standard_text` where it is given), or the workflow
+    proposes it; proposed levels wait until the evaluator accepts them (`accepted` on the step). A stated criterion is
+    checked against `background`, the background documents' texts; without them it is refused, since a number nobody
+    looked for in its document is not checked."""
+    faults, proposed = [], []
+    if not str(s.get("source") or "").strip():
+        faults.append(f"{sid}: the rubric does not say whose standard it is")
+    names = [v.get("name") for v in s.get("verdicts") or [] if isinstance(v, dict)]
+    if len(names) < 2 or len(set(names)) != len(names):
+        faults.append(f"{sid}: the rubric needs two or more verdicts with different names, best first")
+    crits = s.get("criteria") or []
+    if not crits:
+        faults.append(f"{sid}: the rubric has no criteria")
+    scales = {c.get("id"): scale(s, c) for c in crits}
+    for c in crits:
+        cid = f"{sid}.{c.get('id')}"
+        if c.get("scale") is not None and (not isinstance(c["scale"], list) or len(c["scale"]) < 2
+                                           or len(set(map(str, c["scale"]))) != len(c["scale"])):
+            faults.append(f"{cid}: its scale needs two or more names, all different, best first")
+        if not c.get("levels"):
+            faults.append(f"{cid}: no levels")
+        for lv in c.get("levels") or []:
+            if lv.get("verdict") is None and c.get("kind") in ("rule", "stated"):
+                continue  # the standard's own test for when no rating can be given
+            if lv.get("verdict") not in scales[c.get("id")]:
+                faults.append(f"{cid}: level {lv.get('verdict')!r} is not on its scale ({', '.join(map(str, scales[c.get('id')]))})")
+    faults += _combine_faults(sid, s, names, scales)
+    for crit, part in standard_parts(s):
+        said = f"{sid}.{crit}: level {part.get('verdict')!r}" if crit else f"{sid}: the overall rule for {part.get('verdict')!r}"
+        where = f"{crit} {part.get('verdict')!r}" if crit else f"the overall rule for {part.get('verdict')!r}"
+        src, q = part.get("from"), str(part.get("quote") or "").strip()
+        if src not in ("evaluator", "proposed"):
+            faults.append(f"{said} does not say whether the evaluator gave it or it is proposed")
+        elif src == "evaluator" and not q:
+            faults.append(f"{said} is marked as the evaluator's but quotes nothing of theirs")
+        elif src == "evaluator" and standard_text is not None and not _quoted(q, standard_text):
+            faults.append(f"{said} quotes {q!r}, which is not in the evaluator's words")
+        elif src == "proposed":
+            proposed.append(where)
+    for c in crits:
+        cid = f"{sid}.{c.get('id')}"
+        levels = c.get("levels") or []
+        if c.get("kind") == "rule":
+            t = c.get("table")
+            if made.get(t, {}).get("kind") != "tabulate" or t not in (s.get("inputs") or []):
+                faults.append(f"{cid}: a rule reads a tabulation among the step's inputs, not {t!r}")
+            else:
+                by = set(made[t].get("by") or [])
+                picks = [("picks cells", c.get("where")), ("takes its base from cells", c.get("base_where"))]
+                picks += [(f"level {lv.get('verdict')!r} picks cells", lv.get("where")) for lv in levels if "where" in lv]
+                for said, w in picks:
+                    if w is not None and not isinstance(w, dict):
+                        faults.append(f"{cid}: {said} by {w!r}, which is not {{column: value}}")
+                        continue
+                    for k in (w or {}):
+                        if k not in by:
+                            faults.append(f"{cid}: {said} by {k!r}, which {t} does not count by")
+                    faults += value_faults(f"{cid}: {said} by", w, made[t].get("values") or {})
+            for k in (c.get("base") or {}):
+                if k.lower() not in attrs:
+                    faults.append(f"{cid}: its base names {k!r}, which the document list does not have")
+            faults += value_faults(f"{cid}: its base names", c.get("base"), attribute_values or {})
+            faults += _thresholds_faults(cid, levels, n_documents, "the documents there are")
+        elif c.get("kind") == "stated":
+            if background is None:
+                faults.append(f"{cid}: a stated number cannot be checked here, since the check was not given the background documents")
+            else:
+                _, wrong = find_stated(c, background)
+                faults += [f"{cid}: {w}" for w in wrong]
+            base = c.get("base") if isinstance(c.get("base"), (int, float)) else None
+            faults += _thresholds_faults(cid, levels, base, "the base the document states")
+        elif c.get("kind") == "reading":
+            r = c.get("rows_from")
+            if made.get(r, {}).get("kind") not in ("code", "group") or r not in (s.get("inputs") or []):
+                faults.append(f"{cid}: a reading reads a coding table among the step's inputs, not {r!r}")
+            for lv in levels:
+                if not str(lv.get("descriptor") or "").strip():
+                    faults.append(f"{cid}: level {lv.get('verdict')!r} has no descriptor to read against")
+        else:
+            faults.append(f"{cid}: kind {c.get('kind')!r}; a criterion is a rule, a stated number or a reading")
+        # blanks marked as any language marks them, never by one language's word for "to be decided"
+        blanks = re.findall(r"_{3,}|\[\s*\]|[?？]{3,}", json.dumps(c, ensure_ascii=False))
+        if blanks:
+            faults.append(f"{cid}: has blanks left for somebody to fill ({', '.join(blanks)})")
+    if proposed and not s.get("accepted"):
+        faults.append(f"{sid}: these levels are proposed rather than the evaluator's, and {AWAITING}: "
+                      + "; ".join(proposed))
+    return faults
+
+
+def _base(run, base: dict | None) -> list[str]:
+    docs = sorted(run.corpus.documents)
+    for k, v in (base or {}).items():
+        allowed = {value_key(x) for x in (v if isinstance(v, list) else [v])}
+        docs = [d for d in docs if value_key(run.attribute(d, k)) in allowed]
+    return docs
+
+
+def _cells(tab: dict, where: dict | None, weak: set[str] = frozenset(), of_row: dict | None = None) -> tuple[set[str], list[str], set[str]]:
+    """The units (the table's cases, or its documents for a table that counts documents or passages), and the rows, in
+    a tabulation's cells matching `where` ({column: value or list}), and the units those cells hold only through rows
+    marked weak (`weak`, with `of_row` giving each row's unit), which a count keeps apart as the tables do."""
+    want = {k: {value_key(x) for x in (v if isinstance(v, list) else [v])} for k, v in (where or {}).items()}
+    units, rows, firm = set(), [], set()
+    for cell in tab["cells"]:
+        if all(value_key(cell["values"].get(k)) in vs for k, vs in want.items()):
+            held = cell.get("cases", cell["documents"])
+            units |= set(held)
+            rows += cell["rows"]
+            # a composite cell (path, chain, loop) names its own firm rows: it is as firm as its weakest link
+            firm_rows = set(cell["firm_rows"]) if "firm_rows" in cell else None
+            firm |= ({of_row[r] for r in cell["rows"] if (r in firm_rows if firm_rows is not None else r not in weak) and r in (of_row or {})} if cell.get("weak")
+                     else set(held))
+    return firm, rows, units - firm
+
+
+def _first_met(levels: list[dict], ns: list[int], base: int) -> int | None:
+    """Which of the levels is the first met, each tested on its own count."""
+    return next((i for i, (lv, n) in enumerate(zip(levels, ns)) if _level([lv], n, base, "")[0] is not None), None)
+
+
+def _margin(levels: list[dict], ns: list[int], base: int) -> dict:
+    """How close a rule's level is to moving: the fewest documents that, coded the other way, would put it on another
+    level, counting fewer documents and counting more, with the level each would give. The base is held. Where every
+    level counts the same cells, a document moves every count together; where levels count cells of their own, a
+    document may move one level's count alone, so both are tried and the fewer documents taken."""
+    now = _first_met(levels, ns, base)
+    own = len(set(map(str, ns))) > 1 or any("where" in lv for lv in levels)
+    out = {}
+    for side, sign in (("fewer", -1), ("more", 1)):
+        for k in range(1, base + 1):
+            tries = [[n + sign * k for n in ns]] + ([[n + sign * k if j == i else n for j, n in enumerate(ns)]
+                                                     for i in range(len(ns))] if own else [])
+            moved = [_first_met(levels, t, base) for t in tries if all(0 <= n <= base for n in t)]
+            moved = [m for m in moved if m != now]
+            if moved:
+                out[side] = {"documents": k, "verdict": levels[moved[0]]["verdict"] if moved[0] is not None else None}
+                break
+    return out
+
+
+def _rule(run, c: dict) -> dict:
+    """A rule's levels tried in order, each on its own cells where it names them and otherwise the criterion's, every
+    count tested kept, and the verdict, count and documents of the first level met. A count is of the documents its
+    cells hold through firm rows; those held only through weak rows are listed apart, as the tables list them. Every
+    level's count is made, the untried ones too, so that the margin can say how many documents would move the level."""
+    from .steps import _unit_of_row, units, unit_of_table
+    tab = run.out[c["table"]]
+    count = tab.get("count", "documents")
+    by_cases = "cases" in (tab["cells"][0] if tab.get("cells") else {}) or count not in ("documents", "rows")
+    rows_of = [r for rec in run.out.values() if rec.get("kind") == "code" for r in rec.get("rows") or []]
+    weak = {r["row"] for r in rows_of if legacy_weak.carries(legacy_weak.reads(run), r)}  # legacy_weak
+    of_row = {r["row"]: (_unit_of_row(run, count, r) if by_cases else r["document"]) for r in rows_of}
+    base_docs = _base(run, c.get("base"))
+    src = run.out.get(tab.get("input"), {})
+    held = units(run, count, base_docs, run.table(tab["input"]) if by_cases and src.get("kind") in ("code", "group", "profile") else [])[0]         if by_cases else {d: {d} for d in base_docs}
+    base = set(held)
+    noun = unit_of_table(tab) if by_cases else "documents"
+    if c.get("base_where") is not None:
+        base &= _cells(tab, c["base_where"], weak, of_row)[0]
+    every, met = [], None
+    for lv in c["levels"]:
+        docs, rows, only_weak = _cells(tab, lv.get("where", c.get("where")), weak, of_row)
+        hit = sorted(docs & base)
+        got, _ = _level([lv], len(hit), len(base), noun)
+        every.append({"verdict": lv["verdict"], "n": len(hit), "base": len(base), "met": got is not None,
+                      "documents": sorted({d for u in hit for d in held[u]}) if by_cases else hit,
+                      **({"cases": hit} if by_cases else {}), "rows": rows, "weak": sorted(only_weak & base)})
+        if got and met is None:
+            met = every[-1]
+    tested = every[:every.index(met) + 1] if met else every
+    use = met or tested[-1]
+    said = "; ".join(f"{x['verdict'] or NO_RATING}: {x['n']} of {x['base']} {noun}, {'met' if x['met'] else 'not met'}" for x in tested)
+    why = (f"the first level met is {met['verdict']} ({said})" if met and met["verdict"] is not None
+           else f"not placed: the first level met says no rating can be given ({said})" if met else f"no level is met ({said})")
+    return {"verdict": met["verdict"] if met else None, "n": use["n"], "base": use["base"], "documents": use["documents"],
+            **({"cases": use["cases"]} if by_cases else {}), "unit": noun, "rows": use["rows"], "why": why,
+            "tested": [{k: x[k] for k in ("verdict", "n", "base", "met")} for x in tested],
+            "margin": _margin(c["levels"], [x["n"] for x in every], len(base)),
+            **({"weak": use["weak"]} if use["weak"] else {})}
+
+
+def level_counts(rec_id: str, c: dict) -> dict[str, dict]:
+    """A rule's counts by the id an answer writes for each: the criterion's own (`{judge.reach}`, the level met), and
+    where its levels were tested on cells of their own, each level's (`{judge.reach.good}`), so that a level not met
+    can be stated too."""
+    out = {f"{rec_id}.{c['id']}": {"n": c["n"], "base": c["base"]}}
+    tested = c.get("tested") or []
+    if len({(x["n"], x["base"]) for x in tested}) > 1:
+        out.update({f"{rec_id}.{c['id']}.{verdict_id(x['verdict'])}": x for x in tested})
+    return out
+
+
+def _level(levels: list[dict], n: float, base: float, what: str) -> tuple[dict | None, str]:
+    """The first level whose thresholds `n` out of `base` meets, and why, said as the verdict table says it."""
+    share = n / base if base else 0.0
+    for lv in levels:
+        tests = [(k, lv[k]) for k in THRESHOLDS if k in lv]
+        if all({"at_least": n >= v, "at_most": n <= v, "share_at_least": share >= v, "share_at_most": share <= v}[k] for k, v in tests):
+            said = ", ".join(f"{k.replace('_', ' ')} {v}" for k, v in lv.items() if k in THRESHOLDS)
+            return lv, f"{n:g} of {base:g} {what}; the first level met is {lv['verdict'] or NO_RATING}" + (f" ({said})" if said else "")
+    return None, f"{n:g} of {base:g} {what} meet no level"
+
+
+def _stated(run, c: dict) -> dict:
+    """A number a background document states, found in it again at run time, against the levels."""
+    got, wrong = find_stated(c, run.corpus.background_texts())
+    if wrong:
+        return {"verdict": None, "n": c.get("n"), "base": c.get("base"), "document": c.get("document"), "quote": c.get("quote"),
+                "start": None, "end": None, "documents": [], "rows": [], "why": "not placed: " + "; ".join(wrong)}
+    met, why = _level(c["levels"], c["n"], c["base"], f"as {c['document']} states it")
+    return {"verdict": met["verdict"] if met else None, "n": c["n"], "base": c["base"], "document": c["document"],
+            "quote": got.quote, "start": got.start, "end": got.end, "documents": [], "rows": [], "why": why}
+
+
+def _reading(run, s: dict, c: dict) -> dict:
+    where = {k: (set(map(str, v)) if isinstance(v, list) else {str(v)}) for k, v in (c.get("where") or {}).items()}
+    rows = [r for r in run.table(c["rows_from"]) if all(str(r.get(k)) in vs for k, vs in where.items())]
+    recorded = (getattr(run, "readings", None) or {}).get(s["id"], {}).get(c["id"])
+    if isinstance(recorded, dict):
+        got, by = recorded, "recorded"
+    else:
+        from . import guidance
+        from .steps import parse_json, row_line
+        listing = "\n".join(row_line(r) for r in rows)
+        levels = "\n".join(f"- {lv['verdict']}: {lv['descriptor']}" for lv in c["levels"])
+        fill = {"n_documents": str(len(run.corpus.documents)), "source": str(s["source"]), "question": run.question,
+                "criterion": c["question"], "levels": levels, "rows": listing or "(none)"}
+        try:  # this engine on its own carries no prompt, and a recount's `ask` calls no model: both raise NoModel
+            prompt = re.sub(r"\{(" + "|".join(fill) + r")\}", lambda m: fill[m.group(1)], guidance.prompt_text("judge").rstrip("\n"))
+            got, by = parse_json(run.ask(s["id"], prompt, s["model"], expect_json=True)), "model"
+        except NoModel:
+            got, by = {"why": f"no reading of it was recorded in judged/{s['id']}.json"}, "none"
+    names = [lv["verdict"] for lv in c["levels"]]
+    verdict = got.get("verdict") if got.get("verdict") in names else None
+    between = [b for b in got.get("between") or [] if b in names] if got.get("verdict") == "between" else []
+    # a row cited that is not among those the criterion reads: absent, or outside its `where`
+    return {"verdict": verdict, "between": between, "rows_read": len(rows), "read_by": by, **evidence(got, {r["row"] for r in rows}),
+            "why": str(got.get("why") or "") if verdict else (f"between {' and '.join(between)}: " if between else "not placed: ") + str(got.get("why") or "")}
+
+
+def evidence(got: dict, ids: set[str]) -> dict:
+    """What a recorded reading rests on, checked against the rows it may cite (`ids`): the rows for it and against it
+    that exist, and every one cited that does not. The one check of a reading's passages, for a judge step's reading
+    criterion and for a claim (`claims`), whoever made the reading."""
+    cited = [str(x) for x in (got.get("rows") or []) + (got.get("against") or [])]
+    return {"rows": [str(x) for x in got.get("rows") or [] if str(x) in ids],
+            "against": [str(x) for x in got.get("against") or [] if str(x) in ids],
+            "rows_cited_that_do_not_exist": [x for x in cited if x not in ids]}
+
+
+def claims(run, s: dict) -> dict:
+    """The claims piece: the key claims of an answer that rest on no count, each tagged as a number is tagged, with the
+    passages it rests on, those against it, how they would be found again and why they bear it out. The writer makes
+    them, as the analyst makes a reading, and records them in `judged/<step id>.json` as {claim id: {"says", "rows",
+    "against", "found_by", "why"}}; the answer cites one as `[<step id>.<claim id>]`. Code checks each as it checks a
+    reading (`evidence`), against the rows of the code steps the step reads. A claim nobody recorded is no claim, so a
+    step with none recorded holds none."""
+    ids = {r["row"] for i in s.get("inputs") or [] for r in run.out.get(i, {}).get("rows", [])}
+    recorded = (getattr(run, "readings", None) or {}).get(s["id"], {})
+    out = []
+    for cid, got in recorded.items():
+        got = got if isinstance(got, dict) else {}
+        out.append({"id": str(cid), "says": str(got.get("says") or ""), **evidence(got, ids),
+                    "found_by": str(got.get("found_by") or ""), "why": str(got.get("why") or "")})
+    return {"claims": out}
+
+
+def judge(run, s: dict) -> dict:
+    s = resolve_step(s, "judge")
+    order = [v["name"] for v in s["verdicts"]]
+    results = []
+    for c in s["criteria"]:
+        got = _rule(run, c) if c["kind"] == "rule" else _stated(run, c) if c["kind"] == "stated" else _reading(run, s, c)
+        # what a rule counts, as written, kept apart from `n` and `base`, which are its counts
+        counted = {"counted": {k: c[k] for k in ("table", "where", "base", "base_where") if k in c}} if c["kind"] == "rule" else {}
+        results.append({"id": c["id"], "question": c["question"], "kind": c["kind"], "levels": c["levels"],
+                        **({"scale": c["scale"]} if c.get("scale") is not None else {}), **counted, **got})
+    combine = s["combine"] if isinstance(s["combine"], list) else {"all": "weakest", "none": "weakest"}.get(s["combine"], s["combine"])
+    turns_on = []
+    if combine == "separate":
+        overall, why = None, "the rubric keeps its criteria apart"
+    else:
+        rules = as_rules(combine, order, [c["id"] for c in s["criteria"]])
+        overall, why = _by_rules(rules, {r["id"]: r["verdict"] for r in results})
+        turns_on = _turns_on(rules, results, {c["id"]: scale(s, c) for c in s["criteria"]}, overall)
+    return {"source": s["source"], "verdicts": s["verdicts"], "criteria": results, "combine": combine,
+            "overall": overall, "overall_why": why, "accepted": s.get("accepted"),
+            **({"turns_on": turns_on} if turns_on else {})}
+
+
+def _turns_on(rules: list[dict], results: list[dict], scales: dict, overall) -> list[dict]:
+    """The judgements the overall verdict turns on, for the evaluator to weigh: each criterion whose moving to the
+    next level, one way or the other, would change the overall verdict, and each pair that would change it only by
+    moving together. A rule's next levels are those its margin reaches, with how many documents it takes; any other
+    criterion's are its neighbours on its scale, since no count says how near they are. Reported only: nothing here
+    changes a verdict."""
+    got = {r["id"]: r["verdict"] for r in results}
+    moves = {}
+    for r in results:
+        if r["kind"] == "rule":
+            moves[r["id"]] = [{"to": m["verdict"], "documents": m["documents"], "side": side}
+                              for side, m in (r.get("margin") or {}).items()]
+        elif r["verdict"] in scales[r["id"]]:
+            sc, i = scales[r["id"]], scales[r["id"]].index(r["verdict"])
+            moves[r["id"]] = [{"to": sc[j]} for j in (i - 1, i + 1) if 0 <= j < len(sc)]
+    out, alone = [], set()
+    for cid, ms in moves.items():
+        for m in ms:
+            then = _by_rules(rules, {**got, cid: m["to"]})[0]
+            if then != overall:
+                out.append({"criteria": [{"id": cid, **m}], "overall": then})
+                alone.add((cid, m["to"]))
+    ids = list(moves)
+    for a in range(len(ids)):
+        for b in range(a + 1, len(ids)):
+            for ma in moves[ids[a]]:
+                for mb in moves[ids[b]]:
+                    if (ids[a], ma["to"]) in alone or (ids[b], mb["to"]) in alone:
+                        continue
+                    then = _by_rules(rules, {**got, ids[a]: ma["to"], ids[b]: mb["to"]})[0]
+                    if then != overall:
+                        out.append({"criteria": [{"id": ids[a], **ma}, {"id": ids[b], **mb}], "overall": then})
+    return out
+
+
+def as_rules(combine, verdicts: list[str], criteria: list[str]) -> list[dict]:
+    """A rubric's way of combining as rules, the one form the judge applies. The weakest is a rule a verdict, each
+    holding where every criterion is at that verdict or better; the best is a rule a verdict and criterion, each
+    holding where that criterion is at that verdict or better; the worst verdict is what is left. Rules given as rules
+    are returned as they are."""
+    if isinstance(combine, list):
+        return combine
+    rules = []
+    for i, v in enumerate(verdicts[:-1]):
+        at_least = verdicts[:i + 1]
+        if combine == "weakest":
+            rules.append({"verdict": v, "when": {c: at_least for c in criteria}})
+        else:
+            rules += [{"verdict": v, "when": {c: at_least}} for c in criteria]
+    return rules + [{"verdict": verdicts[-1]}]
+
+
+def _by_rules(rules: list[dict], got: dict) -> tuple[str | None, str]:
+    """The overall verdict by the evaluator's rules, tried in order: the first whose every condition holds. A condition
+    on a criterion that could not be placed is unknown, so a rule that would hold but for it might be the deciding one:
+    the verdict is given only where every rule that might decide gives the same one, and is otherwise left open."""
+    failed, maybe = {}, []  # criteria whose level kept a rule from holding; rules that hold but for an unknown
+    decided, why = None, "no rule holds"
+    for r in rules:
+        when = r.get("when")
+        if when is None:
+            decided = r["verdict"]
+            why = ("no earlier rule holds" + (" (" + "; ".join(f"{k} is {v}" for k, v in failed.items()) + ")" if failed else "")
+                   + f", so {decided}")
+            break
+        unknown = [k for k in when if got.get(k) is None]
+        holds = all(got.get(k) in (v if isinstance(v, list) else [v]) for k, v in when.items() if k not in unknown)
+        if holds and unknown:
+            maybe.append((r["verdict"], unknown))
+            continue
+        if holds:
+            decided, why = r["verdict"], f"the rule for {r['verdict']} holds: " + "; ".join(f"{k} is {got[k]}" for k in when)
+            break
+        failed.update({k: got[k] for k, v in when.items() if k not in unknown and got[k] not in (v if isinstance(v, list) else [v])})
+    open_ = [(v, u) for v, u in maybe if v != decided]
+    if open_ or decided is None:
+        turns = sorted({k for _, u in open_ for k in u})
+        return None, ("no overall verdict: " + (f"it turns on {', '.join(turns)}, which could not be placed" if turns else why))
+    return decided, why
+
+
+def combine_in_words(combine) -> str:
+    """How a rubric's criteria combine, said to a reader of the answer."""
+    if not isinstance(combine, list):
+        return COMBINE_IN_WORDS.get(combine, f"Criteria combined by the {combine}.")
+    said = []
+    for r in combine:
+        when = r.get("when")
+        cond = " and ".join(f"{k.replace('_', ' ')} is {' or '.join(map(str, v)) if isinstance(v, list) else v}"
+                            for k, v in (when or {}).items())
+        said.append(f"{r['verdict']} where {cond}" if when else f"otherwise {r['verdict']}")
+    return "The overall verdict follows the evaluator's rules, the first that holds: " + "; ".join(said) + "."
+
+
+#: How criteria combine, said to a reader of the answer.
+COMBINE_IN_WORDS = {"weakest": "The overall verdict is the lowest any criterion reaches, so every criterion must hold.",
+                    "best": "The overall verdict is the highest any criterion reaches.",
+                    "separate": "Each criterion's verdict is reported on its own, without an overall verdict."}
+#: What each kind of criterion is, said to a reader of the answer.
+KIND_IN_WORDS = {"rule": "a count of {unit}, set against the thresholds below",
+                 "stated": "a number a background document states, set against the thresholds below",
+                 "reading": "judged by a language model reading the coded passages against each level's description"}
+
+
+def accepted_in_words(accepted: str | bool | None) -> str:
+    """Who accepted proposed levels and when, said to a reader who saw none of the planning, with the date written out.
+    `true`, which a workflow written by hand may give, is an acceptance whose date was not recorded."""
+    if not accepted:
+        return ""
+    if not isinstance(accepted, str):
+        return "accepted by the evaluator"
+    m = re.search(r"(\d{4})-(\d{2})-(\d{2})", accepted)
+    when = f" on {int(m.group(3))} {MONTHS[int(m.group(2)) - 1]} {m.group(1)}" if m else ""
+    return f"accepted for a test{when}" if accepted.startswith("for a test") else f"accepted by the evaluator{when}"
+
+
+#: The planning assistant's name. A reader of the answer never meets her, so text the designer wrote about the
+#: planning, printed with the standard, says what happened rather than who did it.
+ASSISTANT = "Ruby"
+
+#: Who the evaluator is, said once to a reader of the answer. The evaluator runs the analysis and reports to the
+#: commissioner, who runs nothing; the commissioner is named only where the record says they set or agreed something.
+EVALUATOR = "The evaluator is the person who ran this analysis and wrote the report."
+
+
+def reader_words(text: str) -> str:
+    """Text written during planning, such as a standard's source, as a reader of the answer reads it: the assistant not
+    named. A quotation is left word for word."""
+    def plain(t):
+        t = re.sub(rf"\b(proposed|suggested|drafted|written|set|chosen|offered)\s+by\s+{ASSISTANT}\b", r"\1 during planning", t)
+        t = re.sub(rf"\b{ASSISTANT}'s\s+", "the ", t)
+        return re.sub(rf"\b{ASSISTANT}\b", "the planning", t)
+    return "".join(p if i % 2 else plain(p) for i, p in enumerate(re.split(r'("[^"\n]*")', text)))
+
+
+MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+
+
+def unit_of(r: dict) -> str:
+    """What a rule's counts count, as its table names them ("households", "cases"); documents for a result recorded
+    before a rule said its unit whatever it counted."""
+    return r.get("unit") or "documents"
+
+
+def _test(lv: dict, kind: str = "rule", unit: str = "documents") -> str:
+    """A level's test in words: its description, or its thresholds as counts and percentages, of the units counted
+    for a count and of the stated base for a stated number."""
+    if lv.get("descriptor"):
+        return lv["descriptor"]
+    said = []
+    for k in THRESHOLDS:
+        if k in lv:
+            side = "at least" if k.endswith("least") else "at most"
+            of, noun = ("the stated base", "") if kind == "stated" else (f"the {unit} counted", f" {unit}")
+            said.append(f"{side} {lv[k] * 100:g}% of {of}" if k.startswith("share") else f"{side} {lv[k]:g}{noun}")
+    return " and ".join(said) or "otherwise"
+
+
+def provenance(rec: dict) -> str:
+    """Whose levels the standard's are, in one sentence a reader of the answer can be given."""
+    levels = [lv for _, lv in standard_parts(rec)]
+    proposed = [lv for lv in levels if lv.get("from") != "evaluator"]
+    if not proposed:
+        return "Every level is from the standard as the evaluator gave it."
+    return ((f"{len(proposed)} of the {len(levels)} levels {'was' if len(proposed) == 1 else 'were'}" if len(proposed) < len(levels)
+             else "Every level was")
+            + " proposed during planning, where the standard as given did not settle them"
+            + (f", and {accepted_in_words(rec.get('accepted'))}, before any document was read." if rec.get("accepted")
+               else ", and none has been accepted."))
+
+
+def definitions(rec: dict, step_id: str, heading: str = "The standard") -> list[str]:
+    """The standard as the workflow applied it, under its own heading, each level marked with whose it is, for a reader
+    who saw none of the planning: what a standard is, where this one comes from, how its criteria combine, and each
+    level's test."""
+    out = [f"### {heading}", "",
+           f"A standard is the rule for judging the evidence, set before any document was read. {EVALUATOR} "
+           f"Where this one comes from: {reader_words(str(rec['source']).strip().rstrip('.'))}. "
+           "Verdicts, best first: "
+           + "; ".join(f"{v['name']} ({reader_words(str(v.get('means', '')).strip().rstrip('.'))})" for v in rec["verdicts"]) + ". "
+           + (combine_in_words(rec["combine"]) if not isinstance(rec["combine"], list)
+              else "The overall verdict follows the evaluator's rules, listed last, the first that holds deciding.")
+           + " " + provenance(rec), ""]
+
+    def whose(part):
+        return (f"as given in the question: \"{part.get('quote')}\"" if part.get("from") == "evaluator"
+                else "proposed during planning" + (f", {accepted_in_words(rec['accepted'])}" if rec.get("accepted") else ", not accepted"))
+    for r in rec["criteria"]:
+        name = r['id'].replace('_', ' ')
+        unit = unit_of(r)
+        out.append(f"- **{name[:1].upper() + name[1:]}**, {KIND_IN_WORDS.get(r['kind'], r['kind']).replace('{unit}', unit)}: {reader_words(r['question'])}"
+                   + (f" Rated {', '.join(map(str, r['scale']))}, best first." if r.get("scale") else "")
+                   + (f" The number, as the background document {r['document']} states it: \"{r['quote']}\""
+                      if r["kind"] == "stated" and r.get("quote") else "")
+                   + (f" {counted_in_words(r['counted'], unit)}" if r.get("counted") else ""))
+        for lv in r.get("levels") or []:
+            cells = f", counting {unit} coded {_cells_in_words(lv['where'])}" if lv.get("where") is not None else ""
+            out.append(f"    - {lv['verdict'] or NO_RATING}: {reader_words(_test(lv, r['kind'], unit))}{cells} ({whose(lv)})")
+    if isinstance(rec["combine"], list):
+        out.append("- **Overall**, the evaluator's rules for combining the criteria, tried in order:")
+        for rule in rec["combine"]:
+            when = rule.get("when")
+            cond = " and ".join(f"{k.replace('_', ' ')} is {' or '.join(map(str, v)) if isinstance(v, list) else v}"
+                                for k, v in (when or {}).items())
+            out.append(f"    - {rule['verdict']}: {'where ' + cond if when else 'otherwise'} ({whose(rule)})")
+    return out
+
+
+def _cells_in_words(where: dict | None) -> str:
+    said = [f"{k} {' or '.join(map(str, v)) if isinstance(v, list) else v}" for k, v in (where or {}).items()]
+    return " and ".join(said) or "anything"
+
+
+def counted_in_words(r: dict, unit: str = "documents") -> str:
+    """What a rule counts and what out of, for a reader of the standard: the cells it counts and its base, both by
+    document attribute and by the coding. `r` is the rule as written (a result's `counted`)."""
+    of = [f"whose {k} is {' or '.join(map(str, v)) if isinstance(v, list) else v}" for k, v in (r.get("base") or {}).items()]
+    if r.get("base_where") is not None:
+        of.append(f"coded {_cells_in_words(r['base_where'])}")
+    counts = f"It counts {unit} coded {_cells_in_words(r['where'])}" if r.get("where") else f"It counts {unit}"
+    return counts + (f", out of the {unit} " + " and ".join(of) if of else f", out of all the {unit}") + "."
+
+
+def margin_in_words(rec_id: str, r: dict) -> str:
+    """How near a rule's level is to moving, each number by the id an answer writes for it: how many units coded
+    the other way would give which level, and which documents its cells hold only weakly."""
+    said = [f"{{{rec_id}.{r['id']}.margin.{side}}} ({m['documents']}) {side} {_one(m['documents'], unit_of(r))} "
+            f"would make it {m['verdict'] or NO_RATING.lower()}" for side, m in (r.get("margin") or {}).items()]
+    weak = f"held only implicitly: {', '.join(r['weak'])}" if r.get("weak") else ""  # legacy_weak
+    return "; ".join(said + ([weak] if weak else []))
+
+
+def turns_on_in_words(rec: dict) -> list[str]:
+    """Each judgement the overall verdict turns on, one line each, nearest first."""
+    rid = rec.get("id", "judge")
+    of = {r["id"]: r for r in rec.get("criteria") or []}
+
+    def part(c):
+        how = (f"{{{rid}.{c['id']}.margin.{c['side']}}} ({c['documents']}) {c['side']} {_one(c['documents'], unit_of(of.get(c['id'], {})))}"
+               if "documents" in c else "a reading")
+        return f"{c['id']} moved to {c['to'] or NO_RATING.lower()} by {how}"
+    near = sorted(rec.get("turns_on") or [], key=lambda t: (len(t["criteria"]), sum(c.get("documents", 99) for c in t["criteria"])))
+    return [f"- {' and '.join(part(c) for c in t['criteria'])} would make the overall {t['overall'] or 'open'}" for t in near]
+
+
+def markdown(rec: dict, margins: bool = False) -> str:
+    """The verdict table the write step is given, to put beside the verdict. With `margins`, as a recount writes it for
+    the check, each rule also says how near its level is to moving, and the overall what it turns on."""
+    lines = [f"Standard: {reader_words(str(rec['source']))}. Verdicts, best first: " + "; ".join(f"{v['name']} ({v.get('means', '')})" for v in rec["verdicts"]),
+             f"Whose levels: {provenance(rec)}",
+             "| Criterion | Kind | Verdict | Evidence |", "|---|---|---|---|"]
+    for r in rec["criteria"]:
+        cid = f"{rec.get('id', 'judge')}.{r['id']}"
+        ev = ("; ".join(f"{{{k}}} {unit_of(r)} ({x['n']} of {x['base']})" for k, x in level_counts(rec.get('id', 'judge'), r).items())
+              if r["kind"] == "rule"
+              else f"{{{cid}}} ({r['n']} of {r['base']}), as \"{r['quote']}\" [{r['document']}]" if r["kind"] == "stated"
+              else f"rows {', '.join(r['rows']) or 'none'}; against {', '.join(r['against']) or 'none'}")
+        placed = r["verdict"] or (f"between {' and '.join(r['between'])}, for the evaluator" if r.get("between") else "not placed")
+        near = margin_in_words(rec.get("id", "judge"), r) if margins and r["kind"] == "rule" else ""
+        lines.append(f"| {r['id']}: {r['question']} | {r['kind']} | {placed} | {ev}. {r['why']}{'. Margin: ' + near if near else ''} |")
+    lines.append(f"Overall: {rec['overall'] or 'no verdict'}; {rec['overall_why']}. {combine_in_words(rec['combine'])}")
+    if margins and rec.get("turns_on"):
+        lines += ["", "What the overall verdict turns on, nearest first (each a judgement that, moved as said, would change it):",
+                  *turns_on_in_words(rec)]
+    return "\n".join(lines)
