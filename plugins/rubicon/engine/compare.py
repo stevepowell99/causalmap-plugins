@@ -85,9 +85,10 @@ def compare(a: Path, b: Path) -> dict:
                 diff = {k: [ca.get(k), cb.get(k)] for k in sorted(set(ca) | set(cb)) if ca.get(k) != cb.get(k)}
                 out["tables"][sid] = {"cells": len(set(ca) | set(cb)), "differ": len(diff), "first_vs_second": diff}
             else:
-                out["tables"][sid] = {"verdict": [ta.get("verdict"), tb.get("verdict")],
-                                      "criteria": {c["id"]: [c.get("level"), d.get("level")]
-                                                   for c, d in zip(ta.get("criteria") or [], tb.get("criteria") or [])}}
+                # a judge record holds its overall verdict as `overall` and each criterion's as `verdict` (`judge.judge`)
+                ja, jb = ({c["id"]: c.get("verdict") for c in t.get("criteria") or []} for t in (ta, tb))
+                out["tables"][sid] = {"verdict": [ta.get("overall"), tb.get("overall")],
+                                      "criteria": {k: [ja.get(k), jb.get(k)] for k in list(ja) + [k for k in jb if k not in ja]}}
     (b / "compare.json").write_text(json.dumps(out, indent=1, ensure_ascii=False), encoding="utf-8", newline="\n")
     (b / "disagreements.md").write_text("\n".join(disagreements) + "\n" if disagreements
                                         else "The two coders placed every document and value alike.\n", encoding="utf-8", newline="\n")

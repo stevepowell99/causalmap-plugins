@@ -521,11 +521,12 @@ def in_context(run: Run, r: dict, width: int = 700) -> str:
             + locator._utf16_slice(text, b, b + width) + "…")
 
 
-def _unit_of_row(run: Run, count: str, r: dict):
+def _unit_of_row(run: Run, count: str, r: dict, profiled: bool = False):
     """The unit a row belongs to, for a tabulation counting `count`: its document, its case (`Corpus.case_of`), or for
     a count by a column of the document list that column's value for its document, None where it has none. A
-    profile's row is its own unit."""
-    if "key" in r:
+    profile's row (`profiled`, said by the kind of step the rows come from, never by a column a row holds) is its own
+    unit."""
+    if profiled:
         return r["key"]
     if count == "documents":
         return r["document"]
@@ -536,12 +537,13 @@ def _unit_of_row(run: Run, count: str, r: dict):
     return None if v in (None, "") else str(v)
 
 
-def units(run: Run, count: str, read, rows: list[dict]) -> tuple[dict[str, set[str]], dict[str, str]]:
+def units(run: Run, count: str, read, rows: list[dict], profiled: bool = False) -> tuple[dict[str, set[str]], dict[str, str]]:
     """The units a tabulation counts among the documents `read`, each with the documents it appears in, and the unit
-    of each of `rows` (the input code step's, by row id). Cases come from `Corpus.cases_held`; a count by a column of
-    the document list has a case for each of its values among the documents read, a document with none in none."""
-    unit_of = {r["row"]: _unit_of_row(run, count, r) for r in rows}
-    if rows and "key" in rows[0]:  # a profile's units, each with those of its documents among `read`
+    of each of `rows` (the input code step's, by row id, or with `profiled` a profile's). Cases come from
+    `Corpus.cases_held`; a count by a column of the document list has a case for each of its values among the documents
+    read, a document with none in none."""
+    unit_of = {r["row"]: _unit_of_row(run, count, r, profiled) for r in rows}
+    if profiled:  # a profile's units, each with those of its documents among `read`
         read = set(read)
         return {r["key"]: set(r["documents"]) & read for r in rows if not r["documents"] or set(r["documents"]) & read}, unit_of
     if count == "documents" or count == "rows":
@@ -606,16 +608,14 @@ def tabulate(run: Run, s: dict) -> dict:
     # that kind; counting the document list itself, every cell is out of all those read
     listing = src == "documents" or run.out.get(src, {}).get("kind") == "sample"
     whole = base_columns(by, in_rows, run.is_attribute, listing, bool(s["loops"] or s.get("sequences")))
-    held, unit_of = units(run, count, read, [] if listing else coded_rows)
-    unit_of.update({r["row"]: unit_of.get(r["row"], _unit_of_row(run, count, r)) for r in rows})
+    held, unit_of = units(run, count, read, [] if listing else coded_rows, profiled)
+    unit_of.update({r["row"]: unit_of.get(r["row"], _unit_of_row(run, count, r, profiled)) for r in rows})
 
-    def of_unit(u, c):
+    def of_unit(u, c):  # every value the unit's documents take, so it is in the base of each (`document_values`)
         docs = held[u]
         if c == "document":
             return docs
-        vs = {run.attribute(d, c) for d in docs}
-        v = vs.pop() if len(vs) == 1 else None
-        return {"(blank)" if v in (None, "") else str(v)}
+        return {"(blank)" if v is None else v for v in document_values(run, docs, c)}
 
     def matches(u, cmb, cols):
         return all(cmb[i] in of_unit(u, by[i]) for i in cols)
@@ -630,14 +630,17 @@ def tabulate(run: Run, s: dict) -> dict:
         return of_rows([x for x in v["rows"] if (x in v["firm"] if "firm" in v else x not in weak)])
 
     # a count can also be stated within the group a coded column defines ("of those improved, 13 of 15"): its base is
-    # then the units with that value in that column, as well as the cell's values on the columns describing a document
-    def units_with(i, v):
-        return {u for (k, c) in cells.items() if k[i] == v for u in firm(c)}
+    # then the units with that value in that column where it shares the cell's values on the columns describing a
+    # document, so a case interviewed in two rounds is in the group of a round only where it said so in that round
     coded = [i for i, c in enumerate(by) if i not in whole and re.fullmatch(r"[\w-]+", c)] if count != "rows" and len(by) > 1 and not s["loops"] else []
-    marginal = {(i, k[i]): units_with(i, k[i]) for k in cells for i in coded}
+    marginal: dict[tuple, set] = defaultdict(set)
+    for k, v in cells.items() if coded else ():
+        units_here = firm(v)
+        for i in coded:
+            marginal[(i, k[i], tuple(k[j] for j in whole))] |= units_here
 
     def within(cmb):
-        return {by[i]: sum(matches(u, cmb, whole) for u in marginal[(i, cmb[i])]) for i in coded}
+        return {by[i]: len(marginal[(i, cmb[i], tuple(cmb[j] for j in whole))]) for i in coded}
     # where opposites were combined, a cell says how many of its rows had each end coded at the opposite pole, which
     # the map colours the arrow's tail and head by
     flips = {(r["row"], *(str(r.get(c)) for c in by)): r for r in rows if r.get("flipped_cause") or r.get("flipped_effect")} if filtered else {}
@@ -661,10 +664,16 @@ def tabulate(run: Run, s: dict) -> dict:
     for k, c in enumerate(out, 1):  # an id per count, which the answer writes in place of the number
         c["id"] = f"{s['id']}.c{k}" if run.cell_ids == "positional" else cell_id(s["id"], by, c["values"])
     alone = count == "documents" or all(len(ds) == 1 for ds in held.values()) and len(held) == len(read)
+    # how many units are in the bases of more than one of a column's values, which then add up to more than the units
+    # read, so the table says so (`bases_overlap_said`)
+    shown = {i: {cmb[i] for cmb in cells} for i in whole}
+    overlap = {} if count == "rows" else {
+        by[i]: k for i in whole if (k := sum(len(of_unit(u, by[i]) & shown[i]) > 1 for u in held))}
     return {"input": src, "by": by, "count": count, "unit": unit_noun(count, s.get("unit"), alone),
             **({"description": s["description"]} if s.get("description") else {}),
             **({"cases_are_documents": alone} if count == "cases" else {}),
-            "of": len(held) if count != "rows" else len(read), "sparse": sparse, "paths": s["paths"],
+            "of": len(held) if count != "rows" else len(read), **({"bases_overlap": overlap} if overlap else {}),
+            "sparse": sparse, "paths": s["paths"],
             **({"loops": True} if s["loops"] else {}), **({"sequences": True} if s.get("sequences") else {}),
             **({"filters": filters, "filtered": filtered} if filtered else {}), **({"where": s["where"]} if s.get("where") else {}),
             "cells": out}
@@ -791,19 +800,27 @@ def _column(run: Run, src: str, name: str) -> dict | None:
 
 def value_of(run: Run, r: dict, c: str) -> list:
     """A row's values in column `c`, a list where it holds several: its own, else its document's id for `document`, else
-    its document's value in the document list. A profile's row stands for its `documents`: their ids, and a value of
-    the document list where they all agree."""
+    its document's value in the document list. A profile's row stands for its `documents`: their ids, and every value
+    of the document list they take (`document_values`)."""
     docs = [r["document"]] if "document" in r else r.get("documents") or []
     if c in r:
         v = r[c]
     elif c == "document":
         v = docs if "document" not in r else r["document"]
     elif run.is_attribute(c):
-        vs = {run.attribute(d, c) for d in docs}
-        v = vs.pop() if len(vs) == 1 else None
+        v = document_values(run, docs, c)
     else:
         v = None
     return v if isinstance(v, list) else [v]
+
+
+def document_values(run: Run, docs, column: str) -> list:
+    """The values a unit made of the documents `docs` takes in a column of the document list: every value its
+    documents take, None for a document without one, and None alone for a unit with no documents. A unit whose
+    documents differ, such as a person interviewed in two rounds, takes each, so it is in the base of each, and a
+    profile's row is counted under each, as a unit takes every document it holds for `document`
+    (`rubicon/docs/pieces.md`, "Cases"). The one place this is decided."""
+    return list(dict.fromkeys(None if (v := run.attribute(d, column)) in (None, "") else str(v) for d in sorted(docs))) or [None]
 
 
 def rows_where(run: Run, rows: list[dict], where: dict, sid: str, listed: dict | None = None) -> list[dict]:
@@ -1062,7 +1079,9 @@ def _markdown(tab: dict, sid: str) -> str:
     unit = unit_of_table(tab)
     counted = (f"Each count is of {unit}" + ("" if tab.get("count", "documents") == "rows" else f", out of the {unit} read")
                + "; the sentence that cites one names the unit.\n")
-    head = (traced + counted + f"{unit[:1].upper() + unit[1:]} read: {tab['of']}, written {{{sid}.of}}, which reads \"{tab['of']}\"\n" + _within_said(tab)
+    overlap = bases_overlap_said(tab)
+    head = (traced + counted + f"{unit[:1].upper() + unit[1:]} read: {tab['of']}, written {{{sid}.of}}, which reads \"{tab['of']}\"\n"
+            + (overlap + "\n" if overlap else "") + _within_said(tab)
             + "| id | " + " | ".join(tab["by"]) + " | reads as |" + ("" if by_document else " which |") + "\n|"
             + "---|" * (len(tab["by"]) + (2 if by_document else 3)))
     return head + "\n" + "\n".join(f"| {{{c['id']}}} | " + " | ".join(c["values"].values()) + f" | \"{stated(tab, c)}\""
@@ -1151,6 +1170,18 @@ def unit_of_table(tab: dict) -> str:
     """The plural name of what a tabulation's counts count, as its record gives it or, for a record made before
     records carried one, as its count implies."""
     return tab.get("unit") or unit_noun(tab.get("count", "documents"), None, tab.get("cases_are_documents", True))
+
+
+def bases_overlap_said(tab: dict, named: Callable[[str], str] = str) -> str:
+    """The sentence a table carries wherever its bases are stated where some of its units are in the bases of more than
+    one value of a column (`tabulate`'s `bases_overlap`), such as people interviewed in two rounds: its bases then add
+    up to more than the units read. "" where none is; `named` gives a column's name as the reader sees it."""
+    unit, of = unit_of_table(tab), tab.get("of")
+    return " ".join(
+        f"{k} of the {of} {unit} read {'has' if k == 1 else 'have'} "
+        + ("more than one document" if col == "document" else f"documents with more than one {named(col)}")
+        + f" and {'is' if k == 1 else 'are'} in the base of each, so the bases add up to more than {of}."
+        for col, k in (tab.get("bases_overlap") or {}).items())
 
 
 def said_with_unit(tab: dict, cell: dict) -> str:

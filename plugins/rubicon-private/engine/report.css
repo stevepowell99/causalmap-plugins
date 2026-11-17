@@ -292,8 +292,8 @@ span.small > .rowlink { margin-right: 0; }
 @media (prefers-reduced-motion: no-preference) { .panel { transition: transform .15s ease-out; } }
 /* A links-shaped table's download for Causal Map (render_report.xlsx_button): small and quiet, under what it downloads */
 .xlsx-row { margin: .4rem 0 0; font-size: .8rem; line-height: 1.4; }
-.xlsx { border: 1px solid var(--line); background: var(--panel); border-radius: 4px; padding: .15rem .55rem; font-size: .8rem; color: var(--ink); }
-.xlsx:hover, .xlsx:focus-visible { border-color: var(--red); color: var(--red); }
+.xlsx, .save-file { border: 1px solid var(--line); background: var(--panel); border-radius: 4px; padding: .15rem .55rem; font-size: .8rem; color: var(--ink); }
+.xlsx:hover, .xlsx:focus-visible, .save-file:hover, .save-file:focus-visible { border-color: var(--red); color: var(--red); }
 /* Every table's "Copy table" button (report.js `copyable`): smaller and quieter still, under the table it copies */
 .copy-row { margin: .25rem 0 .6rem; font-size: .75rem; line-height: 1.4; display: flex; align-items: center; gap: .5rem; }
 .copy-table { border: 1px solid var(--line); background: none; border-radius: 4px; padding: .05rem .45rem; font: inherit; color: var(--quiet); cursor: pointer; }

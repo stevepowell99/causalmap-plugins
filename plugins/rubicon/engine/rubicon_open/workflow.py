@@ -22,15 +22,20 @@ SECTION_CHARS = 8000
 
 def normalise(wf: dict) -> dict:
     """The workflow with every step's settings on the step itself, and on a code step that puts other code steps' rows
-    together (`combining`) the columns and links they share, which the author does not write (`combined_from`)."""
+    together (`combining`) the columns and links they share, which the author does not write (`combined_from`). A step,
+    or its settings, of another shape is left as it is, for the check to report (`_shape_faults`)."""
+    if not isinstance(wf.get("steps", []), list):
+        return dict(wf)
     steps, before = [], {}
     for s in wf.get("steps", []):
-        s = {**{k: v for k, v in s.items() if k != "settings"}, **(s.get("settings") or {})}
-        if combining(s, before):
-            columns, links, _ = combined_from(s, before)
-            s = {**s, "columns": columns, "links": links}
+        if isinstance(s, dict) and isinstance(s.get("settings"), (dict, type(None))):
+            s = {**{k: v for k, v in s.items() if k != "settings"}, **(s.get("settings") or {})}
+            if combining(s, before):
+                columns, links, _ = combined_from(s, before)
+                s = {**s, "columns": columns, "links": links}
         steps.append(s)
-        before[s.get("id")] = s
+        if isinstance(s, dict) and isinstance(s.get("id"), str):
+            before[s["id"]] = s
     return {**wf, "steps": steps}
 
 
@@ -45,6 +50,21 @@ def combining(s: dict, before: dict[str, dict]) -> bool:
 
 #: The column a combined table adds to every row, naming the code step the row was coded in
 CODING = "coding"
+#: What fixed rules write on every coded row (`steps.place_rows`): its id, its document, the section read, the passage
+#: as found, how it was found and where it stands in the document; and the coding a combined table names. A column of
+#: one of these names would replace it, so the check refuses a code step's column or a profile's column named for one
+#: (`row_field_faults`).
+ROW_FIELDS = ("row", "document", "section", "quote", "tier", "start", "end", CODING)
+#: What fixed rules write on every row of a profile beside its id (`steps.profile`): its unit, the passages it was built
+#: from and their documents, which a profile's column may not be named for either.
+PROFILE_FIELDS = ("key", "rows", "documents")
+
+
+def row_field_faults(sid, names, own=()) -> list[str]:
+    """Each of a step's column `names` that would replace something fixed rules write on its rows: one of `ROW_FIELDS`,
+    or of the step's `own` (a profile's). The one refusal of such a name, for every kind of step that names columns."""
+    return [f"{sid}: a column called {n!r} would replace what fixed rules write on every row under that name; give the "
+            "column another name" for n in dict.fromkeys(names) if n in ROW_FIELDS or n in own]
 
 
 def same_values(a: dict, b: dict) -> bool:
@@ -64,8 +84,8 @@ def combined_from(s: dict, before: dict[str, dict]) -> tuple[list[dict], dict | 
     """What a combining step's inputs share: its columns (each column once, as the first step that has it defines it,
     in the order they first appear), its links (the two ends and the sign, which every input must name alike or none
     may), and the faults that stop the rows being put together: a column the inputs define differently, links only
-    some inputs name or name differently, a per-document input, the same input twice and a column named
-    `coding`, which is the table's own."""
+    some inputs name or name differently, a per-document input and the same input twice. A column called `coding`,
+    which is the table's own, is refused on the input that names it (`row_field_faults`)."""
     ins = s["inputs"]
     srcs = [before[i] for i in ins]
     cols: dict[str, tuple[str, dict]] = {}
@@ -75,12 +95,11 @@ def combined_from(s: dict, before: dict[str, dict]) -> tuple[list[dict], dict | 
     for i, st in zip(ins, srcs):
         if st.get("per_document"):
             faults.append(f"{i} describes whole documents, not passages, so its rows cannot be put together with others'")
-        for c in st.get("columns") or []:
-            if not (isinstance(c, dict) and c.get("name")):
+        # an input's columns or links of another shape are reported on that input (`_shape_faults`), and left out here
+        for c in st.get("columns") if isinstance(st.get("columns"), list) else []:
+            if not (isinstance(c, dict) and isinstance(c.get("name"), str) and c["name"]):
                 continue
-            if c["name"] == CODING:
-                faults.append(f"{i} has a column called {CODING!r}, which a combined table adds itself")
-            elif c["name"] not in cols:
+            if c["name"] not in cols:
                 cols[c["name"]] = (i, c)
             else:
                 first, there = cols[c["name"]]
@@ -89,7 +108,7 @@ def combined_from(s: dict, before: dict[str, dict]) -> tuple[list[dict], dict | 
                 elif not same_values(there, c):
                     faults.append(f"column {c['name']!r} takes different values in {first} and in {i}: give both the same list, "
                                   "or the same group step's codebook")
-    ends = [st.get("links") or None for st in srcs]
+    ends = [st.get("links") if isinstance(st.get("links"), dict) and st.get("links") else None for st in srcs]
     named = [e for e in ends if e]
     if named and len(named) != len(ends):
         faults.append("only " + ", ".join(i for i, e in zip(ins, ends) if e) + " name their links' two ends, so the others' rows "
@@ -431,16 +450,23 @@ MODEL_SETTINGS = ("model", "second_coder", "adjudicator", "check_model", "assign
 
 def _shape_faults(sid, kind: str, s: dict) -> list[str]:
     """The settings the check reads that are not of the shape it reads them in, such as a list of columns written
-    as a sentence pointing at another step's."""
+    as a sentence pointing at another step's. The one place a setting's shape is established: the rest of the check,
+    and the sizing of tables before it, read only the steps this finds nothing wrong with (`check`)."""
     out: list[str] = []
 
-    def list_of(key: str, typ: type, what: str) -> bool:
-        v = s.get(key)
+    def list_of(key: str, typ: type, what: str, of: dict = s, said=sid) -> bool:
+        v = of.get(key)
         ok = v is None or (isinstance(v, list) and all(isinstance(x, typ) for x in v))
         if not ok:
-            out.append(f"{sid}: {key} is not a list of {what}")
+            out.append(f"{said}: {key} is not a list of {what}")
         return ok and v is not None
 
+    def name(key: str, what: str, of: dict = s, said=sid) -> None:  # a setting that names one thing, where it is given
+        if of.get(key) is not None and not isinstance(of[key], str):
+            out.append(f"{said}: {key} is not {what}")
+
+    if "settings" in s:  # `normalise` puts settings of this shape on the step
+        out.append(f"{sid}: settings is not {{setting: value}}")
     list_of("inputs", str, "step ids")
     for key in MODEL_SETTINGS:  # a model is named, or left to its default; anything else would only fail at run time
         v = s.get(key)
@@ -453,6 +479,8 @@ def _shape_faults(sid, kind: str, s: dict) -> list[str]:
         out.append(f"{sid}: stratify_by is not a column name")
     if kind == "code" and list_of("columns", dict, "column definitions"):
         for c in s["columns"]:
+            if not isinstance(c.get("name"), str):
+                out.append(f"{sid}: a column's name {c.get('name')!r} is not a name")
             if c.get("values") is not None and not isinstance(c["values"], (list, str)):
                 out.append(f"{sid}: column {c.get('name')!r} has values that are neither a list nor a codebook")
         before: set[str] = set()
@@ -464,19 +492,50 @@ def _shape_faults(sid, kind: str, s: dict) -> list[str]:
             elif derived(c) and c["from"] not in before:
                 out.append(f"{sid}: column {c.get('name')!r} is filled from {c['from']!r}, which is not a column listed "
                            "before it in this step")
-            before.add(c.get("name"))
+            if isinstance(c.get("name"), str):
+                before.add(c["name"])
     if kind == "code" and s.get("links") is not None and not (
             isinstance(s["links"], dict) and all(isinstance(s["links"].get(k), str) for k in ("from", "to"))
             and isinstance(s["links"].get("sign", ""), str)):
         out.append(f"{sid}: links is not {{\"from\": column, \"to\": column}}, with \"sign\": column where links are signed")
+    if kind == "group":
+        if s.get("granularity") is not None and s["granularity"] not in GRANULARITY:
+            out.append(f"{sid}: granularity {s['granularity']!r} is not one of {', '.join(GRANULARITY)}")
+        if s.get("max_items") is not None and not (isinstance(s["max_items"], int) and not isinstance(s["max_items"], bool)
+                                                    and s["max_items"] > 0):
+            out.append(f"{sid}: max_items is not a positive whole number")
+    if kind == "profile":
+        name("key", "case, document or a column's name")
+        if list_of("columns", dict, "column definitions"):
+            for c in s["columns"]:
+                name("name", "a name", c, f"{sid}: a column")
+                for k in ("values", "distinct", "first", "last", "order"):  # each reads one column, by its name
+                    name(k, "a column's name", c, f"{sid}: column {c.get('name')!r}")
     if kind == "tabulate":
         list_of("by", str, "column names")
         list_of("through", str, "variable names")
         if list_of("filters", dict, "filters") and not all(isinstance(f.get("type"), str) for f in s["filters"]):
             out.append(f"{sid}: a filter does not say its type")
     if kind == "judge":
-        list_of("verdicts", dict, "verdicts")
-        list_of("criteria", dict, "criteria")
+        if list_of("verdicts", dict, "verdicts"):
+            for v in s["verdicts"]:
+                name("name", "a name", v, f"{sid}: a verdict")
+        if list_of("criteria", dict, "criteria"):
+            for c in s["criteria"]:
+                cid = f"{sid}.{c.get('id')}"
+                name("id", "a name", c, f"{sid}: a criterion")
+                name("table", "a step id", c, cid)
+                name("rows_from", "a step id", c, cid)
+                list_of("levels", dict, "levels", c, cid)
+                base = c.get("base")  # a rule's is {column: value}, a stated number's the number its document states
+                columns = isinstance(base, dict) and all(isinstance(k, str) for k in base)
+                number = isinstance(base, (int, float)) and not isinstance(base, bool)
+                if base is not None and not (columns if c.get("kind") == "rule" else columns or number):
+                    out.append(f"{cid}: base is not {{column: value}}" if c.get("kind") == "rule"
+                               else f"{cid}: base is neither {{column: value}} nor a number")
+    if kind == "write" and s.get("reading_tokens") is not None and not (
+            isinstance(s["reading_tokens"], (int, float)) and not isinstance(s["reading_tokens"], bool)):
+        out.append(f"{sid}: reading_tokens is not a number")
     return out
 
 
@@ -649,8 +708,7 @@ def profile_faults(sid: str, s: dict, src: dict | None, attrs) -> list[str]:
         return out + [f"{sid}: columns is not a list of {{\"name\": ..., and one of {', '.join(PROFILE_KINDS)}}}"]
     names = [c["name"] for c in cols]
     out += [f"{sid}: column {n!r} named twice" for n in sorted({n for n in names if names.count(n) > 1})]
-    out += [f"{sid}: column {n!r} has the name of the profile's key or of what a row carries" for n in names
-            if n in (key, "key", "row", "rows", "documents", "document")]
+    out += row_field_faults(sid, names, (*PROFILE_FIELDS, key))  # a profile's row carries its key's value under the key's name
     for c in cols:
         k = profile_kind(c)
         if k is None:
@@ -679,32 +737,51 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
     takes, and `n_documents` how many documents it lists. With the sizes, every table is sized before the run (by
     `table_sizes`): a write step whose tables alone could fill more than half its reading budget is a fault.
     `background` is the background documents' texts (`Corpus.background_texts`), which a judge's stated number is
-    checked against."""
+    checked against. A setting of the wrong shape is a fault like any other: the shape of every step is established
+    first (`_shape_faults`), and everything after reads only the steps of the right shape, so the check answers any
+    workflow with its faults and never fails on one."""
     from .judge import check_rubric
+    if not (isinstance(wf, dict) and isinstance(wf.get("steps", []), list)):
+        return ["the workflow is not {\"steps\": [each step], ...}"]
     wf = normalise(wf)
+    steps = wf.get("steps", [])
+    shapes = [[f"step {position + 1} is not {{\"id\", \"kind\", \"inputs\" and its settings}}"] if not isinstance(s, dict)
+              else [f"step {position + 1}: its id {s.get('id')!r} is not a name"] if s.get("id") is not None and not isinstance(s.get("id"), str)
+              else _shape_faults(s.get("id"), s.get("kind"), s) if s.get("kind") in KINDS else []
+              for position, s in enumerate(steps)]
+    sound = {**wf, "steps": [s for s, bad in zip(steps, shapes) if not bad]}  # what the sizing and the columns read
     given = {a.lower() for a in attributes}
-    added = document_attributes(wf)
+    added = document_attributes(sound)
     attrs = given | {a.lower() for a in added}
-    table_cells = table_sizes(wf, attributes, n_documents, sampled)
+    table_cells = table_sizes(sound, attributes, n_documents, sampled)
     faults: list[str] = [f"a per-document code step names a column {a!r}, which the document list already has"
                          for a in added if a.lower() in given]
-    coded = {str(c.get("name")).lower(): column_values(c) for s in wf.get("steps", []) if s.get("kind") == "code" and s.get("per_document")
+    coded = {str(c.get("name")).lower(): column_values(c) for s in sound["steps"] if s.get("kind") == "code" and s.get("per_document")
              for c in s.get("columns") or [] if isinstance(c, dict)}  # the values each coded document attribute takes
     made: dict[str, dict] = {}
     used: set[str] = set()
-    steps = wf.get("steps", [])
     for position, s in enumerate(steps):
+        if shapes[position] and not (isinstance(s, dict) and isinstance(s.get("id"), str)):
+            faults += shapes[position]  # a step no other can name
+            continue
         sid, kind, ins = s.get("id"), s.get("kind"), s.get("inputs") or []
-        before = {st.get("id"): st for st in steps[:position]}
+        before = {st.get("id"): st for st in steps[:position] if isinstance(st, dict) and isinstance(st.get("id"), str)}
         if kind not in KINDS:
             faults.append(f"{sid}: unknown kind {kind!r}")
             continue
-        bad = _shape_faults(sid, kind, s)
-        if bad:
-            # a setting of the wrong shape is a fault to report, not a reason for the check to fail
-            faults += bad
-            made[sid] = {"kind": kind, "columns": {}}
-            used.update(i for i in ins if isinstance(i, str))
+        if shapes[position]:
+            # a setting of the wrong shape is a fault to report, not a reason for the check to fail; nothing else of
+            # the step is checked, since every other rule reads its settings in the shape they are not in
+            faults += shapes[position]
+            made[sid] = {"kind": kind, "awaits": [sid]}
+            if isinstance(ins, list):
+                used.update(i for i in ins if isinstance(i, str))
+            continue
+        awaits = sorted({w for i in ins for w in made.get(i, {}).get("awaits", ())})
+        if awaits:  # nothing can be known of what a step reads from one whose settings are of the wrong shape, which
+            # is a fault already, so the step is checked once that is put right
+            made[sid] = {"kind": kind, "awaits": awaits}
+            used.update(ins)
             continue
         if sid in made:
             faults.append(f"{sid}: id used twice")
@@ -782,6 +859,7 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
                     elif any(isinstance(v, dict) and not (v.get("name") or v.get("id")) for v in c.get("values") or []):
                         faults.append(f"{sid}: column {c.get('name')!r} has a value without a name")
                 cols[c.get("name")] = t
+            faults += row_field_faults(sid, cols)
             if not cols:
                 faults.append(f"{sid}: no columns")
             links = s.get("links")
@@ -913,16 +991,19 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
                 faults.append(f"{sid}: its tables could hold up to {n:,} cells, about {n * TABLE_CELL_TOKENS:,} tokens, more than "
                               f"half the {budget:,} it reads; count by fewer columns, each table answering one comparison, or set sparse on a table whose combinations mostly cannot occur")
             made[sid] = {"kind": kind}
-    if not steps or steps[-1].get("kind") != "write":
+    if not steps or not isinstance(steps[-1], dict) or steps[-1].get("kind") != "write":
         faults.append("the workflow does not end by writing")
     for k, s in enumerate(steps):  # a per-document step is used where a later step names one of its columns
-        if s.get("kind") == "code" and s.get("per_document"):
+        if not shapes[k] and s.get("kind") == "code" and s.get("per_document"):
             names = {c.get("name", "").lower() for c in s.get("columns") or [] if isinstance(c, dict)}
-            later = json.dumps(steps[k + 1:]).lower()
+            later = json.dumps(steps[k + 1:], ensure_ascii=False).lower()  # as written, in whatever script it is written
             if any(f'"{n}"' in later for n in names if n):
                 used.add(s.get("id"))
-    for s in steps[:-1]:  # a claims step is used by the answer, which cites its claims
-        if s.get("id") not in used and s.get("kind") != "claims":
+    # A run that writes no answer holds steps for other runs to take, which nothing in it can see, so only a run that
+    # writes an answer has steps whose output is never used
+    writes = any(isinstance(s, dict) and s.get("kind") == "write" for s in steps)
+    for k, s in enumerate(steps[:-1] if writes else []):  # a claims step is used by the answer, which cites its claims
+        if not shapes[k] and s.get("id") not in used and s.get("kind") != "claims":
             faults.append(f"{s.get('id')}: its output is never used")
     return faults
 

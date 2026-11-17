@@ -47,7 +47,7 @@ compared once. The report carries one line saying what was compared, and, where 
 each table and the question or annex that holds it (`findings`). The warnings read only what each part's record already
 holds, and they are warnings: the parts are bound all the same.
 
-The combined report is titled `--title`, else from its parts' headings (`default_title`). Its two files are written beside the documents (or into `--out`), named from its title, the day and the
+The combined report is titled `--title`, else from its parts' headings (`default_title`). Its two files are written beside the documents (or into `--out`, made if it is not there), once every file is made, named from its title, the day and the
 first eight characters of its own fingerprint, the SHA-256 of its parts' fingerprints in order, so a combined report of the same
 runs always carries the same name for the day. Makes no model call. Standard library and Node only.
 """
@@ -685,10 +685,15 @@ def main(argv):
     date = opt("--date") or f"{datetime.date.today().day} {datetime.date.today():%B %Y}"
     out = Path(opt("--out")).resolve() if opt("--out") else folders[0]
     name = name_for(title, [p["R"]["fingerprint"] for p in parts])
-    (out / f"{name}.html").write_text(binder_html(parts, title, date), encoding="utf-8", newline="\n")
-    if "--word" in argv:  # a copy for Word only when asked for, under the note naming the report
-        (out / f"{name}.doc").write_text(binder_word(parts, title, date, f"{name}.html"), encoding="utf-8", newline="\n")
-    (out / f"{name}-checks.txt").write_text(checks_file(warned, looked), encoding="utf-8", newline="\n")
+    # every file is made before any is written, so one that fails leaves none of the combined report behind; the
+    # folder named with --out is made if it is not there
+    files = {f"{name}.html": binder_html(parts, title, date),
+             # a copy for Word only when asked for, under the note naming the report
+             **({f"{name}.doc": binder_word(parts, title, date, f"{name}.html")} if "--word" in argv else {}),
+             f"{name}-checks.txt": checks_file(warned, looked)}
+    out.mkdir(parents=True, exist_ok=True)
+    for n, text in files.items():
+        (out / n).write_text(text, encoding="utf-8", newline="\n")
     print(checks_file(warned, looked).split("\n")[0])
     for warning in warned:
         print(f"Warning: {warning}")

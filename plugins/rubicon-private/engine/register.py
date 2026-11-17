@@ -96,6 +96,28 @@ def remember(data, *documents):
     return new
 
 
+def handed_over(run_folder, name, fingerprint):
+    """Each report `rubicon-runs.md` beside the documents lists as handed over under `name` (the question, the day and
+    any revision that a report's file name opens with) whose fingerprint is not `fingerprint`, as (its file name, the
+    engine its zip records, or None where its zip is not there to say). A report written under a name already handed over
+    with another fingerprint is a second, different report under it: `render_report` refuses one this engine would make
+    from a run that has changed since, and says when another version of Rubicon made the one listed."""
+    documents = Path(run_folder).resolve().parent
+    runs = documents / RUNS
+    out = {}
+    for rel in REPORT.findall(runs.read_text(encoding="utf-8")) if runs.is_file() else []:
+        report = documents / urllib.parse.unquote(rel)
+        m = re.fullmatch(rf"{re.escape(name)}-([0-9a-f]{{8}})", report.stem)
+        if not m or m.group(1) == fingerprint[:8]:
+            continue
+        try:
+            with zipfile.ZipFile(report.with_suffix(".zip")) as z:
+                out[report.name] = json.loads(z.read("render.json").decode("utf-8")).get("engine")
+        except (OSError, KeyError, ValueError, zipfile.BadZipFile):
+            out[report.name] = None
+    return sorted(out.items())
+
+
 def add(report, data):
     report = report.resolve()
     run = run_of(report)

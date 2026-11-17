@@ -535,6 +535,7 @@
     if (b.classList.contains('copy-table')) return copyTable(b);
     if (b.classList.contains('choices')) return showChoices(b);
     if (b.dataset.xlsxStep || b.dataset.xlsxCells) return downloadXlsx(b);
+    if (b.dataset.codebook) return downloadCodebook(b);
     if (b.dataset.cell) return showCell(b.dataset.cell, b.dataset.within);
     if (b.dataset.claim) return showClaim(b.dataset.claim);
     if (b.dataset.case) return showCase(b.dataset.case);
@@ -577,13 +578,30 @@
     const texts = {};
     for (const d of new Set(rows.map(r => r.document))) texts[d] = await textOf(d);
     const bytes = CausalMapXlsx.causalMapWorkbook({ rows, ends: RUN.ends, docs: RUN.docs, texts }, CausalMapXlsx.linksOfRows);
+    saveFile(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      `${b.dataset.xlsxName || step || 'links'}-for-causal-map.xlsx`);
+  }
+
+  // A file made in this browser, saved under the report's name and `ending`
+  function saveFile(blob, ending) {
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-    a.download = `${(RUN.zip || 'rubicon').replace(/\.zip$/, '')}-${b.dataset.xlsxName || step || 'links'}-for-causal-map.xlsx`;
+    a.href = URL.createObjectURL(blob);
+    a.download = `${(RUN.zip || 'rubicon').replace(/\.zip$/, '')}-${ending}`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  // The run's codebook for other software, as the report carries it beside the button (render_report.codebook_buttons):
+  // a REFI-QDA codebook or a table. A spreadsheet reads a CSV as UTF-8 only where it opens with a byte order mark
+  function downloadCodebook(b) {
+    const row = b.closest('.codebook-files');
+    const held = row && row.querySelector(`template[data-ext="${b.dataset.codebook}"]`);
+    if (!held) return;
+    const csv = b.dataset.codebook === 'csv';
+    saveFile(new Blob([(csv ? '﻿' : '') + held.content.textContent], { type: csv ? 'text/csv;charset=utf-8' : 'application/xml' }),
+      `${row.dataset.name}.${b.dataset.codebook}`);
   }
 
   // Every table in the page carries a "Copy table" button under it, which puts the table on the clipboard as

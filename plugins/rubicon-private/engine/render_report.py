@@ -14,7 +14,11 @@ never saves. It holds the documents, because the page needs them to show each qu
 `answer.md`, `counts.json` and `report.json`, so that given the zip in place of a folder this draws the report again
 from the zip alone, under the name and date it was first drawn with: the run is laid out again in a folder named after the zip (`unpack`), and the
 report is written beside the zip. Where the zip's own report is already beside it, nothing is
-overwritten: the report is written into that folder instead, and the output says so.
+overwritten: the report is written into that folder instead, and the output says so. A file under a report's name is
+never replaced by different bytes. Where `rubicon-runs.md` lists a report as handed over under the same name with
+another fingerprint, a report this engine made from the run as it then stood means the run has changed since, which is a
+revision, so none is created; one made by another version of Rubicon is left as it is, and the report is created
+beside it and the output says so (`register.handed_over`).
 
 The report is drawn from the zip and from nothing else: given a folder, this makes the zip first, then reads only the
 zip (`load`), so a report cannot say anything its zip does not hold. The zip is sealed: `SHA256SUMS` lists the SHA-256
@@ -22,7 +26,8 @@ of every other file in it, and the SHA-256 of that list is the run's fingerprint
 in the zip gives the name and date the report is drawn under and the engine that drew it, and its files carry a
 fixed date, so the same run always makes the same zip and the same zip the same report, byte for byte. Nothing is drawn
 from a zip whose seal is broken, whose recount a fresh recount of its own coded rows and answer would change, or whose
-answer cites a row the recount does not hold (`problems`). `verify.py` says whether a given report was drawn from a given zip.
+answer, as that fresh recount checks it, cites a row the recount does not hold or quotes words no document holds
+(`problems`). `verify.py` says whether a given report was drawn from a given zip.
 
 Reads only what the run already holds (answer.md with its cell ids, recount/steps/*.json, recount/report.json,
 corpus/index.csv and the corpus text for context around each quotation). Makes no model call, so it costs nothing
@@ -50,16 +55,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
 from rubicon_open import console  # noqa: E402
-from rubicon_open import assets, footprint, legacy_weak, locator, node, plan, procedure
+from rubicon_open import assets, codebook_file, footprint, legacy_weak, locator, node, plan, procedure
+from rubicon_open.codebook_file import near_misses
 from rubicon_open import text as T
 from rubicon_open.corpus import INDEX_FIELDS, Corpus, as_read
-from rubicon_open.names import in_words, label, made_of, specs_of, step_name, step_said
+from rubicon_open.names import in_words, label, lowered, made_of, specs_of, step_name, step_said
 from rubicon_open.legacy_weak import CHAIN_EXPLICIT
 from rubicon_open.run_id import clean as run_id_of
 from rubicon_open.seal import engine_fingerprint, engine_version, seal_broken
-from rubicon_open.steps import LIMITS, ROW_ID, base_of, cited_as, group_ids, said_with_unit, sentences_placed, step_of, unit_of_table
+from rubicon_open.steps import LIMITS, ROW_ID, base_of, bases_overlap_said, cited_as, group_ids, said_with_unit, sentences_placed, step_of, unit_of_table
 from rubicon_open.units import base_said, count_said
 from rubicon_open.workflow import arrow_parts, codebook_of, column_values, derived, links_ending, loop_markers, normalise, order_of, sign_of, value_key
+from register import RUNS, handed_over
 
 ENGINE = Path(__file__).resolve().parent
 DRAW_MAP = ENGINE / "rubicon_open" / "draw_map.mjs"
@@ -111,6 +118,12 @@ def recount_differs(run):
     """The files of the run's recount that a fresh recount from its coded rows and its answer would not write as they
     stand. Empty means every number, check and table the report draws follows from the coded passages and the answer
     as they are now."""
+    return recounted_afresh(run)[0]
+
+
+def recounted_afresh(run):
+    """`recount_differs`, and the fresh recount's own `report.json`, whose checks on the answer were made now by this
+    engine whatever the run's stored recount recorded (None where the recount failed)."""
     with tempfile.TemporaryDirectory() as t:
         fresh = Path(t)
         for name in ("workflow.json", "answer.md"):
@@ -126,9 +139,10 @@ def recount_differs(run):
         done = subprocess.run([sys.executable, "-I", "-S", str(ENGINE / "recount.py"), str(fresh), "--answer",
                                str(fresh / "answer.md")], capture_output=True, text=True, encoding="utf-8")
         if done.returncode:
-            return ["the recount itself, which failed: " + done.stderr.strip()[-400:]]
+            return ["the recount itself, which failed: " + done.stderr.strip()[-400:]], None
         old, new = recorded(run / "recount"), recorded(fresh / "recount")
-        return sorted(n for n in old.keys() | new.keys() if n not in old or n not in new or not same(n, old[n], new[n]))
+        return (sorted(n for n in old.keys() | new.keys() if n not in old or n not in new or not same(n, old[n], new[n])),
+                json.loads((fresh / "recount" / "report.json").read_text(encoding="utf-8")))
 
 
 #: What a recount writes in the engine's own voice rather than from the coded rows and the answer, which a later engine
@@ -271,22 +285,30 @@ def named(v, col=""):
 
 
 def codes_of(col, R):
-    """A coded column's codes, each {"name", "means", "counts", "does_not_count"}: its own list, or where its values are
-    `codebook:<group step id>`, that group step's items; none for a column without a list."""
-    g = codebook_of(col)
-    if g:
-        return [{"name": it.get("id"), "means": it.get("means", ""), "counts": it.get("counts", ""),
-                 "does_not_count": it.get("does_not_count", "")}
-                for it in (R["steps"].get(g, {}).get("codebook") or {}).get("items", [])]
-    return [v if isinstance(v, dict) else {"name": str(v)} for v in col.get("values") or [] if isinstance(col.get("values"), list)]
+    """A coded column's codes (`codebook_file.codes_of`), from the report's records."""
+    return codebook_file.codes_of(col, R["steps"])
 
 
-def near_misses(v):
-    """What an item does not count, as written: a sentence, or the grouper's near misses, each with where it goes."""
-    if isinstance(v, list):
-        return "; ".join(str(n.get("text", "")) + (f" (goes to {n['goes_to']})" if n.get("goes_to") else "") if isinstance(n, dict)
-                         else str(n) for n in v)
-    return str(v or "")
+#: What the codebook's files hold, said on the buttons that make them
+CODEBOOK_SAID = ("Every column this run coded, with its codes and what each means, counts and does not count. "
+                 "Made in this browser from what the report holds; nothing is sent anywhere.")
+
+
+def codebook_buttons(R, D, number=None):
+    """Two buttons that save the run's codebook for other software (`rubicon_open/codebook_file.py`): a REFI-QDA
+    codebook, the exchange file qualitative analysis software imports, and the same as a table. The files ride in the
+    report beside the buttons, so report.js only saves them; nothing where the run coded no column."""
+    cols = codebook_file.columns(R["workflow"]["steps"], R["steps"], lambda sid: step_title(D, sid))
+    if not cols:
+        return ""
+    held = "".join(f'<template data-ext="{ext}">{esc(text)}</template>' for ext, text in (
+        ("qdc", codebook_file.qdc(cols, "Rubicon by Causal Map")), ("csv", codebook_file.csv_text(cols))))
+    n = sum(len(c["codes"]) for c in cols)
+    return (f'<p class="xlsx-row codebook-files" data-name="codebook{f"-annex-{number}" if number else ""}">'
+            f'The codebook, for other software: '
+            f'<button class="save-file" type="button" data-codebook="qdc" title="{esc(CODEBOOK_SAID)}">Download as REFI-QDA (.qdc)</button> '
+            f'<button class="save-file" type="button" data-codebook="csv" title="{esc(CODEBOOK_SAID)}">Download as a table (.csv)</button> '
+            f'<span class="small">{len(cols)} column{"" if len(cols) == 1 else "s"}, {n} code{"" if n == 1 else "s"}</span>{held}</p>')
 
 
 def code_step(R, sid):
@@ -357,16 +379,18 @@ def problems(zipped):
     """Why no report may be drawn from this zip: its seal is broken, its recount is not what a fresh recount of its
     own coded rows and answer gives, its answer cites a row the recount does not hold, or its answer quotes words no
     document holds, or states a number beside a count that differs from it. Empty means the zip is as it was made, every
-    number in it follows from its coded passages, every citation opens one and every quotation is found in a document."""
+    number in it follows from its coded passages, every citation opens one and every quotation is found in a document.
+    The checks on the answer are those the fresh recount makes, never those the zip's own recount recorded, so a zip
+    recounted before a check existed (the answer's quotations, before 14 October 2026) is not passed by a check nobody
+    made."""
     with zipfile.ZipFile(zipped) as z:
         broken = seal_broken(z)
-        report = json.loads(z.read("report.json").decode("utf-8")) if "report.json" in z.namelist() and not broken else {}
     if broken:
         return [f"{zipped.name} is not as it was made: " + "; ".join(broken)]
     with tempfile.TemporaryDirectory() as t:
         run = Path(t) / "run"
         unpack(zipped, run)
-        differs = recount_differs(run)
+        differs, report = recounted_afresh(run)
     if differs:
         return [f"its recount does not follow from its coded rows and its answer: {', '.join(differs)} would change. "
                 "Recount with recount.py <folder> --answer answer.md, then create it again"]
@@ -493,10 +517,11 @@ def build_data(R):
             # a combined table's rows are its inputs' own, drawn once there under the step they were coded in
             for r in [] if s.get("combines") else s.get("rows", []):
                 t = R["texts"].get(r["document"], "")
-                a, b = r.get("start"), r.get("end")
+                a, b = r.get("start"), r.get("end")  # UTF-16 units, as the locator places a passage
                 if a is not None and t:
-                    lo, hi = max(0, a - CONTEXT), min(len(t), b + CONTEXT)
-                    ctx = [("…" if lo else "") + t[lo:a], t[a:b], t[b:hi] + ("…" if hi < len(t) else "")]
+                    cut, units = locator._utf16_slice, len(t.encode("utf-16-le")) // 2
+                    lo, hi = max(0, a - CONTEXT), min(units, b + CONTEXT)
+                    ctx = [("…" if lo else "") + cut(t, lo, a), cut(t, a, b), cut(t, b, hi) + ("…" if hi < units else "")]
                 else:
                     ctx = ["", r["quote"], ""]
                 codes = {c["name"]: r.get(c["name"]) for c in s.get("columns", [])}
@@ -1223,7 +1248,13 @@ def caption(s):
     what = f"{unit[:1].upper() + unit[1:]} in each group" if s.get("count", "documents") != "rows" else "Coded passages in each group"
     out = f"{what}. {note}" if note else f"{what}."
     out = f"{s['description'].rstrip()} {out}" if s.get("description") else out
+    out += f" {overlap}" if (overlap := overlap_said(s)) else ""
     return out + (" " + IMPLICIT_KEY if any(implicit_of(c) for c in s["cells"]) else "")
+
+
+def overlap_said(s):
+    """`bases_overlap_said` with each column named as the report names it."""
+    return bases_overlap_said(s, lambda c: lowered(label(c)))
 
 
 def link_ends(s, R):
@@ -1431,6 +1462,11 @@ def unchecked(R):
     return text
 
 
+#: A heading below the answer's sections (`### ` to `###### `), which the report shows at its own depth; a finding's
+#: section, with its anchor and its Evidence, is its `## ` heading alone
+SUBHEADING = re.compile(r"(#{3,6}) (.*)")
+
+
 def answer_html(R, D, static=False):
     lines = unchecked(R).splitlines()
     heads = [ln[3:].strip() for ln in lines if ln.startswith("## ")]
@@ -1479,6 +1515,10 @@ def answer_html(R, D, static=False):
             parts.append(f'<h2 id="{key}">{shown}'
                          + ("" if static else f'<button class="based" data-based="{key}">Evidence</button>') + "</h2>")
             continue
+        deeper = SUBHEADING.match(s)
+        if deeper:  # a heading inside a section: a heading of its depth, with no anchor or Evidence of its own
+            flush(); n = len(deeper.group(1))
+            parts.append(f"<h{n}>{inline(deeper.group(2), R, D, cite_no, static)}</h{n}>"); continue
         m = FIG.match(s.strip())
         if m:
             flush(); parts.append(figure(m.group(1), R, D, static)); continue
@@ -2031,6 +2071,8 @@ def annex(R, D, static=False, earlier=None, number=None):
     said = again(hashed("read", [d["id"] for d in R["index"]], *(["cited"] if cited(R) else [])), f"The same {n} documents, {given}, as in")
     out.append("<h4>What was read</h4>" + (said or f"<p>All {n} documents, {given}: "
                + ", ".join(f"{v} {esc(label(k).lower())}" for k, v in gcounts.items()) + ".</p>"))
+    if not static:
+        out.append(codebook_buttons(R, D, number))
     # One block per step and one fold per step's result, each carrying the node the margin map names (report-map.js)
     said_chain = False
     for st in wf["steps"]:
@@ -2089,6 +2131,8 @@ def annex(R, D, static=False, earlier=None, number=None):
                         f'{esc(" and ".join(label(b).lower() for b in st.get("by", [])))}</p>')
             if s.get("description") or st.get("description"):
                 body.append(f'<p class="table-said">{esc(s.get("description") or st.get("description"))}</p>')
+            if overlap_said(s):  # where its bases add up to more than the units read, beside the bases it states
+                body.append(f'<p class="small">{esc(overlap_said(s))}</p>')
             if (s.get("paths") or s.get("sequences") or s.get("loops")) and any("weak" in c for c in s.get("cells", [])) and not said_chain:
                 said_chain = True  # legacy_weak: said once, where the first chain table counts implicit passages apart
                 body.append(f'<p class="small chain-said">{CHAIN_EXPLICIT}</p>')
@@ -2144,7 +2188,10 @@ def annex(R, D, static=False, earlier=None, number=None):
                + (f"; {notfound} found nowhere and left out of every count" if notfound else "") + ".</li>"
                + (f"<li>{said_found - said_rough} of {said} quotations in the answer found word for word in the documents"
                   + (f", {said_rough} more only approximately" if said_rough else "")
-                  + " (a quotation of under twelve characters, such as one word, is not checked).</li>" if said is not None else "") +
+                  + " (a quotation of under twelve characters, such as one word, is not checked).</li>" if said is not None else
+                  # the stored recount never counted them; `problems` checked them afresh before this report was created
+                  "<li>This run's own recount was made before the quotations in an answer were counted, so it holds no count "
+                  "of them; each was checked again when this report was created, and found in the documents.</li>") +
                f"<li>{a.get('counts_written_by_id',0)} numbers in the answer, "
                + (counted_said(R, "each written by the AI beside the count the fixed rules made from {}, and equal to it", D)
                   if cited(R) else "every one " + procedure.computed_said(counts_from_facts(R, D)))
@@ -2575,10 +2622,6 @@ if __name__ == "__main__":
         revisions = (folder / "revisions.md").read_text(encoding="utf-8") if (folder / "revisions.md").is_file() else ""
         date = sys.argv[sys.argv.index("--date") + 1] if "--date" in sys.argv else ""
         name = name_of(workflow, revisions, date, titled_as(folder, workflow))
-        runs = folder.resolve().parent / "rubicon-runs.md"
-        if not frag and runs.is_file() and re.search(rf"{re.escape(name)}-[0-9a-f]{{8}}\.html", runs.read_text(encoding="utf-8")):
-            sys.exit(f"{name}-….html is already listed in {runs.name} as handed over, so it is not overwritten. A revision "
-                     "adds its line to revisions.md first, and the report is then written under a new -revision- name.")
         render = {"name": name, "date": date,
                   "engine": engine_fingerprint(ENGINE), "version": engine_version(ENGINE)}
         zipped = folder / f"{name}.zip.part"  # named once its fingerprint is known
@@ -2607,16 +2650,36 @@ if __name__ == "__main__":
         elif held:
             out_dir = folder.resolve()
             print(f"{' and '.join(held)} already beside {run.name}, so left as they are; the report is written into {out_dir} instead.")
-        if not (out_dir / R["zip"]).exists():  # the zip it was drawn from stays where it is; a copy goes only where the report's name finds none
-            shutil.copy2(zipped, out_dir / R["zip"])
-    else:
-        zipped = zipped.replace(out_dir / R["zip"])
     out = out_dir / page_name
+    # every text is made, and every check made, before anything goes under the report's name, so a report refused
+    # leaves no sealed zip or file of its own behind
     drawn, doc = page(R, frag), word(R) if wanted_word else None
     if R["unfilled"]:
+        zipped.unlink()
         sys.exit("No report is created: the answer writes " + ", ".join("{" + u + "}" for u in R["unfilled"])
                  + ", which no count in the run is called, so a reader would see the braces. Write a count's id as the "
                  "answer's tables give it, or the number in words.")
+    # a file under a report's name is that report: the same zip creates it byte for byte, so it is never replaced by another
+    changed = [p.name for p, text in ((out, drawn if write_page else None), (out_dir / doc_name, doc))
+               if text is not None and p.is_file() and p.read_bytes() != text.encode("utf-8")]
+    if changed:
+        zipped.unlink()
+        sys.exit(f"No report is created: {' and '.join(changed)} {'is' if len(changed) == 1 else 'are'} already in {out_dir} "
+                 "and differ from what this zip creates, so they are left as they are. Check them against their zip with verify.py.")
+    # a report handed over under this name with another fingerprint, by this engine (or with no zip left to say which):
+    # what the run holds has changed since, which is a revision, never a second report under the same name
+    earlier = [] if frag or run.suffix.lower() == ".zip" else handed_over(folder, render["name"], R["fingerprint"])
+    changed = [f for f, engine in earlier if engine in (None, R["engine"])]
+    if changed:
+        zipped.unlink()
+        sys.exit(f"No report is created: {', '.join(changed)} {'is' if len(changed) == 1 else 'are'} listed in {RUNS} as "
+                 "handed over under this name, made by this engine from what the run held then (or with no zip left to say "
+                 "otherwise), so what the run holds has changed since. A revision adds its line to revisions.md first, and "
+                 "the report is then written under a new -revision- name.")
+    if run.suffix.lower() != ".zip":
+        zipped = zipped.replace(out_dir / R["zip"])
+    elif not (out_dir / R["zip"]).exists():  # the zip it was drawn from stays where it is; a copy goes only where the report's name finds none
+        shutil.copy2(zipped, out_dir / R["zip"])
     written = []
     if write_page:
         out.write_text(drawn, encoding="utf-8", newline="\n")
@@ -2626,6 +2689,12 @@ if __name__ == "__main__":
         written.insert(1 if write_page else 0, doc_name)
     print(f"wrote {', '.join(written[:-1]) + ' and ' if len(written) > 1 else ''}{written[-1]} in {out_dir}"
           + ("" if write_page else f", beside {page_name}"))
+    if earlier:
+        listed = ", ".join(f for f, _ in earlier)
+        print(f"{listed}, listed in {RUNS} as handed over under this name, {'is' if len(earlier) == 1 else 'are'} left as "
+              f"{'it is' if len(earlier) == 1 else 'they are'}: its zip was made by another version of Rubicon, so this report, "
+              "created again by this one, has a fingerprint of its own. List it with register.py once it is handed over. A "
+              "change to what the run holds since then is a revision, which adds its line to revisions.md first.")
     if R.get("missing_sections"):
         print("[§ ] references naming no section of the answer: " + ", ".join(sorted(set(R["missing_sections"]))))
     if R.get("missing_figures"):

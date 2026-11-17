@@ -365,7 +365,8 @@ def _rule(run, c: dict) -> dict:
     of_row = {r["row"]: (_unit_of_row(run, count, r) if by_cases else r["document"]) for r in rows_of}
     base_docs = _base(run, c.get("base"))
     src = run.out.get(tab.get("input"), {})
-    held = units(run, count, base_docs, run.table(tab["input"]) if by_cases and src.get("kind") in ("code", "group", "profile") else [])[0]         if by_cases else {d: {d} for d in base_docs}
+    held = units(run, count, base_docs, run.table(tab["input"]) if by_cases and src.get("kind") in ("code", "group", "profile") else [],
+                 src.get("kind") == "profile")[0] if by_cases else {d: {d} for d in base_docs}
     base = set(held)
     noun = unit_of_table(tab) if by_cases else "documents"
     if c.get("base_where") is not None:
@@ -426,8 +427,11 @@ def _stated(run, c: dict) -> dict:
 
 
 def _reading(run, s: dict, c: dict) -> dict:
-    where = {k: (set(map(str, v)) if isinstance(v, list) else {str(v)}) for k, v in (c.get("where") or {}).items()}
-    rows = [r for r in run.table(c["rows_from"]) if all(str(r.get(k)) in vs for k, vs in where.items())]
+    from .steps import rows_where, values_allowed
+    rows = run.table(c["rows_from"])
+    if c.get("where"):  # matched as every where is, by `value_key`, a column of the document list by each row's document
+        rows = rows_where(run, rows, c["where"], f"{s['id']}.{c['id']}",
+                          values_allowed(run, run.out.get(c["rows_from"], {}).get("columns") or []))
     recorded = (getattr(run, "readings", None) or {}).get(s["id"], {}).get(c["id"])
     if isinstance(recorded, dict):
         got, by = recorded, "recorded"

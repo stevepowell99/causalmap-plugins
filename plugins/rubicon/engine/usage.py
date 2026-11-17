@@ -47,6 +47,7 @@ from rubicon_open import console, plan  # noqa: E402
 from rubicon_open.corpus import find_documents, load_corpus  # noqa: E402
 from rubicon_open.outline import CAP, EVENTS, FAMILY, KINDS, OUTLINE, UNKNOWN, band, check  # noqa: E402
 from rubicon_open.text import words_in  # noqa: E402
+from rubicon_open.workflow import combining, normalise  # noqa: E402
 
 
 def _json(path: Path):
@@ -101,11 +102,12 @@ def passages(run: Path, wf: dict) -> int | None:
     """The rows of the code steps that code documents, as the recount read them; None where it has not run."""
     if not (run / "recount" / "steps").is_dir():
         return None
-    n = 0
-    for s in wf.get("steps") or []:
-        if s.get("kind") == "code" and not s.get("combining") and not (s.get("settings") or {}).get("combining"):
+    n, before = 0, {}
+    for s in normalise(wf).get("steps") or []:
+        if s.get("kind") == "code" and not combining(s, before):
             rec = _json(run / "recount" / "steps" / f"{s.get('id')}.json") or {}
             n += len(rec.get("rows") or [])
+        before[s.get("id")] = s
     return n
 
 
