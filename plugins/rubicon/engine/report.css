@@ -1,7 +1,7 @@
 /* Layout: one reading column; a side panel opens beside it on wide screens and as a sheet from the foot on phones. */
 :root {
   --ink: #17130f; --paper: #f7f4ee; --panel: #fdfbf6; --wash: #f2ece2; --line: #e4dcd0;
-  --annex: #ece5d9; --quiet: #7d7166; --red: #8c1912; --red-wash: #f3e3de; --bar-no: #d9cfc2; --mark: #f7ed73; --mark-ink: #17130f;
+  --annex: #ece5d9; --quiet: #6f655b; --red: #8c1912; --red-wash: #f3e3de; --bar-no: #d9cfc2; --mark: #f7ed73; --mark-ink: #17130f;
   --opp: #c4524c; /* an opposite pole's ~: the red of the opposites scale (link-display-transforms.js), 3:1 or more on either theme */
   --serif: "Newsreader", Georgia, "Times New Roman", serif;
   --sans: "Libre Franklin", system-ui, -apple-system, "Segoe UI", sans-serif;

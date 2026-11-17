@@ -2489,7 +2489,11 @@ def facts(R, D):
     nrows = nrows_of(R)
     groups = {d.get(D["group"], "") for d in R["index"]}
     run = f" · Run {esc(R['run_id'])}" if R.get("run_id") else ""
-    return (f'<p class="meta">{len(R["index"])} interviews in {len(groups)} groups · {nrows} passages coded · '
+    said = lambda k, one, many: f"{k} {one if k == 1 else many}"
+    # documents that all share one value of the group column, or have none, are not "in 1 groups"
+    grouped = f" in {len(groups)} groups" if len(groups) > 1 else ""
+    return (f'<p class="meta">{said(len(R["index"]), "interview", "interviews")}{grouped} · '
+            f'{said(nrows, "passage", "passages")} coded · '
             f'{esc(R.get("date", ""))}{run}</p>\n  '
             f'<ul class="checks">{summary(R, R["report"].get("answer", {}), nrows, D)}</ul>')
 
