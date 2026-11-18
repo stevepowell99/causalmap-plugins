@@ -63,7 +63,7 @@ from rubicon_open.names import in_words, label, lowered, made_of, specs_of, step
 from rubicon_open.legacy_weak import CHAIN_EXPLICIT
 from rubicon_open.run_id import clean as run_id_of
 from rubicon_open.seal import engine_fingerprint, engine_version, seal_broken
-from rubicon_open.steps import LIMITS, ROW_ID, base_of, bases_overlap_said, cited_as, group_ids, said_with_unit, sentences_placed, step_of, unit_of_table
+from rubicon_open.steps import LIMITS, ROW_ID, base_of, bases_overlap_said, cited_as, count_ids, group_ids, with_parts, worked_out, said_with_unit, sentences_placed, step_of, unit_of_table
 from rubicon_open.units import base_said, count_said
 from rubicon_open.workflow import arrow_parts, codebook_of, column_values, derived, links_ending, loop_markers, normalise, order_of, sign_of, value_key
 from register import RUNS, handed_over
@@ -587,7 +587,10 @@ def build_data(R):
                                   "said": f'{s.get("of")} {unit_of_table(s)} read', "within": {},
                                   "docs": sorted(read), "rows": [], "step": sid}
             if s.get("count") == "cases" and not s.get("cases_are_documents"):
-                cells[f"{sid}.of"]["cases"] = sorted(corpus.cases_held([d for d in read if d in corpus.documents], src.get("rows", [])))
+                held = [d for d in read if d in corpus.documents]
+                # a profile's units are its own keys, each with documents among those read, as `steps.units` takes them
+                cells[f"{sid}.of"]["cases"] = (sorted(str(r["key"]) for r in src.get("rows", []) if not r["documents"] or set(r["documents"]) & set(held))
+                                               if src.get("kind") == "profile" else sorted(corpus.cases_held(held, src.get("rows", []))))
         elif s.get("kind") == "judge":
             # a rule's count opens the passages it was counted from, as a table's cell does, with the rule's question
             for c in s.get("criteria") or []:
@@ -633,14 +636,18 @@ def build_data(R):
 #: else is left as written
 CITE = re.compile(r"\[([^\[\]]+)\]")
 #: {<id>}: any count the engine made (steps.counts_of is the one list of them); one it did not make is left as written,
-#: and a report still holding one is not drawn
-CELL = re.compile(r"\{([a-z]\w*(?:(?:\.\w+)+|\[[^\[\]{}\n]*\](?:\.\w+)*))\}")
+#: and a report still holding one is not drawn. A number worked out from counts is written the same way, from one or two
+#: ids (`steps.WORKED`), and opens each count it was worked out from
+_ID = r"[a-z]\w*(?:(?:\.\w+)+|\[[^\[\]{}\n]*\](?:\.\w+)*)"
+CELL = re.compile(r"\{(" + _ID + r"(?:\s*%)?(?:\s+[-/]\s+" + _ID + r"(?:\s*%)?)?)\}")
 
 
 def cell_of(cid):
     """The table cell a count is read from, for the page to open its passages: none for a judge's count, whose rule
     `build_data` gives a cell of its own where it was counted from passages."""
-    base = re.sub(r"\.(?:within\.[\w]+|weak)$", "", cid)
+    base = re.sub(r"\.(?:within\.[\w]+|weak|sum|mean|median|min|max)$", "", cid)
+    if re.fullmatch(r"[a-z]\w*", base) and base != cid:  # a table's own measure opens the units it read, as {<id>.of} does
+        base += ".of"
     return base if re.fullmatch(r"[a-z]\w*(?:\.(?:c\d+|of)|\[[^\[\]{}\n]*\])", base) else None
 FIG = re.compile(r"^\{\{figure\s+([\w]+)\}\}$")
 #: [§ A heading]: a claim that builds on a finding stated in that section of the answer, which is how a revision follows
@@ -697,11 +704,16 @@ def inline(text, R, D, cite_no, static, plain=False):
     out = re.sub(r"`([^`]+)`", r"<code>\1</code>", out)
 
     def cell(m):
-        cid = m.group(1)
-        if cid not in R["counts"]:
+        w = worked_out(m.group(1), R["counts"])
+        if w is None:
             return m.group(0)
-        txt = R["counts"][cid]
-        if plain:
+        if len(w["ids"]) == 1 and not w["shares"][0]:
+            return count(w["ids"][0])
+        return esc(w["said"]) if plain else with_parts({**w, "said": esc(w["said"])}, [count(i) for i in w["ids"]])
+
+    def count(cid):
+        txt = str(R["counts"][cid])
+        if plain and SAID.fullmatch(txt):
             txt = SAID.fullmatch(txt).group(1)
         # a table's cell, or a judgement's rule counted from passages (build_data), opens them
         base = cell_of(cid) or (cid if cid in D.get("cells", {}) else None)
@@ -1323,7 +1335,7 @@ def loop_diagrams(tid, s, R):
     for c in s["cells"]:
         loops.setdefault(c["values"]["loop"], []).append(c)
     markers = loop_markers(s["cells"])
-    cited = {cell_of(m) for m in CELL.findall(R.get("answer", ""))}
+    cited = {cell_of(i) for m in CELL.findall(R.get("answer", "")) for i in count_ids(m)}
     chosen = [lp for lp, cs in loops.items() if any(c["id"] in cited for c in cs)] or list(loops)
     out = []
     for lp in chosen[:MOST_LOOPS]:

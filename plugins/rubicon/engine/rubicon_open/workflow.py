@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import datetime
 import json
+import math
 import re
+import statistics
 
 KINDS = ("sample", "code", "group", "profile", "tabulate", "judge", "claims", "write")
 TYPES = ("free_text", "binary", "nominal", "ordinal", "numeric")
@@ -170,6 +172,60 @@ ISO_DATE = re.compile(r"\d{4}(-\d{2}(-\d{2})?)?")
 LEADING_NUMBER = re.compile(r"\s*(-?\d+(?:\.\d+)?)")
 
 
+#: What fixed rules work out from the numbers a numeric column holds: of a unit's rows in a profile, of a cell's units
+#: and of all the units counted in a tabulation.
+MEASURES = ("sum", "mean", "median", "min", "max")
+#: How a unit's last value of an ordered column compares with its first (a profile's `change`).
+CHANGES = ("rose", "fell", "same")
+#: A profile's columns worked out from two of its own numeric columns, the first against the second, and what
+#: `compare` says of them.
+PAIRS = ("difference", "ratio", "compare")
+COMPARED = ("above", "below", "same")
+
+
+def number_of(v) -> float | None:
+    """The number a value states, or None where it states none: digits with an optional sign and decimal point, as a
+    numeric column's values are written. The one place this is decided, so nothing is added that was not a number."""
+    if v is None or isinstance(v, bool):
+        return None
+    try:
+        n = float(str(v).strip())
+    except ValueError:
+        return None
+    return n if math.isfinite(n) else None
+
+
+def number_said(n: float) -> str:
+    """A worked-out number as it is written: whole where it is whole, else to two decimal places."""
+    return str(int(n)) if float(n).is_integer() else f"{n:.2f}".rstrip("0").rstrip(".")
+
+
+def measured(values) -> dict | None:
+    """Each of `MEASURES` over the numbers among `values`, written out, with how many of them stated a number (`of`);
+    None where none did, so a measure of nothing is never a zero."""
+    ns = [n for v in values if (n := number_of(v)) is not None]
+    if not ns:
+        return None
+    got = {"sum": sum(ns), "mean": sum(ns) / len(ns), "median": statistics.median(ns), "min": min(ns), "max": max(ns)}
+    return {"of": len(ns), **{k: number_said(got[k]) for k in MEASURES}}
+
+
+def place_of(v, column: dict | None = None) -> float | None:
+    """Where one value stands along its column's order, so two values can be compared: its place in a coded ordinal
+    column's own list, else the number it states, else the day of an ISO date; None where it has no place."""
+    if v in (None, "", "(blank)"):
+        return None
+    listed = column_values(column) if column and column.get("type") == "ordinal" else None
+    if listed:
+        keys = [value_key(x) for x in listed]
+        return float(keys.index(value_key(v))) if value_key(v) in keys else None
+    if (n := number_of(v)) is not None:
+        return n
+    if ISO_DATE.fullmatch(str(v).strip()):
+        return float(datetime.date(*map(int, (str(v).strip() + "-01-01")[:10].split("-"))).toordinal())
+    return None
+
+
 def order_of(values, column: dict | None = None) -> tuple[str, list[tuple[str, float]]] | None:
     """The order a column's values stand in and where each sits along an axis, as (kind, [(value, position)]), or None
     where they have no order: "ordinal" for a coded ordinal column's own list or for bands that all open with a number
@@ -316,7 +372,7 @@ def resolve_step(s: dict, kind: str | None = None) -> dict:
         # document list whose values are its cases; unit: the plural name a reader is given for it; description: one
         # sentence its author writes saying what it counts and out of what, shown with the table
         return fill({"by": [], "count": "cases", "unit": None, "description": None, "sparse": False, "paths": False,
-                     "filters": [], "loops": False, "loop_links": 4, "through": [], "sequences": False}, s)
+                     "filters": [], "loops": False, "loop_links": 4, "through": [], "sequences": False, "measure": None}, s)
     if k == "profile":
         # key: what a row of the profile is, "case" (`Corpus.case_of`), "document", a column of the document list or a
         # column the input coded; columns: each {"name", and one of "holds": {column: value or list}, "values": column,
@@ -584,9 +640,15 @@ def drawn(wf: dict, corpus) -> dict[str, list[str]]:
     from .steps import draw
     coded = {a.lower() for a in document_attributes(wf)}  # unknown before the run, so not filtered on: an upper bound
     out: dict[str, list[str]] = {}
-    for s in normalise(wf).get("steps", []):
+    steps = {s.get("id"): s for s in normalise(wf).get("steps", [])}
+    for s in steps.values():
         if s.get("kind") == "sample":
             src = (s.get("inputs") or ["documents"])[0]
+            if steps.get(src, {}).get("kind") == "profile":  # its units are unknown before the run: every document it rests on
+                s, seen = {**s, "where": None}, set()
+                while src != "documents" and src not in out and src in steps and src not in seen:
+                    seen.add(src)
+                    src = (steps[src].get("inputs") or ["documents"])[0]
             if isinstance(s.get("where"), dict):
                 s = {**s, "where": {k: v for k, v in s["where"].items() if k.lower() not in coded} or None}
             try:
@@ -678,6 +740,18 @@ def where_faults(sid: str, where, known) -> list[str]:
     return [f"{sid}: where names {c!r}, which its input does not have" for c in where if not known(c)]
 
 
+def measure_faults(sid: str, s: dict, numeric) -> list[str]:
+    """What is wrong with a table's `measure`: anything but one column that holds numbers (`numeric` says whether a
+    name does), or a table whose cells are paths, loops, told chains or filtered links, which hold no one number a unit."""
+    m = s.get("measure")
+    if m is None:
+        return []
+    if not isinstance(m, str):
+        return [f"{sid}: measure is not the name of one numeric column"]
+    out = [] if numeric(m) else [f"{sid}: measures {m!r}, which is not a numeric column of its input or of the document list"]
+    return out + [f"{sid}: measures a column, so it does not {k}" for k in ("paths", "loops", "sequences", "filters") if s.get(k)]
+
+
 def count_faults(sid: str, s: dict, attrs) -> list[str]:
     """What is wrong with what a tabulation counts: a count that is none of cases, documents, rows or a column of the
     document list, or a count by such a column that does not name its unit for a reader."""
@@ -709,18 +783,31 @@ def profile_faults(sid: str, s: dict, src: dict | None, attrs) -> list[str]:
     names = [c["name"] for c in cols]
     out += [f"{sid}: column {n!r} named twice" for n in sorted({n for n in names if names.count(n) > 1})]
     out += row_field_faults(sid, names, (*PROFILE_FIELDS, key))  # a profile's row carries its key's value under the key's name
+    numbers = set()  # the columns defined so far that hold a number, which a difference, ratio or compare may read
     for c in cols:
         k = profile_kind(c)
         if k is None:
             out.append(f"{sid}: column {c['name']!r} is not exactly one of {', '.join(PROFILE_KINDS)}")
         elif k == "holds":
             out += where_faults(f"{sid}: column {c['name']!r}", c["holds"], has)
+        elif k in PAIRS:
+            if not (isinstance(c[k], list) and len(c[k]) == 2 and all(isinstance(n, str) and n in numbers for n in c[k])):
+                out.append(f"{sid}: column {c['name']!r} takes the {k} of {c[k]!r}, which is not two numeric columns this profile defines above it")
+        elif not isinstance(c[k], str):
+            out.append(f"{sid}: column {c['name']!r} reads {c[k]!r}, which is not a column's name")
+            continue
         elif not has(c[k]):
             out.append(f"{sid}: column {c['name']!r} reads {c[k]!r}, which its input does not have")
-        if c.get("order") is not None and (k not in ("first", "last") or not has(c["order"])):
-            out.append(f"{sid}: column {c['name']!r} orders by {c['order']!r}, which only first or last does, by a column its input has")
+        if k in MEASURES and src["columns"].get(c[k], "numeric") != "numeric":
+            out.append(f"{sid}: column {c['name']!r} takes the {k} of {c[k]!r}, which is not a numeric column")
+        if k == "change" and src["columns"].get(c[k], "ordinal") not in ("ordinal", "numeric"):
+            out.append(f"{sid}: column {c['name']!r} reads the change in {c[k]!r}, which is neither an ordinal nor a numeric column")
+        if c.get("order") is not None and (k not in ("first", "last", "change") or not has(c["order"])):
+            out.append(f"{sid}: column {c['name']!r} orders by {c['order']!r}, which only first, last or change does, by a column its input has")
         out += [f"{sid}: column {c['name']!r} has {x!r}, which a profile's column does not read"
                 for x in c if x not in ("name", "order", *PROFILE_KINDS)]
+        if k in ("distinct", "difference", "ratio", *MEASURES) or (k in ("first", "last") and src["columns"].get(c[k]) == "numeric"):
+            numbers.add(c["name"])
     return out
 
 
@@ -806,8 +893,12 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
                 faults += [f"{sid}: practice names {x!r}, which is neither a practice note nor a method page"
                            for x in p if known is not None and x not in known]
         if kind == "sample":
-            if ins != ["documents"] and not (len(ins) == 1 and made.get(ins[0], {}).get("kind") == "sample"):
-                faults.append(f"{sid}: a sample draws from the documents or from one earlier sample")
+            # from a profile, a sample takes the documents of the units its `where` keeps, by the profile's own columns
+            of_profile = src[0] if len(ins) == 1 and len(src) == 1 and src[0].get("kind") == "profile" else None
+            if ins != ["documents"] and not (len(ins) == 1 and made.get(ins[0], {}).get("kind") in ("sample", "profile")):
+                faults.append(f"{sid}: a sample draws from the documents, from one earlier sample or from one profile")
+            if of_profile and (s.get("documents") is not None or not s.get("where")):
+                faults.append(f"{sid}: a sample from a profile says which of its units it takes (where), by the profile's columns")
             if s.get("documents") is not None:
                 if not (isinstance(s["documents"], list) and s["documents"] and all(isinstance(d, str) for d in s["documents"])):
                     faults.append(f"{sid}: documents is not a list of document ids")
@@ -822,6 +913,9 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
                 if not (isinstance(w, dict) and w and all(isinstance(v, (str, int, float)) or (isinstance(v, list) and v)
                                                             for v in w.values())):
                     faults.append(f"{sid}: where is not {{column: value or list of values}}")
+                elif of_profile:
+                    faults += [f"{sid}: where names {k!r}, which its profile does not have" for k in w if k not in of_profile["columns"]]
+                    faults += value_faults(f"{sid}: where names", w, of_profile["values"])
                 else:
                     faults += [f"{sid}: where names {k!r}, which the document list does not have"
                                for k in w if k.lower() not in attrs]
@@ -893,17 +987,21 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
             faults += profile_faults(sid, s, src[0] if len(src) == 1 else None, attrs)
             cols = [c for c in s.get("columns") or [] if isinstance(c, dict)]
             own = src[0].get("values", {}) if len(src) == 1 and src[0] else {}
+            coded = (src[0].get("columns") or {}) if len(src) == 1 and src[0] else {}
             made[sid] = {"kind": kind, "key": s.get("key", "case"),
-                         "columns": {**{c.get("name"): ("binary" if "holds" in c else "numeric" if "distinct" in c else "nominal") for c in cols},
+                         "columns": {**{c.get("name"): ("binary" if "holds" in c else "numeric" if any(m in c for m in ("distinct", "difference", "ratio", *MEASURES))
+                                                         or any(isinstance(c.get(k), str) and coded.get(c[k]) == "numeric" for k in ("first", "last"))
+                                                         else "nominal") for c in cols},
                                      s.get("key", "case"): "nominal"},
-                         "values": {str(c.get("name")).lower(): (list(BINARY) if "holds" in c else
-                                                                 own.get(str(next((c[k] for k in ("values", "first", "last") if k in c), "")).lower()))
+                         "values": {str(c.get("name")).lower(): (list(BINARY) if "holds" in c else list(CHANGES) if "change" in c else list(COMPARED) if "compare" in c else
+                                                                 own.get(str(next((c[k] for k in ("values", "first", "last") if isinstance(c.get(k), str)), "")).lower()))
                                     for c in cols}}
         elif kind == "tabulate" and len(src) == 1 and src[0]["kind"] == "profile":
             for c in s.get("by") or []:
                 if not (c in src[0]["columns"] or c.lower() in attrs):
                     faults.append(f"{sid}: counts by {c!r}, which its profile does not have")
             faults += where_faults(sid, s.get("where"), lambda c: c in src[0]["columns"] or c.lower() in attrs)
+            faults += measure_faults(sid, s, lambda c: src[0]["columns"].get(c) == "numeric" or c.lower() in attrs)
             if s.get("count", "cases") != "cases":
                 faults.append(f"{sid}: counts a profile, whose rows are its units, so its count is cases")
             if src[0]["key"] not in ("case", "document") and not s.get("unit"):
@@ -917,6 +1015,7 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
                 if c.lower() not in attrs and c != "document":
                     faults.append(f"{sid}: counts the documents by {c!r}, which the document list does not have")
             faults += where_faults(sid, s.get("where"), lambda c: c.lower() in attrs or c == "document")
+            faults += measure_faults(sid, s, lambda c: c.lower() in attrs)
             faults += count_faults(sid, s, attrs)
             made[sid] = {"kind": kind, "by": s.get("by") or [], "cells": table_cells.get(sid),
                          "values": {str(c).lower(): coded.get(str(c).lower()) for c in s.get("by") or []}}
@@ -931,6 +1030,7 @@ def check(wf: dict, attributes, n_documents: int | None = None, standard_text: s
                         faults.append(f"{sid}: counts by {c!r}, which its input does not have")
                 faults += where_faults(sid, s.get("where"), lambda c: (c in src[0]["columns"] or c in src[0].get("item_columns", ())
                                                                        or c.lower() in attrs or c == "document"))
+                faults += measure_faults(sid, s, lambda c: src[0]["columns"].get(c) == "numeric" or c.lower() in attrs)
             faults += count_faults(sid, s, attrs)
             if s.get("paths"):
                 by = s.get("by") or []

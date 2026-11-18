@@ -22,7 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from rubicon_open import console  # noqa: E402
-from rubicon_open.steps import COUNT_ID, citation_ids
+from rubicon_open.steps import REFERENCE, citation_ids, count_ids
 
 
 def counts(folder: Path) -> dict:
@@ -133,7 +133,7 @@ def stale(old: Path, new: Path, answer: str) -> tuple[dict[str, str], list[tuple
     sections = {sec for sec, _ in paras if sec} | {ln[3:].strip() for ln in answer.splitlines() if ln.startswith("## ")}
     why: dict[int, list[str]] = {}
     for n, (_, p) in enumerate(paras):
-        ids = set(re.findall(r"\{(" + COUNT_ID + r")\}", p)) | {c for c in citation_ids(p) if not c.startswith("§")}
+        ids = {i for ref in re.findall(r"\{(" + REFERENCE + r")\}", p) for i in count_ids(ref)} | {c for c in citation_ids(p) if not c.startswith("§")}
         if hit := sorted(i for i in ids if i in moving):
             why[n] = hit
     refs = {n: {r.strip() for r in re.findall(r"\[§\s*([^\]]+)\]", p)} for n, (_, p) in enumerate(paras)}

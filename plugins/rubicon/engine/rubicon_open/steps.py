@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import itertools
 import json
+import math
 import random
 import re
 from collections import defaultdict
@@ -23,7 +24,7 @@ from . import text as T
 from .corpus import Corpus
 from .judge import level_counts
 from .units import COUNTS, count_said, unit_noun
-from .workflow import CODING, LOOP_COLUMNS, order_of, SEQUENCE_COLUMNS, arrow, canonical, codebook_of, column_values, combining, derived, item_columns, key_columns, links_ending, loop_markers, resolve_step, sign_of, value_key
+from .workflow import CHANGES, CODING, LOOP_COLUMNS, COMPARED, MEASURES, PAIRS, measured, number_of, number_said, order_of, place_of, SEQUENCE_COLUMNS, arrow, canonical, codebook_of, column_values, combining, derived, item_columns, key_columns, links_ending, loop_markers, resolve_step, sign_of, value_key
 
 
 #: How a tabulation names its cells. By coordinates, the id is the step's and the values of its `by` columns in square
@@ -40,6 +41,67 @@ _PLAIN = re.compile(r"[\w \-~;()/+#→–]")
 #: a positional `t.c3`) or a cell's coordinates with the suffix `.within.<column>` (or, in a run made before 15 October
 #: 2026, `.weak`: `legacy_weak`) that follows either form
 COUNT_ID = r"[\w-]+(?:\.[\w.-]+|\[[^\[\]{}\n]*\](?:\.[\w.-]+)?)"
+#: What an answer writes between braces: a count's id, or a number worked out from counts by fixed rules. An id with
+#: ` %` after it is the count's share of what it is out of, and two ids, or two shares, with ` - ` or ` / ` between
+#: them, a space either side, are their difference or ratio: `{t[a] %}`, `{t[a] - t[b]}`, `{t.sum / t[a]}`,
+#: `{t[a] % - t[b] %}`. `WORKED` reads the parts of one; `REFERENCE` finds one in an answer.
+WORKED = rf"({COUNT_ID})(\s*%)?(?:\s+([-/])\s+({COUNT_ID})(\s*%)?)?"
+REFERENCE = rf"{COUNT_ID}(?:\s*%)?(?:\s+[-/]\s+{COUNT_ID}(?:\s*%)?)?"
+
+
+def count_ids(reference: str) -> list[str]:
+    """The ids of the counts one reference (`WORKED`) names: one, or the two a worked-out number is made from."""
+    m = re.fullmatch(WORKED, reference.strip())
+    return [i for i in (m.group(1), m.group(4)) if i] if m else []
+
+
+def worked_out(reference: str, counts: dict) -> dict | None:
+    """What one reference in an answer says, from the counts fixed rules made: `said`, the count or the number worked
+    out; `ids` and `counts`, the counts it is made from as they read; `op`, the sign between two, None for one; and
+    `shares`, each count's share as a whole percentage where the reference asks for it. None where it names a count
+    nobody made or asks for what cannot be worked out: a share of a count that is out of nothing, a share with a
+    number, a division by nothing. A count reads as its number, whatever it is out of; a difference between two
+    shares is in percentage points, between the whole percentages the reader is shown."""
+    m = re.fullmatch(WORKED, reference.strip())
+    if not m:
+        return None
+    a, a_share, op, b, b_share = m.groups()
+    ids = [i for i in (a, b) if i]
+    if any(i not in counts for i in ids) or (op and bool(a_share) != bool(b_share)):
+        return None
+    if not (a_share or op):
+        return {"said": str(counts[a]), "ids": ids, "counts": [str(counts[a])], "op": None, "shares": [None]}
+
+    def number(i):
+        got = re.fullmatch(r"(\d+)(?: of \d+| passages?)?", str(counts[i]).strip())
+        return float(got.group(1)) if got else number_of(counts[i])
+
+    def share(i):
+        got = re.fullmatch(r"(\d+) of (\d+)", str(counts[i]).strip())
+        return 100 * int(got.group(1)) / int(got.group(2)) if got and int(got.group(2)) else None
+
+    exact = [(share if a_share else number)(i) for i in ids]
+    if any(x is None for x in exact):
+        return None
+    whole = [math.floor(x + 0.5) for x in exact]
+    if not op:
+        said = f"{whole[0]}%"
+    elif op == "-":
+        said = number_said(whole[0] - whole[1] if a_share else exact[0] - exact[1])
+    elif not exact[1]:
+        return None
+    else:
+        said = number_said(exact[0] / exact[1])
+    return {"said": said, "ids": ids, "counts": [str(counts[i]) for i in ids], "op": op,
+            "shares": [f"{w}%" if a_share else None for w in whole]}
+
+
+def with_parts(w: dict, shown: list[str] | None = None) -> str:
+    """A worked-out number (`worked_out`) as a reader is given it: the number, then in brackets the counts it was
+    worked out from, each as it reads (or as `shown` gives it, such as a button that opens its passages) and with its
+    share where two shares are compared, so that nobody is given a number without what made it."""
+    parts = [s + (f", {p}" if p and w["op"] else "") for s, p in zip(shown or w["counts"], w["shares"])]
+    return f"{w['said']} ({(' − ' if w['op'] == '-' else ' / ').join(parts)})"
 
 
 def _coordinate(value) -> str:
@@ -171,6 +233,14 @@ def draw(corpus: Corpus, s: dict, pool: list[str] | None = None) -> dict:
 
 def sample(run: Run, s: dict) -> dict:
     src = s["inputs"][0]
+    if src != "documents" and run.out[src].get("kind") == "profile":
+        # the documents of the profile's units that `where` keeps, by the profile's own columns
+        wanted = {k: {value_key(x) for x in (v if isinstance(v, list) else [v])} for k, v in (s.get("where") or {}).items()}
+        kept = [r for r in run.out[src]["rows"] if all(value_key(r.get(k)) in vs for k, vs in wanted.items())]
+        if not kept:  # as for the document list: a filter that keeps nothing is a fault in the workflow
+            raise ValueError(f"{s.get('id', 'sample')}: no unit of {src} has {s.get('where')}")
+        return {**draw(run.corpus, {**s, "where": None}, sorted({d for r in kept for d in r["documents"]})),
+                "where": s["where"], "units": sorted(str(r["key"]) for r in kept)}
     return draw(run.corpus, s, None if src == "documents" else run.out[src]["documents"])
 
 
@@ -649,7 +719,26 @@ def tabulate(run: Run, s: dict) -> dict:
         hit = [flips.get((x, *k), {}) for x in v["rows"]]
         return {"flipped": {"cause": sum(bool(f.get("flipped_cause")) for f in hit),
                             "effect": sum(bool(f.get("flipped_effect")) for f in hit)}} if flips else {}
-    out = [{"values": dict(zip(by, k)), "n": len(firm(v)), "base": base(k), "within": within(k),
+    # a measure: what fixed rules work out from the numbers a numeric column holds, over a cell's units and over all
+    # the units counted, each unit giving one number; a unit stating none is left out and `of` says how many stated one
+    by_id = {r["row"]: r for r in rows}
+
+    def measure_of(ids):
+        if not s.get("measure"):
+            return {}
+        said: dict = {}
+        for x in ids:
+            for v in value_of(run, by_id[x], s["measure"]) if x in by_id else ():
+                if (n := number_of(v)) is not None:
+                    said.setdefault(x if count == "rows" else unit_of.get(x), set()).add(n)
+        said.pop(None, None)
+        several = sorted(str(u) for u, ns in said.items() if len(ns) > 1)
+        if several:  # which of a unit's numbers is meant is the workflow's to say, in a profile, never the engine's to guess
+            raise ValueError(f"{s.get('id', 'tabulate')}: {', '.join(several[:5])} state{'s' if len(several) == 1 else ''} more than one "
+                             f"{s['measure']} in one count; a profile step says which is meant (its sum, mean, first or last)")
+        got = measured([n for ns in said.values() for n in ns])
+        return {"measure": got} if got else {}
+    out = [{"values": dict(zip(by, k)), "n": len(firm(v)), "base": base(k), "within": within(k), **measure_of(v["rows"]),
             **({"weak": len(of_rows(v["rows"])) - len(firm(v))} if weak else {}),
             **flipped(k, v), "documents": sorted(v["documents"]),
             **({"firm_rows": v["firm"]} if "firm" in v else {}),
@@ -676,10 +765,11 @@ def tabulate(run: Run, s: dict) -> dict:
             "sparse": sparse, "paths": s["paths"],
             **({"loops": True} if s["loops"] else {}), **({"sequences": True} if s.get("sequences") else {}),
             **({"filters": filters, "filtered": filtered} if filtered else {}), **({"where": s["where"]} if s.get("where") else {}),
+            **({"measures": s["measure"], **measure_of([r["row"] for r in rows])} if s.get("measure") else {}),
             "cells": out}
 
 
-PROFILE_KINDS = ("holds", "values", "distinct", "first", "last")
+PROFILE_KINDS = ("holds", "values", "distinct", "first", "last", "change", *MEASURES, *PAIRS)
 
 
 def profile_kind(column: dict) -> str | None:
@@ -697,8 +787,13 @@ def profile_columns(run: Run, src: str, s: dict, read) -> list[dict]:
         k = profile_kind(c)
         if k == "holds":
             out.append({"name": c["name"], "type": "binary"})
-        elif k == "distinct":
+        elif k in ("distinct", "difference", "ratio") or k in MEASURES or (
+                k in ("first", "last") and (_column(run, src, c[k]) or {}).get("type") == "numeric"):
             out.append({"name": c["name"], "type": "numeric"})
+        elif k == "change":
+            out.append({"name": c["name"], "type": "nominal", "values": list(CHANGES)})
+        elif k == "compare":
+            out.append({"name": c["name"], "type": "nominal", "values": list(COMPARED)})
         else:
             dom = _domain(run, src, c[k], read, True)
             out.append({"name": c["name"], "type": "nominal" if dom else "free_text", **({"values": dom} if dom else {})})
@@ -759,6 +854,20 @@ def profile(run: Run, s: dict) -> dict:
     def in_text(r):
         return (r["document"], r.get("start") or 0)
 
+    def ends(rs, c):
+        """The unit's first and last row, by the column `order` names, else by where the rows stand in the text."""
+        if c.get("order"):
+            orders = [v for r in rs for v in value_of(run, r, c["order"])]
+            ranks = order_of(orders, _column(run, src, c["order"]))
+            # rows that all carry one value of the order column stand level, so their place in the text decides
+            level = {str(v) for v in orders if v not in (None, "", "(blank)")}
+            at = dict(ranks[1]) if ranks else {v: 0.0 for v in level} if len(level) == 1 else {}
+            placed = [r for r in rs if str(value_of(run, r, c["order"])[0]) in at]
+            placed.sort(key=lambda r: (at[str(value_of(run, r, c["order"])[0])], in_text(r)))
+        else:
+            placed = sorted(rs, key=in_text)
+        return (placed[0], placed[-1]) if placed else (None, None)
+
     def described(u, rs):
         out = {}
         for c in cols:
@@ -769,16 +878,32 @@ def profile(run: Run, s: dict) -> dict:
                 out[c["name"]] = sorted({str(v) for r in rs for v in value_of(run, r, c["values"]) if v not in (None, "")})
             elif k == "distinct":
                 out[c["name"]] = str(len({value_key(v) for r in rs for v in value_of(run, r, c["distinct"]) if v not in (None, "")}))
-            else:
-                placed = rs
-                if c.get("order"):
-                    ranks = order_of([v for r in rs for v in value_of(run, r, c["order"])], _column(run, src, c["order"]))
-                    at = dict(ranks[1]) if ranks else {}
-                    placed = [r for r in rs if str(value_of(run, r, c["order"])[0]) in at]
-                    placed.sort(key=lambda r: (at[str(value_of(run, r, c["order"])[0])], in_text(r)))
+            elif k in MEASURES:  # of the numbers the unit's rows state; none stated is a blank, never a zero
+                got = measured([v for r in rs for v in value_of(run, r, c[k])])
+                out[c["name"]] = got[k] if got else None
+            elif k in PAIRS:
+                # two numbers this profile has already worked out for the unit; one of them blank, or a ratio to
+                # nothing, is a blank
+                a, b = (number_of(out.get(n)) for n in c[k])
+                if a is None or b is None or (k == "ratio" and not b):
+                    out[c["name"]] = None
+                elif k == "compare":
+                    out[c["name"]] = COMPARED[0] if a > b else COMPARED[1] if a < b else COMPARED[2]
                 else:
-                    placed = sorted(rs, key=in_text)
-                pick = placed[0] if k == "first" and placed else placed[-1] if placed else None
+                    out[c["name"]] = number_said(a - b if k == "difference" else a / b)
+            elif k == "change":
+                # the unit's last value of an ordered column against its first, among the rows that hold one; a unit
+                # with one such row shows no change to compare, which is a blank and never "same"
+                column = _column(run, src, c[k])
+                first, last = ends([r for r in rs if place_of(value_of(run, r, c[k])[0], column) is not None], c)
+                if first is None or first is last:
+                    out[c["name"]] = None
+                else:
+                    a, b = (place_of(value_of(run, r, c[k])[0], column) for r in (first, last))
+                    out[c["name"]] = CHANGES[0] if b > a else CHANGES[1] if b < a else CHANGES[2]
+            else:
+                first, last = ends(rs, c)
+                pick = first if k == "first" else last
                 v = None if pick is None else value_of(run, pick, c[k])[0]
                 out[c["name"]] = None if v in (None, "") else str(v)
         return out
@@ -1086,7 +1211,21 @@ def _markdown(tab: dict, sid: str) -> str:
             + "---|" * (len(tab["by"]) + (2 if by_document else 3)))
     return head + "\n" + "\n".join(f"| {{{c['id']}}} | " + " | ".join(c["values"].values()) + f" | \"{stated(tab, c)}\""
                                    + (f", and {{{c['id']}.weak}} more only implicitly, \"{c['weak']}\"" if c.get("weak") else "") + " |"
-                                   + ("" if by_document else f" {', '.join(c.get('cases', c['documents']))} |") for c in tab["cells"])
+                                   + ("" if by_document else f" {', '.join(c.get('cases', c['documents']))} |") for c in tab["cells"]) + _measure_said(tab, sid)
+
+
+def _measure_said(tab: dict, sid: str) -> str:
+    """What a table's measure worked out, for whoever writes the answer: the id to write for each number, over all the
+    units counted and in each cell whose units state one, with how many of them did."""
+    if not tab.get("measures"):
+        return ""
+    unit = unit_of_table(tab)
+    def line(i, m):
+        return f"- {{{i}.sum}} and likewise .mean, .median, .min, .max: " + ", ".join(f"{k} {m[k]}" for k in MEASURES) + f", from the {m['of']} {unit} stating a number"
+    out = ["", "", f"Numbers worked out from {tab['measures']}, as coded, one number for each of the {unit}; say what the number is of and its unit in the sentence:"]
+    out += [line(sid, tab["measure"])] if tab.get("measure") else [f"- none of the {unit} states a number"]
+    out += [line(c["id"], c["measure"]) for c in tab["cells"] if c.get("measure")]
+    return "\n".join(out)
 
 
 def _within_said(tab: dict) -> str:
@@ -1207,6 +1346,8 @@ def counts_of(run: Run, inputs: list[str]) -> dict[str, int | str]:
             out.update({f"{c['id']}.weak": str(c["weak"]) for c in rec["cells"] if "id" in c and "weak" in c})  # legacy_weak
             out.update({f"{c['id']}.within.{col}": f"{c['n']} of {b}" for c in rec["cells"] if "id" in c
                         for col, b in (c.get("within") or {}).items()})
+            out.update({f"{c['id']}.{m}": c["measure"][m] for c in rec["cells"] if "id" in c and c.get("measure") for m in MEASURES})
+            out.update({f"{i}.{m}": rec["measure"][m] for m in MEASURES if rec.get("measure")})
         elif rec.get("kind") == "judge":
             for c in rec.get("criteria") or []:
                 # a stated number is a count only where its quotation was found in its document
@@ -1277,12 +1418,13 @@ def put_counts(answer: str, counts: dict[str, int | str], names=(), source: str 
     used, unknown = [], []
 
     def one(m):
-        used.append(m.group(1))
-        if m.group(1) in counts:
-            return str(counts[m.group(1)])
-        unknown.append(m.group(1))
-        return f"[no such count: {m.group(1)}]"
-    text = re.sub(r"\{(" + COUNT_ID + r")\}", one, answer)
+        used.extend(count_ids(m.group(1)))
+        w = worked_out(m.group(1), counts)
+        if w is None:
+            unknown.append(m.group(1))
+            return f"[no such count: {m.group(1)}]"
+        return w["said"] if len(w["ids"]) == 1 and not w["shares"][0] else with_parts(w)
+    text = re.sub(r"\{(" + REFERENCE + r")\}", one, answer)
     return text, used, unknown, [answer[a:b] for a, b in numbers_written_bare(answer, names, source)]
 
 
@@ -1396,7 +1538,7 @@ def group_ids(group: str) -> list[str]:
 def citation_ids(text: str) -> list[str]:
     """Every id cited in square brackets, a group's ids separated by commas or semicolons; a cell's coordinates, which
     are square-bracketed too, belong to the count they name and are not read as citations."""
-    text = re.sub(r"\{" + COUNT_ID + r"\}", " ", text)
+    text = re.sub(r"\{" + REFERENCE + r"\}", " ", text)
     return [c for g in re.findall(r"\[([^\]]+)\]", text) for c in group_ids(g)]
 
 

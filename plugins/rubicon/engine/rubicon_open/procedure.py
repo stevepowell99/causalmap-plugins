@@ -235,7 +235,9 @@ def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
     for i, s in enumerate(samples):
         drawn = records.get(s["id"], {}).get("documents")
         where = s.get("where") or {}
-        kept = (" among those with " + _listed([f"{_by(k, set())} {_listed([str(x) for x in (v if isinstance(v, list) else [v])])}"
+        # from a profile, the columns are those of its summing-up of each unit, and every document of a unit kept is read
+        of_units = records.get(s["id"], {}).get("units") is not None
+        kept = ((" as every document of those whose summing-up has " if of_units else " among those with ") + _listed([f"{_by(k, set())} {_listed([str(x) for x in (v if isinstance(v, list) else [v])])}"
                                                for k, v in where.items()])) if where else ""
         how = "chosen by name" if s.get("documents") else "drawn at random" if s.get("n") else "chosen"
         spread = f", spread across {_by(s['stratify_by'], set())}" if s.get("stratify_by") else ""

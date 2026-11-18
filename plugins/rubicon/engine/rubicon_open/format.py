@@ -24,7 +24,7 @@ from .run_id import ID as RUN_ID
 from .steps import CELL_IDS
 
 #: The version of the format this engine reads and writes, which is the newest published one.
-VERSION = "0.4"
+VERSION = "0.5"
 #: Where the published versions are served, each under its own number.
 BASE = "https://app.causalmap.app/rubicon/spec"
 
@@ -173,6 +173,8 @@ SETTINGS = {
         "where": (WHERE, "{column: value or list of values}: only the rows holding those values are counted, in a coded "
                          "column or a column of the document list, and every count stays out of all the cases read. A "
                          "value the column neither lists nor holds stops the run rather than reading as none."),
+        "measure": (STR, "A numeric column: each cell, and the table, also carries the sum, mean, median, min and "
+                         "max of the numbers its units state, one number a unit, with how many stated one."),
         "sparse": (BOOL, "True to list only the combinations that occur, as an edge list, rather than every "
                          "combination with its zeros."),
         "paths": (BOOL, "True where the first two `by` columns are a link's two ends: a cell is a pair where the second "
@@ -253,7 +255,7 @@ VALUE = {
     "counts": (STR, "What counts as it."),
     "does_not_count": (STR, "What does not count as it, and where such a passage goes instead."),
 }
-#: A profile step's column, with one of `holds`, `values`, `distinct`, `first` and `last`.
+#: A profile step's column, with one of `steps.PROFILE_KINDS`.
 PROFILE_COLUMN = {
     "name": (STR, "The column's name."),
     "holds": (WHERE, "{column: value or list}: yes where any of the unit's rows has those values, no otherwise."),
@@ -261,7 +263,18 @@ PROFILE_COLUMN = {
     "distinct": (STR, "A column, coded or of the document list: how many different values the unit's rows carry."),
     "first": (STR, "A column: its value in the unit's first row."),
     "last": (STR, "A column: its value in the unit's last row."),
-    "order": (STR, "For `first` and `last`, the column the rows are ordered by; left out, where they stand in the text."),
+    "change": (STR, "An ordinal or numeric column: `rose`, `fell` or `same` as the unit's last value stands above, "
+                    "below or level with its first; blank for a unit with one value."),
+    "sum": (STR, "A numeric column: the sum of the numbers the unit's rows state."),
+    "mean": (STR, "A numeric column: their mean."),
+    "median": (STR, "A numeric column: their median."),
+    "min": (STR, "A numeric column: the lowest of them."),
+    "max": (STR, "A numeric column: the highest of them."),
+    "difference": (STRS, "Two numeric columns this profile defines above this one: the first less the second, for each unit; "
+                         "blank where either is."),
+    "ratio": (STRS, "Two such columns: the first divided by the second; blank where either is, or the second is nothing."),
+    "compare": (STRS, "Two such columns: `above`, `below` or `same` as the first stands to the second; blank where either is."),
+    "order": (STR, "For `first`, `last` and `change`, the column the rows are ordered by; left out, where they stand in the text."),
 }
 LINKS = {
     "from": (STR, "The column holding a link's cause."),
@@ -608,7 +621,7 @@ In a causal map a factor's opposite pole is the factor's label with a leading `~
 
 ### Profile columns
 
-A profile step's `columns` are each an object with `name` and one of `holds`, `values`, `distinct`, `first` and `last`:
+A profile step's `columns` are each an object with `name` and one of `holds`, `values`, `distinct`, `first`, `last`, `change`, `sum`, `mean`, `median`, `min` and `max`:
 
 {_keys(PROFILE_COLUMN)}
 
@@ -655,6 +668,7 @@ A run made before cells were named by coordinates has `positional` ids, by place
 `answer.md` is markdown. Its first `# ` heading is the report's title, and in it:
 
 - `{{<cell id>}}` stands for a count, which the recount writes in with what it is out of, such as "8 of 12", so that every number in the answer is a count; a numeral written bare is listed, and one stated beside a count that differs from it stops the report.
+- A number worked out from counts is written between braces too, and the recount works it out: `{{<id> %}}` is a count's share of what it is out of, as a whole percentage; `{{<id> - <id>}}` and `{{<id> / <id>}}` are the difference and the ratio of two counts, or of two numbers a table's measure gives, each count read as its number; `{{<id> % - <id> %}}` is the difference between two shares in percentage points, and `{{<id> % / <id> %}}` their ratio. A space stands either side of the sign. The recount writes the result with the counts it was worked out from in brackets after it, such as "43% (3 of 7)" or "1 (4 of 7 − 3 of 6)", and a reference to a count nobody made, a share of a count that is out of nothing, or a division by nothing stops the report.
 - `[<row id>]` cites a passage, and `[<claims step id>.<claim id>]` a key claim; a citation that does not name a row stops the report.
 - A quotation in double quotation marks is found word for word in a document, each part either side of an ellipsis; one no document holds stops the report.
 - `{{{{figure <tabulate step id>}}}}`, alone on a line, shows that table as a chart.
