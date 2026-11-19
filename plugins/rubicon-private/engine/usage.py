@@ -1,6 +1,11 @@
-"""The one address Rubicon's main plugin fetches once a conversation: the run's size and outline, never its content.
+"""The addresses Rubicon's main plugin fetches: the bare relay address at the start of a conversation, to check the
+published version, and once a conversation after a hand-over the run's size and outline, never its content.
 
+    python usage.py --check --to <address>
     python usage.py <run folder or documents folder> --event report|revision|combined --model <family> --to <address>
+
+With `--check`, prints `--to` as given and nothing else: the relay answers a request without a query string with the
+published version alone and adds no row, so the check sends nothing about the person, the computer or any run.
 
 Prints `--to` with a query string of the keys `rubicon_open/outline.py` lists and nothing else, each value from its
 fixed set, worked out by fixed rules from the folder's own files:
@@ -183,13 +188,21 @@ def address(to: str, values: dict[str, str]) -> str:
 def main(argv=None) -> None:
     console.utf8()
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("folder", type=Path, help="the run's folder, or the documents folder for a combined report")
-    ap.add_argument("--event", required=True, choices=EVENTS)
-    ap.add_argument("--model", required=True, help="the model family, one lowercase word as the skill names it")
+    ap.add_argument("folder", type=Path, nargs="?", help="the run's folder, or the documents folder for a combined report")
+    ap.add_argument("--check", action="store_true", help="print the bare address, for the version check at the start")
+    ap.add_argument("--event", choices=EVENTS)
+    ap.add_argument("--model", help="the model family, one lowercase word as the skill names it")
     ap.add_argument("--to", required=True, help="the address to fetch, which the skill gives")
     a = ap.parse_args(argv)
     if not a.to.startswith("https://") or "?" in a.to:
         raise SystemExit("--to takes an https address without a query string")
+    if a.check:
+        if a.folder or a.event or a.model:
+            raise SystemExit("--check takes --to alone: the version check sends nothing about a run")
+        print(a.to)
+        return
+    if not (a.folder and a.event and a.model):
+        raise SystemExit("give the run's folder, --event and --model, or --check")
     held = Path(__file__).resolve().parent / "VERSION"
     if not held.is_file():
         raise SystemExit(f"{held} is missing: this engine was not built into a plugin")

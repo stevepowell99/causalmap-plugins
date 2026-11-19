@@ -1936,6 +1936,7 @@ def annex_keys(R):
     keys[hashed("read", [d["id"] for d in R["index"]], *(["cited"] if cited(R) else []))] = None
     keys[hashed("method", *(["cited"] if cited(R) else []))] = None
     keys[hashed("record")] = None
+    keys[hashed("caveats")] = None
     return keys
 
 
@@ -2243,6 +2244,7 @@ def annex(R, D, static=False, earlier=None, number=None):
                    + f"This report was created directly from the run's zip, {esc(R['zip'])}"
                    + (f", with Rubicon {esc(R['version'])}" if R.get("version") else "") + ". The zip's fingerprint is "
                    f'<code class="fingerprint">{R["fingerprint"]}</code>.' + ("</p>" + checked if checked else f" {record_check(counts_from_facts(R, D))}</p>"))
+    out.append("<h3>Caveats</h3>" + (again(hashed("caveats"), "The caveats are the same as in") or caveats()))
     revised = [l.strip()[2:] for l in R.get("revisions", "").splitlines() if l.strip().startswith("- ")]
     if revised:
         out.append(f'<h3 id="{procedure.anchor("revisions")}">Revisions</h3><p>'
@@ -2257,6 +2259,22 @@ SITE = "rubicon.causalmap.app"
 UPDATES = "buttondown.com/causal-map"
 #: Where a reader writes for help with Rubicon or to ask about it
 HELP = "hello@causalmap.app"
+#: The Rubicon site's Caveats section, which says in full what every report's annex says in brief (`caveats`)
+CAVEATS = f"{SITE}/plugin#caveats"
+
+
+def caveats():
+    """The caveats every report's annex gives, in brief, before its revisions; the site's Caveats section says them in
+    full. The address is spelled out as the link's text, so a printed copy keeps it."""
+    more = f'<a class="site" href="https://{CAVEATS}" target="_blank" rel="noopener">{CAVEATS}</a>'
+    return ("<p>Rubicon is probably not the best way to do evaluation analysis. But if you are going to use AI for the "
+            "analysis, Rubicon aims to be a good way to do so.</p><ul>"
+            "<li>The AI's proposals for this workflow draw broadly on the methods and practices most common in what it "
+            "was trained on: the mainstream. The more evaluation questions are answered with the help of a few AI "
+            "models, the more quickly methods across the field could come to resemble one another (homogenisation).</li>"
+            "<li>AI makes errors, Rubicon included: click through to the passages behind any finding you rely on.</li>"
+            "<li>Rubicon is in beta, and has not yet been tried on a live evaluation.</li></ul>"
+            f'<p class="small">In full: {more}</p>')
 
 
 def site_link(text=None):

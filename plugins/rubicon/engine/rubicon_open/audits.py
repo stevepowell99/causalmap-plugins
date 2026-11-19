@@ -154,7 +154,8 @@ def coverage(documents: dict[str, dict], columns: list[str], cited_docs: set[str
         # A group is a category; a column of numbers (a length, a count of turns) is not one.
         if not 1 < len(values) <= 8 or all(_number(v) for v in values):
             continue
-        cited_values = {documents[d]["columns"].get(col) for d in cited_docs}
+        # the answer may cite a document outside those in play (one the sample left out); it fills no group here
+        cited_values = {documents[d]["columns"].get(col) for d in cited_docs & docs}
         missing = sorted(values - cited_values)
         if missing and cited_docs:
             silent_groups[col] = missing
