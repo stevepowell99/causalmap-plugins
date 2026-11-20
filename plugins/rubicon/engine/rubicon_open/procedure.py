@@ -308,16 +308,39 @@ def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
         raised = len(re.findall(r"(?m)^- \*\*", listed)) if listed else _parsed(check, "disagreements")
         first, other, unsettled = (_parsed(check, w) for w in ("ruled for the rows", "ruled for the second coder", "unsettled"))
         ruled = None if None in (first, other) else first + other + (unsettled or 0)
-        if raised == 0 and (listed or check):
-            said = "The two codings agreed on every document and code."
-        elif raised:
+        # agreement is said only where a comparison that looked found nothing, and only of what it compared; a
+        # comparison that compared nothing, or none kept, never reads as agreement, nor does a check that ruled on some
+        looked, nothing = bool(re.search(rf"(?m)^{COMPARED}", listed)), COMPARED_NOTHING in listed
+        comparable, free = code_columns(R.get("workflow"))
+        if listed and not (looked or nothing):  # a record made before it said what it compared compared these
+            looked, nothing = bool(comparable), not comparable
+        if raised:
             took = f", taking them as {ruled} disagreements" if ruled is not None and ruled != raised else ""
             said = (f"The two codings differed in {raised} places. {CHECKER[separate(R, 'check')]} ruled on each against the text{took}"
                     + (f": {first} for the first coding, {other} for the second"
                        + (f", and {unsettled} that the definitions as written did not settle" if unsettled else "")
                        if ruled is not None else "") + ".")
+        elif ruled:
+            said = (f"{CHECKER[separate(R, 'check')]} compared the two codings passage by passage"
+                    + (", since fixed rules could not compare codes written as free text," if nothing else "")
+                    + f" and ruled on {ruled} places where they differed: {first} for the first coding, {other} for the second"
+                    + (f", and {unsettled} that the definitions as written did not settle" if unsettled else "") + ".")
+        elif looked:
+            said = ("The two codings agreed on every document and code." if not free else
+                    "The two codings agreed on every document and value of the codes fixed rules compare; their codes "
+                    "written as free text were not compared.")
+        elif nothing:
+            who = CHECKER[separate(R, "check")]
+            said = (f"Fixed rules could not compare the two codings, whose codes are free text, and "
+                    + (f"{who[0].lower() + who[1:]} ruled on no place where they differed." if ruled == 0 else
+                       "found no count in the check's record of the places it ruled on."))
         else:
-            said = f"{CHECKER[separate(R, 'check')]} ruled on every place the two codings differed, against the text."
+            # no comparison is kept with the run, so nothing is said of what it found, and without a count of the
+            # check's rulings nothing is said of how many it made
+            said = (f"{CHECKER[separate(R, 'check')]} ruled on "
+                    + ("no place where the two codings differed" if ruled == 0 else
+                       "the places where the two codings differed, against the text, and fixed rules found no count of its rulings")
+                    + "; the comparison it ruled from is not in the run's record.")
         tightened = _parsed(check, "definitions (?:tightened|changed)")
         if tightened:
             said += (f" It tightened {tightened} definition{'s' if tightened > 1 else ''} as a result, and corrected "
@@ -497,6 +520,27 @@ SECOND_SAID = {
            "second coding is not independent of the first.",
     None: "The same documents were coded again to the same definitions; the run does not record whether a separate "
           "coder did it, so it is not called independent here."}
+#: How `compare.py`'s disagreements.md names the columns it compared, so a record that lists no difference proves it looked
+COMPARED = "Compared by fixed rules:"
+#: What it says instead where the two codings share no column it can compare, every coded column being free text
+COMPARED_NOTHING = ("Fixed rules compared nothing: every column the two codings share is free text, so the check compares "
+                    "their passages by reading.")
+
+
+def compared_by_rules(column: dict) -> bool:
+    """Whether fixed rules compare two codings' values of this column: every type but free text, which no two coders
+    write alike. The one test for `compare.py`, the second coder's call on each passage and what the annex says."""
+    return column.get("type") != "free_text"
+
+
+def code_columns(workflow: dict) -> tuple[list[str], list[str]]:
+    """The code steps' columns, as `step.column`: those fixed rules compare between two codings, and the free-text
+    ones they do not."""
+    cols = [(f"{s['id']}.{c['name']}", compared_by_rules(c)) for s in (workflow or {}).get("steps") or []
+            if s.get("kind") == "code" for c in s.get("columns") or []]
+    return [k for k, y in cols if y], [k for k, y in cols if not y]
+
+
 #: Who ruled where the two codings differed
 CHECKER = {True: "A third reader", False: "The reader who made the first coding", None: "A reader"}
 #: Who checked, where the check was the whole second reading

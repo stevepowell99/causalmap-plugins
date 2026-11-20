@@ -49,8 +49,9 @@
     }).join('') + '</div>';
   }
   // How one passage was coded: the step, whether it is explicit and counts or only implicit, its codes, and what the second
-  // coder (blind only where the run records a separate one) made of the same place: agreed, did not code it, or only the codes they gave it otherwise
-  // (render_report.second_reading, which compares the values)
+  // coder (blind only where the run records a separate one) made of the same place: agreed, did not code it, coded it in
+  // codes fixed rules do not compare, or only the codes they gave it otherwise (render_report.second_reading, which
+  // compares the values; "agreed" only where it compared some)
   function coding(id, still) {
     const r = RUN.rows[id];
     if (!r) return '';
@@ -59,6 +60,7 @@
     if (s) {
       const differ = Object.entries(s.differ);
       const said = !s.coded ? 'did not code this passage'
+        : s.compared === false ? 'also coded this passage; its codes here are free text, so fixed rules did not compare them'
         : !differ.length ? 'agreed'
         : differ.map(([c, theirs]) => `${esc(label(c))}: ${theirs.length ? theirs.map(x => named(x, c)).join(' or ') : 'not coded'} instead of ${named(r.codes[c], c)}`).join('; ');
       second = `<p class="second"><b>Second coder</b>${RUN.second_blind ? ' (blind)' : ''}: ${said}.</p>`;

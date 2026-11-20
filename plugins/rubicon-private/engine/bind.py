@@ -215,8 +215,7 @@ def gather(parts):
             same = earlier.get(RR.hashed("glance", matrix))
             p["page"]["glance"] = "" if not matrix else GLANCE + (
                 f'<p class="small shared">The same as in <a href="#annex-{same[0]}">Annex {same[0]}</a>.</p>' if same
-                else '<p class="small">Each row is one interview, each column a reason as the coding defines it. '
-                     'Click a mark to read the passages.</p>' + matrix)
+                else f'<p class="small">{RR.glance_said(R)}</p>' + matrix)
         for key, sid in RR.annex_keys(R).items():
             earlier.setdefault(key, (k, sid))
         if p["page"]["matrix"]:

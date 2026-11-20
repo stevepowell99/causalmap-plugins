@@ -8,7 +8,9 @@ code step and column, each document either holds a value (has a row coded with i
 codings: agreement is counted over every document and value, with the documents on which the two differ named. For
 each tabulation, the cells whose counts differ, by the same cell ids. Writes compare.json beside the second coding and
 prints it, and disagreements.md: each document and value one coder placed and the other did not, with the passages
-each coder gave for that document, for a reviewer to rule on against the text. A run made before 15 October 2026 also
+each coder gave for that document, for a reviewer to rule on against the text, and last a line naming every column it
+compared (`procedure.COMPARED`), or saying that it compared none (`procedure.COMPARED_NOTHING`), as where every column
+the two codings share is free text: a record that lists no difference says by it whether it looked. A run made before 15 October 2026 also
 lists each both placed but one only implicitly, a row marked weak (`rubicon_open/legacy_weak.py`).
 """
 from __future__ import annotations
@@ -20,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
 from rubicon_open import console  # noqa: E402
 from rubicon_open import legacy_weak
+from rubicon_open.procedure import COMPARED, COMPARED_NOTHING, compared_by_rules
 from rubicon_open.workflow import value_key
 
 
@@ -34,6 +37,7 @@ def compare(a: Path, b: Path) -> dict:
     old = legacy_weak.marked(wf, legacy_weak.records_in(sa) + legacy_weak.records_in(sb))  # legacy_weak
     out = {"coding": {}, "tables": {}}
     disagreements: list[str] = []
+    compared: list[str] = []  # each code column compared, so a record listing no difference shows that it looked
     for s in wf["steps"]:
         sid = s["id"]
         if s["kind"] == "code":
@@ -41,11 +45,12 @@ def compare(a: Path, b: Path) -> dict:
             docs = sorted(set(rb.get("documents") or []) | set(ra.get("documents") or [])
                           | {r["document"] for r in ra["rows"] + rb["rows"]})
             for c in s.get("columns") or []:
-                if c.get("type") == "free_text":
+                if not compared_by_rules(c):
                     continue
                 held = lambda rec: {(r["document"], value_key(r.get(c["name"]))) for r in rec["rows"]
                                     if r.get(c["name"]) not in (None, "")}
                 ha, hb = held(ra), held(rb)
+                compared.append(f"{sid}.{c['name']}")
                 values = sorted({v for _, v in ha | hb})
                 cells = [(d, v) for d in docs for v in values]
                 both = sum((x in ha) and (x in hb) for x in cells)
@@ -90,8 +95,10 @@ def compare(a: Path, b: Path) -> dict:
                 out["tables"][sid] = {"verdict": [ta.get("overall"), tb.get("overall")],
                                       "criteria": {k: [ja.get(k), jb.get(k)] for k in list(ja) + [k for k in jb if k not in ja]}}
     (b / "compare.json").write_text(json.dumps(out, indent=1, ensure_ascii=False), encoding="utf-8", newline="\n")
-    (b / "disagreements.md").write_text("\n".join(disagreements) + "\n" if disagreements
-                                        else "The two coders placed every document and value alike.\n", encoding="utf-8", newline="\n")
+    found = ("\n".join(disagreements) + "\n" if disagreements
+             else "The two coders placed every document and value alike.\n" if compared else "")
+    looked = f"{COMPARED} {', '.join(compared)}.\n" if compared else COMPARED_NOTHING + "\n"
+    (b / "disagreements.md").write_text(found + ("\n" if found else "") + looked, encoding="utf-8", newline="\n")
     return out
 
 

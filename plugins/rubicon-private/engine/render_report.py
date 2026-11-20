@@ -425,8 +425,10 @@ def group_column(index):
 def second_reading(step, recoded, texts, rows):
     """What the second coder made of each of this step's passages: whether any passage of theirs
     overlaps it in the document, placed by the engine's quote matcher, and for each of its codes they did not give that
-    place, compared through `value_key`, the values they gave it instead. Read from the zip's `check/coded/`."""
-    cols = [c["name"] for c in step.get("columns", []) if c.get("type") != "free_text"]
+    place, compared through `value_key`, the values they gave it instead. Free-text codes are not compared, so a passage
+    the second coder also coded whose codes are all free text is marked `compared: False`, and is never said to agree.
+    Read from the zip's `check/coded/`."""
+    cols = [c["name"] for c in step.get("columns", []) if procedure.compared_by_rules(c)]
     by_doc = {}
     for r in recoded:
         by_doc.setdefault(r.get("document"), []).append(r)
@@ -442,7 +444,10 @@ def second_reading(step, recoded, texts, rows):
             # only the codes the second coder gave this place otherwise: for each, what they gave it instead
             differ = {c: list(dict.fromkeys(r.get(c) for r in overlap if r.get(c) not in (None, "")))
                       for c in cols if x.get(c) not in (None, "") and (c, value_key(x.get(c))) not in at_place}
-            rows[x["row"]]["second"] = {"coded": bool(overlap), "differ": differ if overlap else {}}
+            # a place with no code fixed rules can compare was not compared, however the two coders coded it
+            looked = any(x.get(c) not in (None, "") for c in cols)
+            rows[x["row"]]["second"] = {"coded": bool(overlap), "differ": differ if overlap else {},
+                                        **({} if looked or not overlap else {"compared": False})}
     # A passage in a document the second coder gave no passage at all is one they did not code
     for x in step.get("rows", []):
         if x["row"] in rows and "second" not in rows[x["row"]]:
@@ -1569,24 +1574,56 @@ def answer_html(R, D, static=False):
 
 # ---------- the evidence matrix: every document against every value of the first passage-level code ----------
 
+#: What a row and a column of the evidence matrix are, said above it in a report and in a combined report alike
+GLANCE_SAID = {"codes": "Each row is one interview, each column a reason as the coding defines it.",
+               "themes": "Each row is one interview, each column a theme of the codebook."}
+
+
+def matrix_source(R):
+    """What the evidence matrix shows, from the first passage-level code step that gives categories to set the
+    interviews against: its rows, each under its first nominal column's value; or, where it codes no nominal column
+    (free-text link ends, or an open coding a later step recodes), its rows as the group step that assigns them placed
+    them, each under every theme its item columns name. A step giving neither is passed over for the next. None where
+    no step gives either, and the report then has no matrix and no section for one, rather than a heading over nothing."""
+    for step_id, step in R["steps"].items():
+        if step.get("kind") != "code" or len(step.get("rows", [])) <= len(step.get("documents", [])):
+            continue
+        nominal = next((c for c in step["columns"] if c["type"] == "nominal"), None)
+        if nominal:
+            return {"kind": "codes", "step": step_id, "col": nominal["name"], "values": list(column_values(nominal) or []),
+                    "placed": [(r, r[nominal["name"]]) for r in step["rows"]], "all": step["rows"],
+                    "binary": next((c for c in step["columns"] if c["type"] == "binary"), None)}
+        group = next((s for s in R["steps"].values() if s.get("kind") == "group" and s.get("input") == step_id
+                      and s.get("table") and s.get("item_columns")), None)
+        if group:
+            items = [it["id"] for it in (group.get("codebook") or {}).get("items") or [] if isinstance(it, dict) and it.get("id")]
+            # a row is under each theme its item columns name once, so a link from a theme to itself is one mark, not two
+            placed = [(r, v) for r in group["table"] for v in dict.fromkeys(r.get(c) for c in group["item_columns"]) if v in items]
+            return {"kind": "themes", "step": group["id"], "col": group["item_columns"][0], "values": items,
+                    "placed": placed, "all": group["table"], "binary": None}
+    return None
+
+
+def glance_said(R):
+    """The line above the evidence matrix: what its rows and columns are, and what a mark opens."""
+    src = matrix_source(R)
+    return f'{GLANCE_SAID[src["kind"] if src else "codes"]} Click a mark to read the passages.'
+
+
 def matrix(R, D):
-    step_id, step = next(((k, s) for k, s in R["steps"].items() if s.get("kind") == "code" and len(s.get("rows", [])) > len(s.get("documents", []))), (None, None))
-    if not step:
+    src = matrix_source(R)
+    if not src:
         return ""
-    nominal = next((c for c in step["columns"] if c["type"] == "nominal"), None)
-    binary = next((c for c in step["columns"] if c["type"] == "binary"), None)
-    if not nominal:
-        return ""
-    vals = list(column_values(nominal) or [])
+    step_id, col, binary, vals = src["step"], src["col"], src["binary"], src["values"]
     old = legacy_weak.in_report(R)  # legacy_weak
     by = {}
-    for r in step["rows"]:
-        by.setdefault((r["document"], r[nominal["name"]]), []).append(r)
+    for r, v in src["placed"]:
+        by.setdefault((r["document"], v), []).append(r)
     vals.sort(key=lambda v: -len({d for (d, x) in by if x == v}))
     groups = {}
     for d in R["index"]:
         groups.setdefault(d.get(D["group"], ""), []).append(d["id"])
-    head = "".join(f'<th><span>{code_named(D, step_id, nominal["name"], v)}</span></th>' for v in vals)
+    head = "".join(f'<th><span>{code_named(D, step_id, col, v)}</span></th>' for v in vals)
     body = ""
     for g, ids in groups.items():
         body += f'<tr class="band"><th colspan="{len(vals)+1}">{esc(label(g))}</th></tr>'
@@ -1599,7 +1636,8 @@ def matrix(R, D):
                 own = binary and any(r.get(binary["name"]) == "yes" for r in rs)
                 implicit = all(legacy_weak.carries(old, r) for r in rs)  # legacy_weak: held only through implicit passages
                 rid = ",".join(r["row"] for r in rs)
-                why = f"Coded {label(nominal['name'])}: {label(v)} in {did}" + (", only implicitly" if implicit else "")
+                why = (f"Coded {label(col)}: {label(v)} in {did}" if src["kind"] == "codes"
+                       else f"Coded under {label(v)} in {did}") + (", only implicitly" if implicit else "")
                 # what the dot means in words, for its table's copy (report.js `cellText`): its passages, and its shading
                 copy = f"{len(rs)}" + (f" ({label(binary['name'])})" if own else "") + (" (implicit)" if implicit else "")
                 tds += (f'<td><button class="dot {"own" if own else "raised"}{" implicit" if implicit else ""}" data-rows="{esc(rid)}" data-why="{esc(why)}" data-copy="{esc(copy)}" '
@@ -1609,7 +1647,7 @@ def matrix(R, D):
                      f'{esc(did)}</button></th>{tds}</tr>')
     key = (f'<span class="dot own k"></span>{esc(label(binary["name"]))} for this reason'
            ' <span class="dot raised k"></span>Raised, not tied to that') if binary else ""
-    if any(legacy_weak.carries(old, r) for r in step["rows"]):  # legacy_weak
+    if any(legacy_weak.carries(old, r) for r in src["all"]):  # legacy_weak
         key += (" " if key else "") + '<span class="dot raised implicit k"></span>Only implicitly, so left out of the counts'
     return (f'<div class="legend small">{key}</div><div class="scroll"><table class="matrix"><thead><tr><th></th>{head}</tr></thead>'
             f'<tbody>{body}</tbody></table></div>')
@@ -2227,7 +2265,8 @@ def annex(R, D, static=False, earlier=None, number=None):
         out.append(f'<section class="rb-block" id="{procedure.anchor("check")}" data-node="step:check"><h4>The check</h4><p>'
                    + (f"{procedure.CHECKER_ALONE[procedure.separate(R, 'check')]} read the answer against the passages it "
                       "cites and the documents" if alone else
-                      f"{procedure.CHECKER[procedure.separate(R, 'check')]} ruled on every place the two codings differed")
+                      # what the check ruled on is counted, where at all, in its record shown below, never claimed here
+                      f"{procedure.CHECKER[procedure.separate(R, 'check')]} ruled on the places where the two codings differed")
                    + ", and checked every sentence and quotation of the answer against the "
                    "documents, correcting the coding and the answer where they were wrong. The answer above is the "
                    "corrected one, recounted after the check.</p>"
@@ -2457,9 +2496,16 @@ def summary(R, a, nrows, D=None):
                + '</li>') if a.get("counts_written_by_id") else (
         f"<li>No counts: the answer states no number computed from {procedure.from_said('the coded passages', counts_from_facts(R, D))}, so its findings rest on the "
         "passages cited and quoted beside them.</li>")
-    out = [f'<li class="head"><span class="vb-t">{BOX_TITLE}<small>{VERIFIED_WHEN}</small></span></li>', counted,
-           f"<li><b>{nrows}</b> quotations, every one found word for word in its interview."
-           '<span class="click"> Click an interview\'s ID beside a quotation to read it in place.</span></li>']
+    # the quotations as the recount found them: "every one" only when none was placed approximately, and no line of
+    # success over no passages at all
+    rough = sum(v.get("quotations_placed_approximately", 0) for v in ((R.get("report") or {}).get("coding") or {}).values()
+                if not v.get("combines"))
+    found = ("<li>No passages were coded, so there was no quotation to find in the interviews.</li>" if not nrows else
+             f"<li><b>{nrows}</b> quotations, "
+             + (f"{nrows - rough} found word for word in their interview and {rough} only approximately." if rough
+                else "every one found word for word in its interview.")
+             + '<span class="click"> Click an interview\'s ID beside a quotation to read it in place.</span></li>')
+    out = [f'<li class="head"><span class="vb-t">{BOX_TITLE}<small>{VERIFIED_WHEN}</small></span></li>', counted, found]
     if a.get("claims_cited"):
         out.append(f"<li><b>{a['claims_cited']}</b> key claims tagged as numbers are, each with the passages for it and "
                    'against it and why they bear it out.<span class="click"> Click a claim\'s tag to see them.</span></li>')
@@ -2554,17 +2600,20 @@ def page(R, fragment=False):
     css = (Path(__file__).parent / "report.css").read_text(encoding="utf-8")
     js = report_js()
     map_js = margin_map(R)
+    grid = matrix(R, D)
+    # a run with nothing to set its interviews against has no matrix, and so no section for one
+    evidence = (f"""<section class="evidence" id="evidence">
+  <h2>Every interview at a glance</h2>
+  <p class="small">{glance_said(R)}</p>
+  {grid}
+</section>
+""" if grid else "")
     annexed = annexes(f"""<section class="annex" id="how-done">
   <h2>{HOW_DONE}</h2>
   {how_done(R, D=D)}
   {annex(R, D)}
 </section>
-<section class="evidence" id="evidence">
-  <h2>Every interview at a glance</h2>
-  <p class="small">Each row is one interview, each column a reason as the coding defines it. Click a mark to read the passages.</p>
-  {matrix(R, D)}
-</section>
-<aside class="next" id="next">
+{evidence}<aside class="next" id="next">
   <h2>What next</h2>
   {further(R, D)}
 </aside>""")

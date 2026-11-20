@@ -375,7 +375,7 @@ def _rule(run, c: dict) -> dict:
     for lv in c["levels"]:
         docs, rows, only_weak = _cells(tab, lv.get("where", c.get("where")), weak, of_row)
         hit = sorted(docs & base)
-        got, _ = _level([lv], len(hit), len(base), noun)
+        got = _level([lv], len(hit), len(base), noun)[0]
         every.append({"verdict": lv["verdict"], "n": len(hit), "base": len(base), "met": got is not None,
                       "documents": sorted({d for u in hit for d in held[u]}) if by_cases else hit,
                       **({"cases": hit} if by_cases else {}), "rows": rows, "weak": sorted(only_weak & base)})
@@ -385,7 +385,8 @@ def _rule(run, c: dict) -> dict:
     use = met or tested[-1]
     said = "; ".join(f"{x['verdict'] or NO_RATING}: {x['n']} of {x['base']} {noun}, {'met' if x['met'] else 'not met'}" for x in tested)
     why = (f"the first level met is {met['verdict']} ({said})" if met and met["verdict"] is not None
-           else f"not placed: the first level met says no rating can be given ({said})" if met else f"no level is met ({said})")
+           else f"not placed: the first level met says no rating can be given ({said})" if met
+           else f"no level is met, since there are no {noun} to count over ({said})" if not base else f"no level is met ({said})")
     return {"verdict": met["verdict"] if met else None, "n": use["n"], "base": use["base"], "documents": use["documents"],
             **({"cases": use["cases"]} if by_cases else {}), "unit": noun, "rows": use["rows"], "why": why,
             "tested": [{k: x[k] for k in ("verdict", "n", "base", "met")} for x in tested],
@@ -405,8 +406,12 @@ def level_counts(rec_id: str, c: dict) -> dict[str, dict]:
 
 
 def _level(levels: list[dict], n: float, base: float, what: str) -> tuple[dict | None, str]:
-    """The first level whose thresholds `n` out of `base` meets, and why, said as the verdict table says it."""
-    share = n / base if base else 0.0
+    """The first level whose thresholds `n` out of `base` meets, and why, said as the verdict table says it. Over a base
+    of none no level is met: a share of none is no share, and a level asking for at most so many would pass by finding
+    nothing, so a verdict is never made from nothing."""
+    if not base:
+        return None, f"{n:g} of {base:g} {what}: there is nothing to count over, so no level is met"
+    share = n / base
     for lv in levels:
         tests = [(k, lv[k]) for k in THRESHOLDS if k in lv]
         if all({"at_least": n >= v, "at_most": n <= v, "share_at_least": share >= v, "share_at_most": share <= v}[k] for k, v in tests):
