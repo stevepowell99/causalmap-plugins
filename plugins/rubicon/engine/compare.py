@@ -11,7 +11,8 @@ prints it, and disagreements.md: each document and value one coder placed and th
 each coder gave for that document, for a reviewer to rule on against the text, and last a line naming every column it
 compared (`procedure.COMPARED`), or saying that it compared none (`procedure.COMPARED_NOTHING`), as where every column
 the two codings share is free text: a record that lists no difference says by it whether it looked. A run made before 15 October 2026 also
-lists each both placed but one only implicitly, a row marked weak (`rubicon_open/legacy_weak.py`).
+lists each both placed but one only implicitly, a row marked weak (`rubicon_open/legacy_weak.py`). A second coding
+`isolate.py` opened is refused until its `coded/` is the join of every coder's part (`isolation.joined_faults`).
 """
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
 from rubicon_open import console  # noqa: E402
-from rubicon_open import legacy_weak
+from rubicon_open import isolation, legacy_weak
 from rubicon_open.procedure import COMPARED, COMPARED_NOTHING, compared_by_rules
 from rubicon_open.workflow import value_key
 
@@ -31,6 +32,10 @@ def steps_of(folder: Path) -> Path:
 
 
 def compare(a: Path, b: Path) -> dict:
+    # a second coding `isolate.py` opened is compared only once it is the join of every coder's part, each covering the
+    # documents it was given, so a lost batch is refused here rather than read as documents found to hold nothing
+    if faults := isolation.joined_faults(b):
+        raise SystemExit(f"{b} is not compared:\n- " + "\n- ".join(faults))
     wf = json.loads(((b if (b / "workflow.json").exists() else a) / "workflow.json").read_text(encoding="utf-8"))
     load = lambda p: json.loads(p.read_text(encoding="utf-8"))
     sa, sb = steps_of(a), steps_of(b)

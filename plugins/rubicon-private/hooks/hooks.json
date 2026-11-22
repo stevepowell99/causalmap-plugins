@@ -1,0 +1,7 @@
+{
+  "description": "While a Rubicon second reading is open, notes each helper that starts or stops, for the run's record of what the second coder opened. Nothing else; it returns at once otherwise.",
+  "hooks": {
+    "SubagentStart": [{"hooks": [{"type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/engine/rubicon_open/helper_log.mjs\" \"${CLAUDE_PLUGIN_DATA}\" SubagentStart", "timeout": 10}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/engine/rubicon_open/helper_log.mjs\" \"${CLAUDE_PLUGIN_DATA}\" SubagentStop", "timeout": 10}]}]
+  }
+}

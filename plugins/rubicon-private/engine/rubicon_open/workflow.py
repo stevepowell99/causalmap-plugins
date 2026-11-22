@@ -50,6 +50,19 @@ def combining(s: dict, before: dict[str, dict]) -> bool:
             and all(isinstance(i, str) and before.get(i, {}).get("kind") == "code" for i in ins))
 
 
+def takes_rows(s: dict) -> bool:
+    """Whether a code step's rows were taken from an earlier run, coded and checked there (`earlier.py`): a `from`
+    whose `take` is rows, the default."""
+    return isinstance(s.get("from"), dict) and (s["from"].get("take") or "rows") == "rows"
+
+
+def coded_from_documents(steps: list[dict]) -> list[dict]:
+    """The code steps whose rows a coder writes from the documents, in `coded/<step id>.json`: every code step but one
+    that puts others together (`combining`) or takes its rows from an earlier run (`takes_rows`)."""
+    by_id = {st.get("id"): st for st in steps}
+    return [s for s in steps if s.get("kind") == "code" and not combining(s, by_id) and not takes_rows(s)]
+
+
 #: The column a combined table adds to every row, naming the code step the row was coded in
 CODING = "coding"
 #: What fixed rules write on every coded row (`steps.place_rows`): its id, its document, the section read, the passage

@@ -9,10 +9,10 @@ for more. The estimate adds:
 
 - what a run spends whatever its documents: settling, the method notes, the writing and the report (`BASE`), larger
   where the documents are coded as causal claims;
-- the second reading chosen at settling (`SECOND`): a check by a fresh reader, the default, or a blind recode with the
-  check, or none;
+- the second reading chosen at settling (`SECOND`): a check by a fresh reader, the default, or a second coding with
+  the check, or none;
 - for each token of the documents, what reading them costs (`PER_TOKEN`): once to code, again for the check, again for
-  a blind recode or a hard recode. A reader re-reads its context on every turn, so re-read tokens come to many times
+  a second coding or a hard recode. A reader re-reads its context on every turn, so re-read tokens come to many times
   the documents' size;
 - for each question beyond the first, a share more of everything a question adds to (`PER_QUESTION`): the base, the
   second reading, and what is written and re-read per token, though not the documents' first reading.
@@ -100,7 +100,7 @@ def ballpark(n: float) -> str:
 
 
 def describe(e: dict, windows: list[tuple[str, float]] = ()) -> str:
-    second = {"check": "a check by a fresh reader", "recode": "a blind recode with the check", "none": "none"}
+    second = {"check": "a check by a fresh reader", "recode": "a second coding with the check", "none": "none"}
     t = e["tokens"]
     lines = [f"Documents: {e['documents_read']} of {e['documents']}, about {ballpark(e['characters'])} characters "
              f"and {ballpark(e['document_tokens'])} tokens to read once."

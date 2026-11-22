@@ -50,12 +50,14 @@ LibreOffice shows as a bracketed number with the notes listed at the end. A caus
 no SVG in an HTML file, and the grid stands in its place.
 --fragment writes the page without <html>/<head>/<body>, for publishing as an Artifact.
 """
-import atexit, base64, csv, datetime, gzip, hashlib, html, io, json, re, shutil, subprocess, sys, tempfile, zipfile
+import atexit, base64, csv, datetime, gzip, hashlib, html, io, itertools, json, re, shutil, subprocess, sys, tempfile, zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
 from rubicon_open import console  # noqa: E402
-from rubicon_open import assets, codebook_file, footprint, legacy_weak, locator, node, plan, procedure
+from rubicon_open import assets, claims, codebook_file, footprint, legacy_weak, locator, node, plan, procedure
+# the one count of coded passages and of how they were found, which the box, the annex and the procedure all give
+from rubicon_open.procedure import found_nowhere, nrows_of, placed_approximately
 from rubicon_open.codebook_file import near_misses
 from rubicon_open import text as T
 from rubicon_open.corpus import INDEX_FIELDS, Corpus, as_read
@@ -63,7 +65,7 @@ from rubicon_open.names import in_words, label, lowered, made_of, specs_of, step
 from rubicon_open.legacy_weak import CHAIN_EXPLICIT
 from rubicon_open.run_id import clean as run_id_of
 from rubicon_open.seal import engine_fingerprint, engine_version, seal_broken
-from rubicon_open.steps import LIMITS, ROW_ID, base_of, bases_overlap_said, cited_as, count_ids, group_ids, with_parts, worked_out, said_with_unit, sentences_placed, step_of, unit_of_table
+from rubicon_open.steps import LIMITS, ROW_ID, base_of, bases_overlap_said, cited_as, count_ids, group_ids, with_parts, worked_out, said_with_unit, step_of, unit_of_table
 from rubicon_open.units import base_said, count_said
 from rubicon_open.workflow import arrow_parts, codebook_of, column_values, derived, links_ending, loop_markers, normalise, order_of, sign_of, value_key
 from register import RUNS, handed_over
@@ -210,8 +212,10 @@ def bundle(run, out, render):
         if p.is_file() and "__pycache__" not in p.parts:
             files["work/" + p.relative_to(run / "work").as_posix()] = p
     # The second reading: the check's record and the second coder's own rows, beside the run they checked
-    for p in [run / "check.md"] + [run / "recode" / f for f in ("disagreements.md", "unclear.md", "readers.json")] \
-            + sorted((run / "recode" / "coded").glob("*.json")):
+    # and, where isolate.py opened the second reading, what the second coder was given and the log of its helpers
+    for p in [run / "check.md"] + [run / "recode" / f for f in ("disagreements.md", "unclear.md", "readers.json", "given.json",
+                                                              "helpers.json", "joined.json", "brief.md")] \
+            + sorted((run / "recode" / "briefs").glob("*.md")) + sorted((run / "recode" / "coded").glob("*.json")):
         if p.is_file():
             files["check/" + p.relative_to(run).as_posix().removeprefix("recode/")] = p
     entries = [(n, p.read_bytes()) for n, p in files.items()]
@@ -360,6 +364,9 @@ def load(zipped):
             "disagreements": text("check/disagreements.md"),
             # who did the second coding and the check, as the run recorded it: "separate" or "same" for each
             "readers": json.loads(text("check/readers.json") or "{}"),
+            # what isolate.py gave the second coder and what its log of the helpers shows, where it opened the second reading
+            "given": json.loads(text("check/given.json") or "null"),
+            "helpers": json.loads(text("check/helpers.json") or "null"),
             # what was put to the evaluator to agree, and their answer, where the run kept a record of it; None where it kept none
             "agreements": json.loads(text("work/agreements.json")) if "work/agreements.json" in names else None,
             # the documents the AI that wrote the answer says it read and found nothing relevant in, where it said
@@ -630,8 +637,6 @@ def build_data(R):
     # a case held by one document and named after it is that document, which its own link opens whole
     cases = {k: v for k, v in cases.items() if not (v["docs"] == [k])}
     return {"docs": docs, "rows": rows, "cells": cells, "codes": shared, "cases": cases, "steps": steps, "names": names, "defs": defs, "claims": claims,
-            # whether the passage notes may call the second coder blind: only where the run records a separate one
-            "second_blind": procedure.separate(R, "second_coding") is True,
             "group": gcol, "zip": R.get("zip", ""), "ends": ends, "doc_unit": doc_unit(R)}
 
 
@@ -2219,10 +2224,7 @@ def annex(R, D, static=False, earlier=None, number=None):
                    "were coded and checked in that run and are not checked again here. Where this answer agrees with an "
                    "earlier one on passages taken from it, the two do not corroborate each other, because one coding "
                    "lies under both.</p>")
-    coded = rp.get("coding", {})
-    nrows = sum(v.get("rows", 0) for v in coded.values())
-    notfound = sum(len(v.get("quotations_not_found", [])) for v in coded.values())
-    rough = sum(v.get("quotations_placed_approximately", 0) for v in coded.values())
+    nrows, notfound, rough = nrows_of(R), found_nowhere(R), placed_approximately(R)
     a = rp.get("answer", {})
     # the answer's own quotations, which a reader sees; a run recounted before 14 October 2026 did not count them
     said = a.get("quotations_in_the_answer")
@@ -2233,21 +2235,34 @@ def annex(R, D, static=False, earlier=None, number=None):
                    "<p>Nothing was put to the evaluator to agree before the answer was written.</p>"))
     if cited(R):
         out.append(gave(R))
-    out.append("<h4>The checks that were run</h4><ul>"
-               f"<li>{nrows - rough} of {nrows + notfound} coded passages found word for word in their document"
-               + (f", {rough} more only approximately" if rough else "")
-               + (f"; {notfound} found nowhere and left out of every count" if notfound else "") + ".</li>"
-               + (f"<li>{said_found - said_rough} of {said} quotations in the answer found word for word in the documents"
-                  + (f", {said_rough} more only approximately" if said_rough else "")
-                  + " (a quotation of under twelve characters, such as one word, is not checked).</li>" if said is not None else
+    # each line a claim on the recount's own figures (`claims`), refused where the run does not bear it out
+    li = lambda words, kind, figures: f"<li{claims.basis(kind, figures)}>{words}</li>"
+    out.append("<h4>The checks that were run</h4>" + claims.refuse(f"<ul{claims.CONTAINER}>"
+               + li(f"{nrows - rough} of {nrows + notfound} coded passages found word for word in their document"
+                    + (f", {rough} more only approximately" if rough else "")
+                    + (f"; {notfound} found nowhere and left out of every count" if notfound else "") + ".", "count",
+                    {"quotations found word for word": nrows - rough, "passages given": nrows + notfound,
+                     "quotations placed approximately": rough, "passages found nowhere": notfound})
+               + (li(f"{said_found - said_rough} of {said} quotations in the answer found word for word in the documents"
+                     + (f", {said_rough} more only approximately" if said_rough else "")
+                     + " (a quotation of under twelve characters, such as one word, is not checked).", "count",
+                     {"quotations in the answer": said, "quotations in the answer found word for word": said_found - said_rough,
+                      "quotations in the answer placed approximately": said_rough}) if said is not None else
                   # the stored recount never counted them; `problems` checked them afresh before this report was created
-                  "<li>This run's own recount was made before the quotations in an answer were counted, so it holds no count "
-                  "of them; each was checked again when this report was created, and found in the documents.</li>") +
-               f"<li>{a.get('counts_written_by_id',0)} numbers in the answer, "
-               + (counted_said(R, "each written by the AI beside the count the fixed rules made from {}, and equal to it", D)
-                  if cited(R) else "every one " + procedure.computed_said(counts_from_facts(R, D)))
-               + f"; {len(a.get('numbers_written_bare',[]))} written by the AI without a count behind them.</li>"
-               f"<li>{len(a.get('citations_to_no_row',[]))} citations to passages that do not exist; {len(set(a.get('quotations_not_in_what_they_cite',[])))} quotations not in the passage they cite.</li></ul>")
+                  li("This run's own recount was made before the quotations in an answer were counted, so it holds no count "
+                     "of them; each was checked again when this report was created, and found in the documents.", "record",
+                     {"quotations in the answer": None}))
+               + li(f"{a.get('counts_written_by_id',0)} numbers in the answer, "
+                    + (counted_said(R, "each written by the AI beside the count the fixed rules made from {}, and equal to it", D)
+                       if cited(R) else "every one " + procedure.computed_said(counts_from_facts(R, D)))
+                    + f"; {len(a.get('numbers_written_bare',[]))} written by the AI without a count behind them.", "count",
+                    {"numbers counted": a.get("counts_written_by_id") or 0, "numbers stated beside their count": procedure.stated_beside(R),
+                     "numbers written bare": len(a.get("numbers_written_bare", []))})
+               + li(f"{len(a.get('citations_to_no_row',[]))} citations to passages that do not exist; "
+                    f"{len(set(a.get('quotations_not_in_what_they_cite',[])))} quotations not in the passage they cite.", "count",
+                    {"citations to no passage": len(a.get("citations_to_no_row", [])),
+                     "quotations not in the passage they cite": len(set(a.get("quotations_not_in_what_they_cite", [])))})
+               + "</ul>", R, D))
     if R.get("check"):
         # The check's two steps, as the margin map draws them after the workflow's own (`drawn_steps`)
         specs = specs_of(wf)
@@ -2255,21 +2270,26 @@ def annex(R, D, static=False, earlier=None, number=None):
         counts = next((b.strip() for b in record.split("\n\n") if b.strip() and not b.lstrip().startswith("#")), "")
         lis = "".join(f"<li>{esc(step_name(sid, specs))}: {len(rows)} rows</li>" for sid, rows in R["recoded"].items())
         alone = not procedure.second_coded(R)
-        out.append("" if alone else f'<section class="rb-block" id="{procedure.anchor("second_coding")}" data-node="step:second_coding"><h4>Second coding</h4><p>'
-                   + procedure.SECOND_SAID[procedure.separate(R, "second_coding")]
-                   + ("" if R.get("recoded") else " The second coder's rows were not kept in this run's zip.") + "</p>"
+        out.append("" if alone else f'<section class="rb-block" id="{procedure.anchor("second_coding")}" data-node="step:second_coding"><h4>Second coding</h4>'
+                   + claims.refuse(f"<p{claims.CONTAINER}>"
+                                   + claims.claim(procedure.SECOND, "reader", {"second coded": True})
+                                   + ("" if R.get("recoded") else
+                                      claims.claim(" The second coder's rows were not kept in this run's zip.", "record",
+                                                   {"second coder's rows kept": False})) + "</p>", R, D)
                    + ("" if static or not R.get("recoded") else '<div class="rb-block" data-node="asset:second_coding">'
                       "<details><summary>The second coder's rows</summary>"
                       f'<ul>{lis}</ul><p class="small">In the run\'s zip, under <code>check/coded/</code>.</p></details></div>')
                    + "</section>")
-        out.append(f'<section class="rb-block" id="{procedure.anchor("check")}" data-node="step:check"><h4>The check</h4><p>'
-                   + (f"{procedure.CHECKER_ALONE[procedure.separate(R, 'check')]} read the answer against the passages it "
-                      "cites and the documents" if alone else
-                      # what the check ruled on is counted, where at all, in its record shown below, never claimed here
-                      f"{procedure.CHECKER[procedure.separate(R, 'check')]} ruled on the places where the two codings differed")
-                   + ", and checked every sentence and quotation of the answer against the "
-                   "documents, correcting the coding and the answer where they were wrong. The answer above is the "
-                   "corrected one, recounted after the check.</p>"
+        out.append(f'<section class="rb-block" id="{procedure.anchor("check")}" data-node="step:check"><h4>The check</h4>'
+                   + claims.refuse(f"<p{claims.CONTAINER}>" + claims.claim(
+                       # who made it is said once, in the procedure in words (`procedure.readers_said`)
+                       (f"{procedure.READER} read the answer against the passages it cites and the documents" if alone else
+                        # what the check ruled on is counted, where at all, in its record shown below, never claimed here
+                        f"{procedure.READER} ruled on the places where the two codings differed, and read the answer "
+                        "against the documents")
+                       + ", correcting the coding and the answer where they were wrong.", "reader", {"second coded": not alone})
+                     + claims.claim(procedure.changed_said(R), "reader", {"sentences changed": procedure.sentences_changed(R)})
+                     + claims.said(" The answer above is the corrected one, recounted after the check.") + "</p>", R, D)
                    + (record_html(counts) if static and counts else "" if static else
                       '<div class="rb-block" data-node="asset:check"><details><summary>The check\'s record '
                       f'<span class="small">check.md</span></summary><div class="record">{record_html(record)}</div></details></div>')
@@ -2379,10 +2399,20 @@ STEP_BY_STEP = "Step by step"
 def how_done(R, static=False, D=None):
     """The procedure this run followed, in words, for a reader new to Rubicon: a short paragraph a stage, each step it
     tells linking to that step further down the same annex. Told from the same steps the workflow x-ray draws."""
-    def piece(text, sid):
-        return esc(text) if static or not sid else f'<a class="step" href="#{procedure.anchor(sid)}">{esc(text)}</a>'
-    paras = "".join(f'<p><b>{esc(st["title"])}.</b> ' + "".join(piece(t, sid) for t, sid in st["parts"]) + "</p>"
-                    for st in procedure.told(R, drawn_steps(R), counts_from_facts(R, D)))
+    def marked(text, mark):
+        return (esc(text) if mark is None else claims.said(esc(text), mark) if isinstance(mark, str)
+                else claims.claim(esc(text), mark["kind"], mark["is"], mark.get("names", ())))
+
+    def piece(sid, parts):
+        inner = "".join(marked(t, m) for t, _, m in parts)
+        return inner if static or not sid else f'<a class="step" href="#{procedure.anchor(sid)}">{inner}</a>'
+
+    def para(st):
+        # a stage whose every piece is marked says so, and its statements are then all checked as marked
+        whole = all(m is not None for _, _, m in st["parts"])
+        return (f'<p{claims.CONTAINER if whole else ""}><b{claims.plain() if whole else ""}>{esc(st["title"])}.</b> '
+                + "".join(piece(sid, list(ps)) for sid, ps in itertools.groupby(st["parts"], key=lambda p: p[1])) + "</p>")
+    paras = claims.refuse("".join(para(st) for st in procedure.told(R, drawn_steps(R), counts_from_facts(R, D))), R, D)
     return paras + ("" if static else f'<p class="small">The workflow x-ray beside {STEP_BY_STEP}, below, draws the same '
                     "procedure, a box for each stage and what it made.</p>")
 
@@ -2469,12 +2499,6 @@ def margin_map(R):
             + f"\nconst ELEMENTS = {elements};\n" + (ENGINE / "report-map.js").read_text(encoding="utf-8") + "\n})();")
 
 
-def sentences(md):
-    """The answer's sentences, headings, tables and figures left out (`steps.sentences_placed`): what the check read
-    one by one."""
-    return [x for x, _, _ in sentences_placed(md) if not x.startswith("{{")]
-
-
 def counted_said(R, every_beside, D=None):
     """How the answer's counts came from the passages the AI cited: `every_beside` where the AI wrote a number beside
     each (`procedure.stated_beside`), else code's count put where the AI referred to it. `{}` in `every_beside` is
@@ -2488,37 +2512,82 @@ def counted_said(R, every_beside, D=None):
 
 
 def summary(R, a, nrows, D=None):
-    """The box under the short answer: what code checked in this report, and, for a checked run, how many of the
-    answer's sentences a second AI reader read against the documents; then what nothing checked."""
-    counted = (f"<li><b>{a['counts_written_by_id']}</b> numbers, "
-               + (counted_said(R, "each written by the AI and shown beside the count the fixed rules made from {}, which it must equal", D) + "."
-                  if cited(R) else "every one " + procedure.computed_said(counts_from_facts(R, D)) + ".")
-               + '</li>') if a.get("counts_written_by_id") else (
-        f"<li>No counts: the answer states no number computed from {procedure.from_said('the coded passages', counts_from_facts(R, D))}, so its findings rest on the "
-        "passages cited and quoted beside them.</li>")
+    """The box under the short answer: what code checked in this report, and, for a checked run, who read the answer
+    against the documents and what that reader's own record says it changed; then what nothing checked. Every line is
+    a claim resting on the run's figures or said (`claims`), and none is written that the figures do not bear out."""
+    n = a.get("counts_written_by_id")
+    counted = ("<li>" + claims.claim(
+        f"<b>{n}</b> numbers, "
+        + (counted_said(R, "each written by the AI and shown beside the count the fixed rules made from {}, which it must equal", D) + "."
+           if cited(R) else "every one " + procedure.computed_said(counts_from_facts(R, D)) + "."),
+        "count", {"numbers counted": n, "numbers stated beside their count": procedure.stated_beside(R)}) + "</li>") if n else (
+        "<li>" + claims.claim(
+            f"No counts: the answer states no number computed from {procedure.from_said('the coded passages', counts_from_facts(R, D))}, "
+            "so its findings rest on the passages cited and quoted beside them.", "record", {"numbers counted": 0}) + "</li>")
     # the quotations as the recount found them: "every one" only when none was placed approximately, and no line of
     # success over no passages at all
-    rough = sum(v.get("quotations_placed_approximately", 0) for v in ((R.get("report") or {}).get("coding") or {}).values()
-                if not v.get("combines"))
-    found = ("<li>No passages were coded, so there was no quotation to find in the interviews.</li>" if not nrows else
-             f"<li><b>{nrows}</b> quotations, "
-             + (f"{nrows - rough} found word for word in their interview and {rough} only approximately." if rough
-                else "every one found word for word in its interview.")
-             + '<span class="click"> Click an interview\'s ID beside a quotation to read it in place.</span></li>')
-    out = [f'<li class="head"><span class="vb-t">{BOX_TITLE}<small>{VERIFIED_WHEN}</small></span></li>', counted, found]
+    rough = placed_approximately(R)
+    click = lambda words: f'<span class="click"{claims.plain()}> {words}</span>'
+    found = ("<li>" + claims.claim("No passages were coded, so there was no quotation to find in the interviews.", "record",
+                                   {"passages coded": 0}) + "</li>" if not nrows else
+             "<li>" + claims.claim(
+                 f"<b>{nrows}</b> quotations, "
+                 + (f"{nrows - rough} found word for word in their interview and {rough} only approximately." if rough
+                    else "every one found word for word in its interview."),
+                 "count", {"passages coded": nrows, "quotations placed approximately": rough,
+                           "quotations found word for word": nrows - rough})
+             + click("Click the interview ID after a quotation to see the cited passages.") + "</li>")
+    out = [f'<li class="head"><span class="vb-t"{claims.plain()}>{BOX_TITLE}<small>{VERIFIED_WHEN}</small></span></li>', counted, found]
     if a.get("claims_cited"):
-        out.append(f"<li><b>{a['claims_cited']}</b> key claims tagged as numbers are, each with the passages for it and "
-                   'against it and why they bear it out.<span class="click"> Click a claim\'s tag to see them.</span></li>')
+        out.append("<li>" + claims.claim(f"<b>{a['claims_cited']}</b> key claims tagged as numbers are, each with the passages for it and "
+                                         "against it and why they bear it out.", "count", {"key claims cited": a["claims_cited"]})
+                   + click("Click a claim's tag to see them.") + "</li>")
     if a.get("numbers_written_bare_at"):
-        out.append(f'<li class="unchecked-said">Other numbers in the text, <span class="unchecked">in grey</span>, are the '
+        out.append(f'<li class="unchecked-said"{claims.basis("record", {"numbers written bare in the text": len(a["numbers_written_bare_at"])})}>'
+                   'Other numbers in the text, <span class="unchecked">in grey</span>, are the '
                    "writer's own, such as a year or a number quoted from a source, and were not counted by fixed rules.</li>")
     if R.get("check"):
-        # the check's record gives how many sentences it corrected only in prose of its own wording, so none is said here
-        out.append(f"<li><b>{len(sentences(R['answer']))}</b> sentences of the answer were read against the interviews "
-                   + (CHECKED_BY[procedure.separate(R, "check")] if not procedure.second_coded(R)
-                      else "by an AI reader, after " + BLIND_SAID[procedure.separate(R, "second_coding")]) + ".</li>")
-    out.append(f'<li class="not-checked">{NOT_CHECKED}</li>')
-    return "".join(out)
+        # what the check did, and what the reader says it changed, in its words rather than as a count of the fixed
+        # rules': the zip keeps no answer from before the check to count the changes from. Who did each part is said
+        # once, in the procedure in words (`procedure.readers_said`)
+        alone = not procedure.second_coded(R)
+        out.append("<li>" + claims.claim("The answer was read against the interviews by an AI reader"
+                                         + ("" if alone else ", after an AI coded the interviews a second time") + ".",
+                                         "reader", {"second coded": not alone})
+                   + claims.claim(procedure.changed_said(R), "reader", {"sentences changed": procedure.sentences_changed(R)}) + "</li>")
+    out.append(f'<li class="not-checked"{claims.plain()}>{NOT_CHECKED}</li>')
+    return claims.refuse("".join(out), R, D)
+
+
+def _answer(R):
+    return (R.get("report") or {}).get("answer") or {}
+
+
+_RECOUNT = "the recount, recount/report.json"
+for _measure, _source, _figure in [
+    ("passages coded", "the coded passages of each code step", lambda R, D: nrows_of(R)),
+    ("quotations placed approximately", _RECOUNT, lambda R, D: placed_approximately(R)),
+    ("quotations found word for word", _RECOUNT, lambda R, D: nrows_of(R) - placed_approximately(R)),
+    ("numbers counted", _RECOUNT, lambda R, D: _answer(R).get("counts_written_by_id") or 0),
+    ("key claims cited", _RECOUNT, lambda R, D: _answer(R).get("claims_cited") or 0),
+    ("numbers written bare in the text", _RECOUNT, lambda R, D: len(_answer(R).get("numbers_written_bare_at") or [])),
+    ("numbers written bare", _RECOUNT, lambda R, D: len(_answer(R).get("numbers_written_bare") or [])),
+    ("quotations in the answer", _RECOUNT, lambda R, D: _answer(R).get("quotations_in_the_answer")),
+    ("quotations in the answer placed approximately", _RECOUNT, lambda R, D: len(_answer(R).get("quotations_placed_approximately") or [])),
+    ("quotations in the answer found word for word", _RECOUNT,
+     lambda R, D: (_answer(R).get("quotations_in_the_answer") or 0) - len(_answer(R).get("quotations_found_in_no_document") or [])
+     - len(_answer(R).get("quotations_placed_approximately") or [])),
+    ("citations to no passage", _RECOUNT, lambda R, D: len(_answer(R).get("citations_to_no_row") or [])),
+    ("quotations not in the passage they cite", _RECOUNT, lambda R, D: len(set(_answer(R).get("quotations_not_in_what_they_cite") or []))),
+    ("passages found nowhere", _RECOUNT, lambda R, D: found_nowhere(R)),
+    ("passages given", _RECOUNT + ", the passages coded with those found nowhere", lambda R, D: nrows_of(R) + found_nowhere(R)),
+    ("documents", "the run's index of its documents", lambda R, D: len(R.get("index") or [])),
+    ("groups", "the run's index of its documents, by the column that groups them",
+     lambda R, D: len({d.get((D or build_data(R))["group"], "") for d in R.get("index") or []})),
+    ("second coder's rows kept", "the second coder's rows, check/coded/", lambda R, D: bool(R.get("recoded"))),
+]:
+    claims.measure(_measure, "fixed rules", _source, _figure)
+del _measure, _source, _figure
 
 
 #: The verification box's title, the line under it, and its last line, on what nothing checked
@@ -2531,7 +2600,8 @@ VERIFIED_WHEN = "Checked when this report was created"
 def word_badge(R, nrows, D=None):
     """The verification box for Word, which keeps no class styling: a one-cell table with a red rule, a tick before each
     check and a dash before the line on what was not checked."""
-    items = re.findall(r"<li(?: class=\"(?:unchecked-said|not-checked)\")?>(.*?)</li>", summary(R, R["report"].get("answer", {}), nrows, D))
+    items = re.findall(r"<li(?: class=\"(?:unchecked-said|not-checked)\")?>(.*?)</li>",
+                       claims.unmarked(summary(R, R["report"].get("answer", {}), nrows, D)))
     items = [re.sub(r'<span class="click">.*?</span>|<span class="unchecked">(.*?)</span>', r"\1", i) for i in items]
     mark = lambda i: ('<span style="color:#7d7166;font-weight:bold">&#8211;</span>' if i.startswith("<b>Not checked:") else
                       '<span style="color:#8c1912;font-weight:bold">&#10003;</span>')
@@ -2545,21 +2615,6 @@ def word_badge(R, nrows, D=None):
             f'{lines}</td></tr></table>')
 
 
-#: The verification box's account of the second coding, as the record of who did it allows
-BLIND_SAID = {True: "a second AI coder coded the interviews blind",
-              False: "the same AI coded the interviews a second time, which is not independent",
-              None: "an AI coded the interviews a second time"}
-#: The verification box's account of a check that was the whole second reading
-CHECKED_BY = {True: "by a second AI reader, separate from the one that wrote them",
-              False: "again by the AI that wrote them, which is not independent",
-              None: "by a second AI reader; the run does not record whether it was independent"}
-
-
-def nrows_of(R):
-    """How many passages the run coded, each counted once: the quotations the verification box speaks for."""
-    return sum(len(s.get("rows", [])) for s in R["steps"].values() if s.get("kind") == "code" and not s.get("combines"))
-
-
 def facts(R, D):
     """The line under the short answer saying what the run read, and the box of what in it can be checked."""
     nrows = nrows_of(R)
@@ -2568,10 +2623,11 @@ def facts(R, D):
     said = lambda k, one, many: f"{k} {one if k == 1 else many}"
     # documents that all share one value of the group column, or have none, are not "in 1 groups"
     grouped = f" in {len(groups)} groups" if len(groups) > 1 else ""
-    return (f'<p class="meta">{said(len(R["index"]), "interview", "interviews")}{grouped} · '
-            f'{said(nrows, "passage", "passages")} coded · '
-            f'{esc(R.get("date", ""))}{run}</p>\n  '
-            f'<ul class="checks">{summary(R, R["report"].get("answer", {}), nrows, D)}</ul>')
+    meta = (claims.claim(f'{said(len(R["index"]), "interview", "interviews")}{grouped} · {said(nrows, "passage", "passages")} coded · ',
+                         "count", {"documents": len(R["index"]), "groups": len(groups), "passages coded": nrows})
+            + claims.said(esc(R.get("date", "")), "date") + claims.said(run, "id"))
+    return (f'<p class="meta"{claims.CONTAINER}>{claims.refuse(meta, R, D)}</p>\n  '
+            f'<ul class="checks"{claims.CONTAINER}>{summary(R, R["report"].get("answer", {}), nrows, D)}</ul>')
 
 
 def annexes(inner):
@@ -2676,7 +2732,7 @@ def word(R):
     without footnotes lists at the end, under a note saying it is a copy and naming the report (`word_note`)."""
     D = build_data(R)
     title, lead, body, cite_no = answer_html(R, D, static=True)
-    return ('<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" '
+    return claims.unmarked('<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" '
             'xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">'
             f'<title>{esc(heading(R, title))}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->'
             + WORD_CSS + '</head><body>' + word_note(f"{R['name']}.html") +

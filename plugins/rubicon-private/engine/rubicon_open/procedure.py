@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 
-from . import legacy_weak
+from . import claims, isolation, legacy_weak
 from . import text as T
 from .names import step_name
 from .steps import unit_of_table
@@ -157,6 +157,25 @@ def _parsed(check: str, word: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
+def sentences_changed(R: dict) -> int | None:
+    """How many sentences of the answer the check's reader says, in its record's counts, that it changed."""
+    return _parsed(R.get("check") or "", "sentences changed")
+
+
+def changed_said(R: dict) -> str:
+    """What the check says it changed in the answer, as a sentence of its own, or nothing where its record's counts
+    give no such number. The number is the reader's own: the zip keeps the answer only as corrected, so fixed rules
+    cannot count the changes, and the sentence says whose number it is. The record tells what the check changed, never
+    what it read, so no report says a check read every sentence."""
+    n = sentences_changed(R)
+    if n is None:
+        return ""
+    if not n:
+        return " The reader's own record says it did not change any sentence of the answer."
+    return (f" The reader's own record says it changed {n} sentence{'' if n == 1 else 's'} of the answer; fixed rules "
+            f"did not count {'them' if n > 1 else 'it'}.")
+
+
 def _profiled(c: dict) -> str:
     """What one column of a profile records, in words."""
     if "holds" in c:
@@ -199,6 +218,29 @@ def computed_said(from_facts: bool) -> str:
             if from_facts else "computed directly from the coded passages rather than written by the AI")
 
 
+#: A said piece holding words the run chose (a label, a definition, a question), whose digits are part of them
+NAME = "name"
+
+
+def _count(figures: dict, *names, kind: str = "count") -> dict:
+    """A piece's mark as a claim (`claims`): the figures it gives, and the words in it the run chose."""
+    names = [str(n) for n in names if str(n or "").strip()]
+    return {"kind": kind, "is": figures, **({"names": names} if names else {})}
+
+
+def _tables_by_kind(steps: list[dict]) -> list[tuple[str, str, list[dict]]]:
+    """The workflow's tables as the counting names them, each kind with the measure that counts it: tables, causal maps
+    (a table by a coding's two link ends) and tables of feedback loops."""
+    tables = [s for s in steps if s.get("kind") == "tabulate"]
+
+    def is_map(s):
+        ends = links_ending(steps, (s.get("inputs") or [s.get("input")])[0])
+        return bool(ends) and list(s.get("by") or [])[:2] == [ends.get("from"), ends.get("to")] and not s.get("loops")
+    return [("table", "plain tables", [s for s in tables if not (is_map(s) or s.get("loops"))]),
+            ("causal map", "causal maps", [s for s in tables if is_map(s)]),
+            ("table of feedback loops", "tables of feedback loops", [s for s in tables if s.get("loops")])]
+
+
 def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
     """The procedure as stages, each {"title", "steps", "parts"}: `parts` is the paragraph as (text, step id or None)
     pieces, a piece with a step id linking to that step's part of the annex. `steps` is the list the x-ray draws.
@@ -212,6 +254,9 @@ def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
         done.update(p[1] for p in parts if p[1])
         parts = [p for p in parts if p[0]]
         if parts:
+            # each piece is (words, step id or None, mark): its mark a claim's basis ({"kind", "is"}, `claims`), what a
+            # said piece's digits may be (`claims.SAID`), or None for a piece not yet marked
+            parts = [(*p, None) if len(p) == 2 else p for p in parts]
             stages.append({"title": title, "steps": [p[1] for p in parts if p[1]], "parts": parts})
 
     def of_kind(*kinds):
@@ -231,7 +276,9 @@ def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
     read = [((f"The AI that wrote the answer was given all {n} documents; what it read of them is recorded only in its own "
               "word, under What each document gave." if R.get("read") is not None else
               f"The AI that wrote the answer was given all {n} documents; what it read of them is not recorded.") if n and cited
-             else f"Rubicon read all {n} documents in full." if n and not samples else "", None)]
+             else f"Rubicon read all {n} documents in full." if n and not samples else "", None,
+             _count({"documents": n, "writer's record of what it read kept": R.get("read") is not None}, kind="record")
+             if n and cited else _count({"documents": n}))]
     for i, s in enumerate(samples):
         drawn = records.get(s["id"], {}).get("documents")
         where = s.get("where") or {}
@@ -242,9 +289,13 @@ def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
         how = "chosen by name" if s.get("documents") else "drawn at random" if s.get("n") else "chosen"
         spread = f", spread across {_by(s['stratify_by'], set())}" if s.get("stratify_by") else ""
         count = f"{len(drawn)} of the {n} documents" if drawn is not None and n else "a sample of the documents"
-        read.append(((" " if i else "") + f"Rubicon read {count} in full, {how}{kept}{spread}.", s["id"]))
+        named = ([_by(k, set()) for k in where] + [str(x) for v in where.values() for x in (v if isinstance(v, list) else [v])]
+                 + ([_by(s["stratify_by"], set())] if s.get("stratify_by") else []))
+        read.append(((" " if i else "") + f"Rubicon read {count} in full, {how}{kept}{spread}.", s["id"],
+                     _count({"documents": n, f"documents drawn@{s['id']}": len(drawn)}, *named) if drawn is not None and n
+                     else NAME))
     if len(units) == 1 and alone and n:
-        read.append((f" The counts below are of {next(iter(units))}, one document each.", None))
+        read.append((f" The counts below are of {next(iter(units))}, one document each.", None, NAME))
     stage("What was read", read)
 
     # The coding: what each coding looked for, in the codebook's own words, each column named where there are few and
@@ -260,14 +311,14 @@ def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
         links = s.get("links")
         if records.get(s["id"], {}).get("combines"):  # nothing was coded here: other codings' passages, put together
             coding.append((f"{lead} put the passages coded in {_listed(s['inputs'])} together into one table, each keeping its "
-                           "own quotation and the coding it came from.", s["id"]))
+                           "own quotation and the coding it came from.", s["id"], NAME))
             continue
         if s.get("cited"):
             labels = _listed([_label(c.get("name")) for c in cols])
             coding.append((f"{lead} cited, for the numbers in its answer, the passages each rests on, each labelled with its {labels}. "
                            "So every count rests only on the passages cited: fixed rules found each one word for word in its "
                            "document and counted the documents they come from, but did not check that every passage bearing "
-                           "on a point was cited, or that each was filed under the right point or speaker.", s["id"]))
+                           "on a point was cited, or that each was filed under the right point or speaker.", s["id"], NAME))
             continue
         if links:
             ends = next((c for c in cols if c.get("name") == links.get("from")), {})
@@ -276,80 +327,120 @@ def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
             sign = ", and whether the effect goes up or down" if links.get("sign") else ""
             rest = [c for c in cols if c.get("name") not in (links.get("from"), links.get("to"), links.get("sign"))]
             more = f", also {verb} {what(rest)}" if rest else ""
-            did = f"{lead} restated each causal claim the documents make as a link from a cause to an effect{listed}{sign}{more}."
+            did = f"{lead} restated the causal claims it found in the documents as links from a cause to an effect{listed}{sign}{more}."
+            mark = _count({f"factors listed@{s['id']}": len(vals)}, what(rest) if rest else "") if vals else NAME
         elif s.get("per_document"):
-            did = f"{lead} read each document as a whole and {verb} {what(cols)}."
+            did, mark = f"{lead} read each document as a whole and {verb} {what(cols)}.", NAME
         else:
-            did = f"{lead} marked every passage that bears on the question and {verb} {what(cols)}."
+            did, mark = f"{lead} marked the passages it found that bear on the question and {verb} {what(cols)}.", NAME
         if isinstance(s.get("from"), dict):
-            did += " " + earlier_said(R, s)
-        coding.append((did, s["id"]))
+            # where it came from, the earlier run's ID and question being that run's own words
+            earlier = earlier_said(R, s)
+            did += " " + earlier
+            if mark != NAME:
+                mark = {**mark, "names": [*mark.get("names", []), earlier]}
+        coding.append((did, s["id"], mark))
     for s in of_kind("group"):
         most = f" at most {s['max_items']}" if s.get("max_items") else ""
         key = f" of {' and '.join(_label(k) for k in key_columns(s))}" if s.get("key_column") else ""
-        coding.append((f" It grouped the labels{key} into{most} themes, which became a codebook"
-                       + (", and placed each passage under one of them." if s.get("assign") else "."), s["id"]))
+        figures = {f"themes at most@{s['id']}": s["max_items"]} if s.get("max_items") else {}
+        placed = ""
+        if s.get("assign"):
+            # how many it placed, as the record counts them, since a row can be given no theme
+            given, of = _assigned(R, s["id"])
+            what = "labels" if len(key_columns(s)) > 1 else "passages"
+            placed = (", and placed passages under them; fixed rules found no count of how many" if given is None else
+                      f", and placed all {of} {what} under one of them" if given == of else
+                      f", and placed {given} of the {of} {what} under one of them")
+            if given is not None:
+                figures.update({f"given a theme@{s['id']}": given, f"to be given a theme@{s['id']}": of})
+        coding.append((f" It grouped the labels{key} into{most} themes, which became a codebook{placed}.", s["id"],
+                       _count(figures, *(_label(k) for k in key_columns(s)) if s.get("key_column") else (),
+                              kind="count" if f"given a theme@{s['id']}" in figures else "record") if figures else NAME))
     if legacy_weak.in_report(R) and any(c.get("weak") for s in codes for c in s.get("columns") or []):  # legacy_weak
         coding.append((" A passage that only implies a code, in the way the code's definition names, was marked implicit "
-                       "and counted apart from the passages that say it explicitly.", None))
+                       "and counted apart from the passages that say it explicitly.", None, ""))
     stage("Coding", coding)
 
     # The second coding and the check, where the run holds them
+    # every piece of it marked (`claims`): a figure from an AI reader's own record, readers.json and check.md alike,
+    # makes the piece a reader's claim, and one from what fixed rules compared or found a count or a record's
     second = []
+    changed = lambda: [(changed_said(R), "check", {"kind": "reader", "is": {"sentences changed": sentences_changed(R)}})]
     if "second_coding" in by_id:
-        second.append((SECOND_SAID[separate(R, "second_coding")], "second_coding"))
+        second.append((SECOND, "second_coding", {"kind": "reader", "is": {"second coded": True}}))
     if "check" in by_id and not second_coded(R):
-        second.append((f"{CHECKER_ALONE[separate(R, 'check')]} then read the answer against the passages it cites and "
-                       "the documents, and checked every sentence and quotation, so the coding and the answer in this "
-                       "report are the corrected ones, counted again after the check.", "check"))
+        second.append((f"{READER} then read the answer against the passages it cites and the documents, so the coding "
+                       "and the answer in this report are the corrected ones, counted again after the check.", "check",
+                       {"kind": "reader", "is": {"second coded": False}}))
+        second += changed()
     elif "check" in by_id:
-        check, listed = R.get("check", ""), R.get("disagreements", "")
-        # the comparison of the two codings, or for an older zip without it the check's own count, where it gives one
-        raised = len(re.findall(r"(?m)^- \*\*", listed)) if listed else _parsed(check, "disagreements")
-        first, other, unsettled = (_parsed(check, w) for w in ("ruled for the rows", "ruled for the second coder", "unsettled"))
-        ruled = None if None in (first, other) else first + other + (unsettled or 0)
+        raised, ruled, first, other, unsettled = (MEASURES_OF_THE_CHECK[k](R) for k in (
+            "places raised", "places ruled on", "places ruled for the first coding", "places ruled for the second coding",
+            "places left unsettled"))
         # agreement is said only where a comparison that looked found nothing, and only of what it compared; a
         # comparison that compared nothing, or none kept, never reads as agreement, nor does a check that ruled on some
-        looked, nothing = bool(re.search(rf"(?m)^{COMPARED}", listed)), COMPARED_NOTHING in listed
-        comparable, free = code_columns(R.get("workflow"))
-        if listed and not (looked or nothing):  # a record made before it said what it compared compared these
-            looked, nothing = bool(comparable), not comparable
+        looked, nothing = compared(R)
+        free = bool(code_columns(R.get("workflow"))[1])
+        # what the reader of the check says of its own rulings, in its record's counts
+        ruling = {"places ruled on": ruled, "places ruled for the first coding": first,
+                  "places ruled for the second coding": other, "places left unsettled": unsettled}
+        lead = " " if second else ""
         if raised:
             took = f", taking them as {ruled} disagreements" if ruled is not None and ruled != raised else ""
-            said = (f"The two codings differed in {raised} places. {CHECKER[separate(R, 'check')]} ruled on each against the text{took}"
-                    + (f": {first} for the first coding, {other} for the second"
-                       + (f", and {unsettled} that the definitions as written did not settle" if unsettled else "")
-                       if ruled is not None else "") + ".")
+            # the places come from compare.py's comparison where the run keeps it, and from the check's own count where not
+            kept = bool(R.get("disagreements"))
+            said = [(f"{lead}The two codings differed in {raised} places." if kept else
+                     f"{lead}The check's own record says the two codings differed in {raised} places.", "check",
+                     {"kind": "count", "is": {"places the codings differed": raised}} if kept else
+                     {"kind": "reader", "is": {"places the check's record says differed": raised}}),
+                    # "each" only beside the record's count of its rulings; without one, what the record backs
+                    (f" {READER} ruled on each against the text{took}: {first} for the first coding, {other} for the second"
+                     + (f", and {unsettled} that the definitions as written did not settle" if unsettled else "") + "."
+                     if ruled is not None else
+                     f" {READER} ruled on the places where they differed, against the text, and fixed rules found no "
+                     "count of its rulings.", "check", {"kind": "reader", "is": ruling})]
         elif ruled:
-            said = (f"{CHECKER[separate(R, 'check')]} compared the two codings passage by passage"
-                    + (", since fixed rules could not compare codes written as free text," if nothing else "")
-                    + f" and ruled on {ruled} places where they differed: {first} for the first coding, {other} for the second"
-                    + (f", and {unsettled} that the definitions as written did not settle" if unsettled else "") + ".")
+            said = [(f"{lead}{READER} compared the two codings passage by passage"
+                     + (", since fixed rules could not compare codes written as free text," if nothing else "")
+                     + f" and ruled on {ruled} places where they differed: {first} for the first coding, {other} for the second"
+                     + (f", and {unsettled} that the definitions as written did not settle" if unsettled else "") + ".", "check",
+                     {"kind": "reader", "is": {**ruling, "comparison compared nothing": nothing}})]
         elif looked:
-            said = ("The two codings agreed on every document and code." if not free else
-                    "The two codings agreed on every document and value of the codes fixed rules compare; their codes "
-                    "written as free text were not compared.")
+            said = [(lead + ("The two codings agreed on every document and code." if not free else
+                             "The two codings agreed on every document and value of the codes fixed rules compare; their codes "
+                             "written as free text were not compared."), "check",
+                     {"kind": "record", "is": {"comparison looked": True, "places the codings differed": 0, "free-text codes": free}})]
         elif nothing:
-            who = CHECKER[separate(R, "check")]
-            said = (f"Fixed rules could not compare the two codings, whose codes are free text, and "
-                    + (f"{who[0].lower() + who[1:]} ruled on no place where they differed." if ruled == 0 else
-                       "found no count in the check's record of the places it ruled on."))
+            who = READER
+            said = [(f"{lead}Fixed rules could not compare the two codings, whose codes are free text, and "
+                     + (f"{who[0].lower() + who[1:]} ruled on no place where they differed." if ruled == 0 else
+                        "found no count in the check's record of the places it ruled on."), "check",
+                     {"kind": "reader", "is": {**ruling, "comparison compared nothing": True}})]
         else:
             # no comparison is kept with the run, so nothing is said of what it found, and without a count of the
             # check's rulings nothing is said of how many it made
-            said = (f"{CHECKER[separate(R, 'check')]} ruled on "
-                    + ("no place where the two codings differed" if ruled == 0 else
-                       "the places where the two codings differed, against the text, and fixed rules found no count of its rulings")
-                    + "; the comparison it ruled from is not in the run's record.")
-        tightened = _parsed(check, "definitions (?:tightened|changed)")
+            said = [(f"{lead}{READER} ruled on "
+                     + ("no place where the two codings differed" if ruled == 0 else
+                        "the places where the two codings differed, against the text, and fixed rules found no count of its rulings")
+                     + "; the comparison it ruled from is not in the run's record.", "check",
+                     {"kind": "reader", "is": {**ruling, "comparison kept": False}})]
+        tightened = MEASURES_OF_THE_CHECK["definitions tightened"](R)
         if tightened:
-            said += (f" It tightened {tightened} definition{'s' if tightened > 1 else ''} as a result, and corrected "
-                     "the coding to match.")
-        if re.search(r"(?mi)^## .*omission", check):
-            said += " It searched the documents each count leaves out for passages both coders had missed, and added them."
-        said += (" It also checked every sentence and quotation of the answer against the documents, so the coding and "
-                 "the answer in this report are the corrected ones, counted again after the check.")
-        second.append(((" " if second else "") + said, "check"))
+            said.append((f" It tightened {tightened} definition{'s' if tightened > 1 else ''} as a result, and corrected "
+                         "the coding to match.", "check", {"kind": "reader", "is": {"definitions tightened": tightened}}))
+        if MEASURES_OF_THE_CHECK["omissions searched"](R):
+            said.append((" It searched the documents each count leaves out for passages both coders had missed, and added them.",
+                         "check", {"kind": "reader", "is": {"omissions searched": True}}))
+        said.append((" It also read the answer against the documents, so the coding and the answer in this report are the "
+                     "corrected ones, counted again after the check.", "check", ""))
+        second += said + changed()
+    parts = [p for p in ("second_coding", "check") if p in by_id]
+    if parts and isolation.recorded(R):  # who did each part, from what fixed rules recorded of the helpers
+        second[1:1] = isolation.told(R, parts, {p: separate(R, p) is False for p in parts})
+    elif parts:  # who did each part, said once, after what was done first
+        second.insert(1, (readers_said(R, parts), parts[0],
+                          {"kind": "reader", "is": {MEASURE_OF_SEPARATE[p]: separate(R, p) for p in parts}}))
     stage("Second coding and check" if "second_coding" in by_id else "Checking", second)
 
     # The profiles: what each unit's passages hold together, which the tables after them count
@@ -359,7 +450,7 @@ def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
         unit = "case" if key == "case" else "document" if key == "document" else _label(key)
         profiled.append(((" " if profiled else "") + f"Fixed rules brought together, for each {unit}, everything coded in any of its "
                          f"passages and documents, and recorded {_listed([_profiled(c) for c in s.get('columns') or []])}"
-                         + (", so a count can join what one person says in different places." if key == "case" else "."), s["id"]))
+                         + (", so a count can join what one person says in different places." if key == "case" else "."), s["id"], NAME))
 
     # The counting, from the coded passages and the document list, the unit said once where the tables share one: each
     # table listed where there are few, and where there are many, how many tables and maps, each opening its section
@@ -373,29 +464,25 @@ def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
         lead = (unit.strip()[:1].upper() + unit.strip()[1:]) if unit else from_said("The coded passages", from_facts)
         k = len(tables)
         if k > MANY_TABLES:
-            def is_map(s):
-                ends = ends_of(s)
-                return bool(ends) and list(s.get("by") or [])[:2] == [ends.get("from"), ends.get("to")] and not s.get("loops")
-            kinds = [("table", [s for s in tables if not (is_map(s) or s.get("loops"))]),
-                     ("causal map", [s for s in tables if is_map(s)]),
-                     ("table of feedback loops", [s for s in tables if s.get("loops")])]
-            kinds = [(name, ss) for name, ss in kinds if ss]
+            kinds = [(name, counted, ss) for name, counted, ss in _tables_by_kind(steps) if ss]
             said = lambda name, ss: f"{WORDS.get(len(ss), len(ss)) if name != 'table' else len(ss)} {name}{'s' if len(ss) > 1 else ''}"
-            parts = [(f"{lead} were then counted in ", None), (said(*kinds[0]), kinds[0][1][0]["id"]),
-                     (", compared by these codings", None)]
+            # each kind's count a claim, in words or digits, on the measure that counts that kind
+            told_kind = lambda name, counted, ss: (said(name, ss), ss[0]["id"], _count({counted: len(ss)}))
+            parts = [(f"{lead} were then counted in ", None, NAME), told_kind(*kinds[0]),
+                     (", compared by these codings", None, "")]
             rest = kinds[1:]
-            for j, (name, ss) in enumerate(rest):
+            for j, kind in enumerate(rest):
                 sep = ", and drawn in " if j == 0 else " and " if j == len(rest) - 1 else ", "
-                parts += [(sep, None), (said(name, ss), ss[0]["id"])]
-            parts.append((". The annex below gives each.", None))
+                parts += [(sep, None, ""), told_kind(*kind)]
+            parts.append((". The annex below gives each.", None, ""))
             parts += [("", s["id"]) for s in tables]
         else:
-            parts = [(f"{lead} were then counted in {k} table{'s' if k > 1 else ''}: ", None)]
+            parts = [(f"{lead} were then counted in {k} table{'s' if k > 1 else ''}: ", None, _count({"tables": k}, lead if unit else ""))]
             for i, s in enumerate(tables):
                 said = _table(rec(s), ends_of(s), coded)
-                parts.append((said if unit else f"{unit_of_table(rec(s))} {said}", s["id"]))
-                parts.append(("." if i == k - 1 else "; ", None))
-        stage("Counting", profiled + ([(" ", None)] if profiled else []) + parts)
+                parts.append((said if unit else f"{unit_of_table(rec(s))} {said}", s["id"], NAME))
+                parts.append(("." if i == k - 1 else "; ", None, ""))
+        stage("Counting", profiled + ([(" ", None, "")] if profiled else []) + parts)
 
     # The verdicts, each by the rule its criteria set
     if judges:
@@ -405,7 +492,7 @@ def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
         how = {"rule": "the answer was counted from the tables and set against the thresholds the rule gives",
                "stated": "a number a background document states was set against the thresholds the rule gives",
                "reading": "the coded passages were read against the description of each level the rule gives"}
-        parts = [(f"Rubicon reached its verdicts by rules agreed beforehand.{source}", None)]
+        parts = [(f"Rubicon reached its verdicts by rules agreed beforehand.{source}", None, NAME)]
         if len(judges) == 1:
             s = judges[0]
             r = records.get(s["id"], {})
@@ -413,26 +500,31 @@ def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
             kinds = list(dict.fromkeys(c["kind"] for c in crits if c.get("kind") in how))
             if len(kinds) == 1:
                 parts.append((f" For each question the rule asks, {how[kinds[0]]}"
-                              + (":" if any(c.get("verdict") for c in crits) else "."), None))
+                              + (":" if any(c.get("verdict") for c in crits) else "."), None, ""))
             each = (lambda c: "") if len(kinds) == 1 else (lambda c: f" ({BRIEFLY.get(c.get('kind'), 'as the rule sets out')})")
             asked = [f" “{c['question'].strip()}”{each(c)} reached {c['verdict']}" for c in crits
                      if c.get("question") and c.get("verdict")]
-            parts.append((";".join(asked) + "." if asked else "", s["id"]))
+            reached = [c for c in crits if c.get("question") and c.get("verdict")]
+            parts.append((";".join(asked) + "." if asked else "", s["id"],
+                          _count({f"verdicts@{s['id']}": [c["verdict"] for c in reached]},
+                                 *[x for c in reached for x in (c["question"].strip(), c["verdict"])], kind="record")))
             if r.get("overall"):
-                parts.append((f" The overall verdict was {r['overall']}.", s["id"]))
+                parts.append((f" The overall verdict was {r['overall']}.", s["id"],
+                              _count({f"overall verdict@{s['id']}": r["overall"]}, r["overall"], kind="record")))
             parts.append(("", s["id"]))
         else:
             crits = [c for s in judges for c in (records.get(s["id"], {}).get("criteria") or s.get("criteria") or [])]
             kinds = list(dict.fromkeys(how[c["kind"]] for c in crits if c.get("kind") in how))
             first = next((c["question"].strip() for c in crits if c.get("question")), "")
             if kinds:
-                parts.append((f" For each question a rule asks, such as “{first}”, " + "; ".join(kinds) + ".", None))
+                parts.append((f" For each question a rule asks, such as “{first}”, " + "; ".join(kinds) + ".", None, NAME))
             got = [(records.get(s["id"], {}).get("overall"), s) for s in judges]
             if all(v for v, _ in got):
-                parts.append((" The verdicts reached were ", None))
+                parts.append((" The verdicts reached were ", None, ""))
                 for i, (v, s) in enumerate(got):
-                    parts.append((f"{v} for {_label(step_name(s['id'], by_id))}", s["id"]))
-                    parts.append(("." if i == len(got) - 1 else " and " if i == len(got) - 2 else ", ", None))
+                    parts.append((f"{v} for {_label(step_name(s['id'], by_id))}", s["id"],
+                                  _count({f"overall verdict@{s['id']}": v}, v, _label(step_name(s["id"], by_id)), kind="record")))
+                    parts.append(("." if i == len(got) - 1 else " and " if i == len(got) - 2 else ", ", None, ""))
             else:
                 parts += [("", s["id"]) for s in judges]
         stage("Verdicts", parts)
@@ -442,7 +534,7 @@ def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
     stage("Claims", [(f"The writer tagged {k} key claim{'' if k == 1 else 's'} that rest{'s' if k == 1 else ''} on no count, as each number is "
                       "tagged: each names the passages for it and against it, how they would be found again and why they "
                       "bear it out, and fixed rules checked that every passage named is one the coding holds." if k else
-                      "The writer tagged no claim.", s["id"]) for s, k in claimed])
+                      "The writer tagged no claim.", s["id"], _count({f"key claims tagged@{s['id']}": k})) for s, k in claimed])
 
     # The writing, and what code checked in it
     writing = []
@@ -455,33 +547,35 @@ def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
                         "the count its citations make" + (f", checking the {beside} numbers the AI also wrote beside one "
                         "and refusing to create the report while any differed" if beside else "") + "." if cited else
                         f"Rubicon wrote the answer from these {made}, citing for each finding the passages it rests on.",
-                        s["id"]))
+                        s["id"], _count({"numbers stated beside their count": beside}) if cited and beside else ""))
     rp = R.get("report") or {}
-    coding = (rp.get("coding") or {}).values()
-    missing = sum(len(v.get("quotations_not_found", [])) for v in coding)
-    quotes = sum(v.get("rows", 0) for v in coding) + missing  # a passage found nowhere is dropped from the rows
-    exact = quotes - missing - sum(v.get("quotations_placed_approximately", 0) for v in coding)
+    # the passages as the checks box counts them (`nrows_of`), with those found nowhere, which are dropped from the rows
+    quotes = nrows_of(R) + found_nowhere(R)
+    exact = nrows_of(R) - placed_approximately(R)
     numbers = (rp.get("answer") or {}).get("counts_written_by_id")
     said = (rp.get("answer") or {}).get("quotations_in_the_answer")
+    checked = lambda n: _count({"numbers counted": n or 0, "passages given": quotes,
+                                "quotations found word for word": exact, "quotations in the answer": said})
     if numbers == 0:  # an answer that states no count: nothing to say was computed, only what was found
         found = f"all {quotes}" if exact == quotes else f"{exact} of the {quotes}"
         writing.append((" The answer states no count" + (f"; {found} {'cited' if cited else 'coded'} passages were found word "
                         "for word in their documents" if quotes else "")
                         + (f", and every quotation in the answer, {said} in all, was found in the documents" if said else "")
-                        + ".", None))
+                        + ".", None, checked(0)))
     elif numbers is not None:
         found = f"all {quotes}" if exact == quotes else f"{exact} of the {quotes}"
         writing.append(((f" Every count in the answer, {numbers} in all, was computed directly from {from_said('the cited passages', from_facts)}" if cited
                          else f" Every number in the answer, {numbers} in all, was {computed_said(from_facts)}")
                         + (f", and {found} {'cited' if cited else 'coded'} passages were found word for word in their documents" if quotes else "")
                         + (f"; every quotation in the answer, {said} in all, was found in the documents" if said else "")
-                        + ".", None))
+                        + ".", None, checked(numbers)))
     stage("Writing and checks", writing)
 
     revised = [l for l in R.get("revisions", "").splitlines() if l.strip().startswith("- ")]
     if revised:
         stage("Revisions", [(f"The report was revised {_times(len(revised))} after it was first created, and counted and "
-                             f"checked again{' each time' if len(revised) > 1 else ''}; the changes are listed at the end of this annex.", "revisions")])
+                             f"checked again{' each time' if len(revised) > 1 else ''}; the changes are listed at the end of this annex.", "revisions",
+                             _count({"revisions": len(revised)}))])
 
     left = [s["id"] for s in steps if s["id"] not in done]
     if left:
@@ -507,19 +601,40 @@ def second_coded(R):
 
 def separate(R, part):
     """Whether a separate reader did this part of the second reading ("second_coding" or "check"), as the run records
-    it in `readers.json`: True, False where the first reader did it, None where the run does not say. Only True lets a
-    report call the second coding blind or independent."""
+    it in `readers.json`: True, False where the first reader did it, None where the run does not say. The analyst model
+    writes that file, so a report gives it only as the analyst's record, once (`readers_said`)."""
     said = str((R.get("readers") or {}).get(part, "")).strip().lower()
     return True if said == "separate" else False if said == "same" else None
 
 
-#: The second coding, said as the record of who did it allows
-SECOND_SAID = {
-    True: "A second coder then coded the same documents again to the same definitions, without seeing the first coding.",
-    False: "The reader who made the first coding then coded the same documents again to the same definitions, so this "
-           "second coding is not independent of the first.",
-    None: "The same documents were coded again to the same definitions; the run does not record whether a separate "
-          "coder did it, so it is not called independent here."}
+#: The second coding, said alike whoever did it
+SECOND = "The same documents were coded again to the same definitions."
+#: Whoever made the check, or ruled where the two codings differed
+READER = "A reader"
+#: Each part of the second reading, by the name a reader sees and the measure of whether a separate reader did it
+PART = {"second_coding": "the second coding", "check": "the check"}
+MEASURE_OF_SEPARATE = {"second_coding": "second coder separate", "check": "check reader separate"}
+#: What the analyst's record says of each part, as `separate` reads it
+RECORD_SAYS = {
+    True: {"second_coding": "a separate coder did the second coding, briefed not to open the first coding",
+           "check": "a separate reader made the check"},
+    False: {"second_coding": "it did the second coding itself, so that coding is not independent of the first",
+            "check": "it made the check itself"},
+    None: {"second_coding": "nothing of who did the second coding", "check": "nothing of who made the check"}}
+
+
+def readers_said(R: dict, parts: list[str]) -> str:
+    """Who did each part of the second reading the run holds ("second_coding", "check"), said once in a report and
+    only as the analyst's record: the analyst model writes `readers.json`, and the run does not record anything fixed
+    rules could check it against, such as what a helper was given or read."""
+    if not R.get("readers"):
+        return (f" The run does not record whether a separate reader did {' or '.join(PART[p] for p in parts)}, so "
+                + ("it is not" if len(parts) == 1 else "neither is") + " called independent here.")
+    seps = [separate(R, p) for p in parts]
+    said = " The analyst's record says " + ", and ".join(RECORD_SAYS[s][p] for s, p in zip(seps, parts))
+    if True in seps:
+        said += "; the run does not record what " + ("either one" if seps.count(True) > 1 else "it") + " read"
+    return said + "."
 #: How `compare.py`'s disagreements.md names the columns it compared, so a record that lists no difference proves it looked
 COMPARED = "Compared by fixed rules:"
 #: What it says instead where the two codings share no column it can compare, every coded column being free text
@@ -541,7 +656,145 @@ def code_columns(workflow: dict) -> tuple[list[str], list[str]]:
     return [k for k, y in cols if y], [k for k, y in cols if not y]
 
 
-#: Who ruled where the two codings differed
-CHECKER = {True: "A third reader", False: "The reader who made the first coding", None: "A reader"}
-#: Who checked, where the check was the whole second reading
-CHECKER_ALONE = {True: "A separate reader", False: "The reader who made the coding", None: "A reader"}
+
+def compared(R: dict) -> tuple[bool, bool]:
+    """Whether the run's comparison of the two codings (`compare.py`'s disagreements.md) looked, naming what it compared,
+    and whether it compared nothing, every column the codings share being free text. A record made before it said what
+    it compared compared the workflow's columns fixed rules compare."""
+    listed = R.get("disagreements") or ""
+    looked, nothing = bool(re.search(rf"(?m)^{COMPARED}", listed)), COMPARED_NOTHING in listed
+    if listed and not (looked or nothing):
+        comparable = bool(code_columns(R.get("workflow"))[0])
+        looked, nothing = comparable, not comparable
+    return looked, nothing
+
+
+def _ruled(R: dict) -> int | None:
+    first, other, unsettled = (_parsed(R.get("check") or "", w) for w in ("ruled for the rows", "ruled for the second coder", "unsettled"))
+    return None if None in (first, other) else first + other + (unsettled or 0)
+
+
+#: What the account of the check is told from, each from the run's records: compare.py's comparison where the run
+#: keeps it, and otherwise the check's own record, whose counts are its reader's
+MEASURES_OF_THE_CHECK = {
+    "places raised": lambda R: (len(re.findall(r"(?m)^- \*\*", R["disagreements"])) if R.get("disagreements")
+                                else _parsed(R.get("check") or "", "disagreements")),
+    "places ruled on": _ruled,
+    "places ruled for the first coding": lambda R: _parsed(R.get("check") or "", "ruled for the rows"),
+    "places ruled for the second coding": lambda R: _parsed(R.get("check") or "", "ruled for the second coder"),
+    "places left unsettled": lambda R: _parsed(R.get("check") or "", "unsettled"),
+    "definitions tightened": lambda R: _parsed(R.get("check") or "", "definitions (?:tightened|changed)"),
+    "omissions searched": lambda R: bool(re.search(r"(?mi)^## .*omission", R.get("check") or "")),
+}
+
+_CHECK_MD = "the check's record, check.md, under its Counts heading"
+_READERS = "the run's record of who read it, check/readers.json"
+_COMPARE = "compare.py's comparison of the two codings, check/disagreements.md"
+for _measure, _maker, _source, _figure in [
+    ("sentences changed", "reader", _CHECK_MD, sentences_changed),
+    ("places ruled on", "reader", _CHECK_MD, _ruled),
+    ("places ruled for the first coding", "reader", _CHECK_MD, MEASURES_OF_THE_CHECK["places ruled for the first coding"]),
+    ("places ruled for the second coding", "reader", _CHECK_MD, MEASURES_OF_THE_CHECK["places ruled for the second coding"]),
+    ("places left unsettled", "reader", _CHECK_MD, MEASURES_OF_THE_CHECK["places left unsettled"]),
+    ("places the check's record says differed", "reader", _CHECK_MD, lambda R: _parsed(R.get("check") or "", "disagreements")),
+    ("definitions tightened", "reader", _CHECK_MD, MEASURES_OF_THE_CHECK["definitions tightened"]),
+    ("omissions searched", "reader", "the check's record, check.md, a heading on omissions", MEASURES_OF_THE_CHECK["omissions searched"]),
+    ("check reader separate", "reader", _READERS, lambda R: separate(R, "check")),
+    ("second coder separate", "reader", _READERS, lambda R: separate(R, "second_coding")),
+    ("second coded", "reader", "check/readers.json and the second coder's rows, check/coded/", second_coded),
+    ("places the codings differed", "fixed rules", _COMPARE,
+     lambda R: len(re.findall(r"(?m)^- \*\*", R["disagreements"])) if R.get("disagreements") else None),
+    ("comparison kept", "fixed rules", _COMPARE, lambda R: bool(R.get("disagreements"))),
+    ("comparison looked", "fixed rules", _COMPARE, lambda R: compared(R)[0]),
+    ("comparison compared nothing", "fixed rules", _COMPARE, lambda R: compared(R)[1]),
+    ("free-text codes", "fixed rules", "the workflow's code columns", lambda R: bool(code_columns(R.get("workflow"))[1])),
+    ("numbers stated beside their count", "fixed rules", "the recount, recount/report.json", stated_beside),
+]:
+    claims.measure(_measure, _maker, _source, (lambda g: lambda R, D=None: g(R))(_figure))
+del _measure, _maker, _source, _figure
+
+
+def _defined(R: dict, sid: str) -> dict:
+    """A step as the run's workflow defines it."""
+    return next((s for s in (R.get("workflow") or {}).get("steps") or [] if s.get("id") == sid), {})
+
+
+def _record(R: dict, sid: str) -> dict:
+    """A step's record, as the recount wrote it."""
+    return (R.get("steps") or {}).get(sid) or {}
+
+
+def nrows_of(R: dict) -> int:
+    """How many passages the run coded, each counted once: a code step that puts other codings' passages together
+    (`combines`) codes nothing, so its rows are its inputs' again. The one count of coded passages, which the checks box,
+    the annex's checks and the procedure in words all give."""
+    return sum(len(s.get("rows", [])) for s in R["steps"].values() if s.get("kind") == "code" and not s.get("combines"))
+
+
+def _codings_counted(R: dict) -> list[dict]:
+    """The recount's record of each coding but those that only put others together, as `nrows_of` counts them."""
+    return [v for v in ((R.get("report") or {}).get("coding") or {}).values() if not v.get("combines")]
+
+
+def placed_approximately(R: dict) -> int:
+    """How many of those passages the recount placed in their document only approximately."""
+    return sum(v.get("quotations_placed_approximately", 0) for v in _codings_counted(R))
+
+
+def found_nowhere(R: dict) -> int:
+    """How many passages a coding gave that the recount found in no document, and left out of the rows."""
+    return sum(len(v.get("quotations_not_found", [])) for v in _codings_counted(R))
+
+
+def _drawn(R: dict, sid: str):
+    documents = _record(R, sid).get("documents")
+    return None if documents is None else len(documents)
+
+
+def _assigned(R: dict, sid: str) -> tuple:
+    """(how many, out of how many) a grouping that assigns gave a theme, as its record counts them: passages, or with
+    several key columns each passage's labels; (None, None) where the record holds no count."""
+    rec = _record(R, sid)
+    a = (rec.get("checks") or {}).get("assigned") or {}
+    if "rows_given_an_item" not in a:
+        return None, None
+    if "labels_given_no_item" in a:
+        return a["rows_given_an_item"], a["rows_given_an_item"] + a["labels_given_no_item"]
+    return (a["rows_given_an_item"], len(rec["table"])) if isinstance(rec.get("table"), list) else (None, None)
+
+
+def _factors(R: dict, sid: str):
+    s = _defined(R, sid)
+    ends = next((c for c in s.get("columns") or [] if c.get("name") == (s.get("links") or {}).get("from")), {})
+    return len(ends["values"]) if isinstance(ends.get("values"), list) else 0
+
+
+def _verdicts(R: dict, sid: str):
+    """The verdict on each question a judgement asks, as `told` gives them: the record's criteria, else the workflow's."""
+    crits = _record(R, sid).get("criteria") or _defined(R, sid).get("criteria") or []
+    return [c["verdict"] for c in crits if c.get("question") and c.get("verdict")]
+
+
+_WORKFLOW = "the run's workflow, workflow.json"
+_STEPS = "the record of each step, recount/steps/"
+for _measure, _source, _figure, _takes in [
+    ("documents drawn", "the sample's record of the documents it drew, recount/steps/", lambda R, D, sid: _drawn(R, sid), True),
+    ("writer's record of what it read kept", "the writer's own record of what it read, work/read.json",
+     lambda R, D: R.get("read") is not None, False),
+    ("factors listed", _WORKFLOW + ", a link coding's list of factors", lambda R, D, sid: _factors(R, sid), True),
+    ("themes at most", _WORKFLOW + ", a grouping's most themes", lambda R, D, sid: _defined(R, sid).get("max_items"), True),
+    ("given a theme", _STEPS + ", the rows a grouping gave a theme", lambda R, D, sid: _assigned(R, sid)[0], True),
+    ("to be given a theme", _STEPS + ", the rows a grouping placed", lambda R, D, sid: _assigned(R, sid)[1], True),
+    ("tables", _WORKFLOW, lambda R, D: len([s for s in (R.get("workflow") or {}).get("steps") or [] if s.get("kind") == "tabulate"]), False),
+    *((counted, _WORKFLOW, (lambda c: lambda R, D: len(next(ss for _, k, ss in _tables_by_kind((R.get("workflow") or {}).get("steps") or [])
+                                                             if k == c)))(counted), False)
+      for _, counted, _ in _tables_by_kind([])),
+    ("verdicts", _STEPS + ", a judgement's criteria", lambda R, D, sid: _verdicts(R, sid), True),
+    ("overall verdict", _STEPS + ", a judgement's overall verdict", lambda R, D, sid: _record(R, sid).get("overall"), True),
+    ("key claims tagged", _STEPS + ", the key claims the writer tagged",
+     lambda R, D, sid: len(_record(R, sid).get("claims") or []), True),
+    ("revisions", "the run's revisions, revisions.md",
+     lambda R, D: len([l for l in (R.get("revisions") or "").splitlines() if l.strip().startswith("- ")]), False),
+]:
+    claims.measure(_measure, "fixed rules", _source, _figure, takes=_takes)
+del _measure, _source, _figure, _takes

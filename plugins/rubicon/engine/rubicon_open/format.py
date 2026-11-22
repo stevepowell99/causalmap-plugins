@@ -315,11 +315,14 @@ FOLDER = [
      "agreed before the documents were coded."),
     ("work/", "the analyst", "The rest of the audit trail: scripts and their output, the briefs given to helpers and "
                              "what they returned, and `procedure.md`, an account of how the run was carried out."),
-    ("recode/", "a second coder", "A second, blind coding of the same workflow: `coded/`, its own recount, "
-                                  "`unclear.md` (where the second coder found a definition unclear), "
-                                  "`disagreements.md` (each value one coder placed and the other did not, with both "
-                                  "coders' passages, written by `compare.py`) and `readers.json`, which says whether "
-                                  "the second coding and the check were made by a reader separate from the analyst."),
+    ("recode/", "a second coder", "A second coding of the same workflow, from a folder holding the documents, the "
+                                  "definitions and the brief: `coded/`, joined by `isolate.py` from each coder's part in "
+                                  "`batches/`, its own recount, `unclear.md` (where the second coder found a definition "
+                                  "unclear), `disagreements.md` (each value one coder placed and the other did not, with "
+                                  "both coders' passages, written by `compare.py`), what the second coder was given "
+                                  "(`given.json`), the log of the helpers (`helpers.json`) and `readers.json`, which says "
+                                  "from that log whether the second coding and the check were made by a reader separate "
+                                  "from the analyst."),
     ("check.md", "the checker", "The check: a fresh reader's reading of the answer against the passages it cites and "
                                 "the documents, its ruling on each disagreement, and what it corrected."),
     ("earlier/<zip>", "the recount", "The sealed zip of each earlier run a step is taken from."),
@@ -371,7 +374,11 @@ ZIP = [
     ("work/<path>", "`work/`"),
     ("check/check.md", "`check.md`"),
     ("check/disagreements.md, check/unclear.md, check/readers.json", "`recode/`"),
-    ("check/coded/<id>.json", "`recode/coded/`, the second coder's rows"),
+    ("check/given.json, check/helpers.json, check/joined.json, check/brief.md, check/briefs/<n>.md",
+     "`recode/`: what the second coder was given, what the log of its helpers shows, and the join of its parts "
+     "(`rubicon_open/isolation.py`)"),
+    ("check/coded/<id>.json", "`recode/coded/`, the second coder's rows, joined from each coder's part in "
+                              "`recode/batches/<n>/`"),
     ("render.json", "The name and date the report was created under, and the fingerprint and version of the engine "
                     "that created it"),
     ("SHA256SUMS", "The seal: the SHA-256 of every other file, in the form `sha256sum -c` reads"),

@@ -63,7 +63,7 @@
         : s.compared === false ? 'also coded this passage; its codes here are free text, so fixed rules did not compare them'
         : !differ.length ? 'agreed'
         : differ.map(([c, theirs]) => `${esc(label(c))}: ${theirs.length ? theirs.map(x => named(x, c)).join(' or ') : 'not coded'} instead of ${named(r.codes[c], c)}`).join('; ');
-      second = `<p class="second"><b>Second coder</b>${RUN.second_blind ? ' (blind)' : ''}: ${said}.</p>`;
+      second = `<p class="second"><b>Second coder</b>: ${said}.</p>`;
     }
     return `<div class="coding"><p class="doc-tag">${esc(stepSaid(r.step))}${graded() ? ' · ' + (r.weak ? 'implicit, so left out of the counts' : 'explicit, so counted') : ''}</p>${codes(r, still)}${second}</div>`;
   }

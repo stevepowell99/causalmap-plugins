@@ -134,7 +134,7 @@ for s in wf.get("steps", []):
         if unmade:  # coded against a codebook no group step here made
             skipped.append(f"{sid} (code, takes its values from {', '.join(unmade)}, which was not recounted)")
             continue
-        took = isinstance(s.get("from"), dict) and (s["from"].get("take") or "rows") == "rows"
+        took = W.takes_rows(s)
         if took and sid in taken_rows:  # coded and checked in the earlier run, placed again here as any rows are
             given[sid] = taken_rows[sid]
         elif took or not f.exists() or isinstance(s.get("from"), dict) and not s.get("columns"):
