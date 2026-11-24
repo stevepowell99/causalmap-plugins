@@ -319,10 +319,12 @@ FOLDER = [
                                   "definitions and the brief: `coded/`, joined by `isolate.py` from each coder's part in "
                                   "`batches/`, its own recount, `unclear.md` (where the second coder found a definition "
                                   "unclear), `disagreements.md` (each value one coder placed and the other did not, with "
-                                  "both coders' passages, written by `compare.py`), what the second coder was given "
-                                  "(`given.json`), the log of the helpers (`helpers.json`) and `readers.json`, which says "
-                                  "from that log whether the second coding and the check were made by a reader separate "
-                                  "from the analyst."),
+                                  "both coders' passages, written by `compare.py`), `first/<step id>.json` (the first "
+                                  "coder's rows as `compare.py` compared them), `rulings.json` (the check's ruling on "
+                                  "each place the two codings differed, as Recorded judgements says), what the second "
+                                  "coder was given (`given.json`), the log of the helpers (`helpers.json`) and "
+                                  "`readers.json`, which says from that log whether the second coding and the check were "
+                                  "made by a reader separate from the analyst."),
     ("check.md", "the checker", "The check: a fresh reader's reading of the answer against the passages it cites and "
                                 "the documents, its ruling on each disagreement, and what it corrected."),
     ("earlier/<zip>", "the recount", "The sealed zip of each earlier run a step is taken from."),
@@ -379,6 +381,8 @@ ZIP = [
      "(`rubicon_open/isolation.py`)"),
     ("check/coded/<id>.json", "`recode/coded/`, the second coder's rows, joined from each coder's part in "
                               "`recode/batches/<n>/`"),
+    ("check/first/<id>.json, check/rulings.json", "`recode/`: the first coder's rows as compared with the second "
+                                                  "coder's, and the check's ruling on each place they differed"),
     ("render.json", "The name and date the report was created under, and the fingerprint and version of the engine "
                     "that created it"),
     ("SHA256SUMS", "The seal: the SHA-256 of every other file, in the form `sha256sum -c` reads"),
@@ -664,6 +668,10 @@ The recount gives each row an id: the step's id, a full stop and five characters
 - **For a judge step**, a reading of each criterion of kind reading: `{{criterion id: {{"verdict": a level, or "between" with "between": [two levels], "rows": [the row ids it rests on], "against": [those that pull the other way], "why": a sentence}}}}`. A verdict that is not one of the criterion's levels leaves it unplaced, and a cited row the criterion does not read is listed.
 - **For a claims step**, the claims: `{{claim id: {{"says", "rows", "against", "found_by", "why"}}}}`, saying what it claims, the rows it rests on and those against it, how another reader would find those passages again and why they bear it out.
 
+`judged/findings.json`, where a run has one, records the answer's findings as what each says of its counts: `{{finding id: {{"says", "where", "holds": [comparisons]}}}}`, each comparison `{{"count": a count's id, "op": one of > >= < <= == !=, and one of "than": another count's id, "n": a number or "share": a fraction}}`, with `"as": "share"` or `"n"` saying whether two counts are compared as shares of their bases (the default where both have one) or as numbers. The recount says whether each comparison holds and works out each finding's margin, the fewest units placed otherwise, each count's base held, that would end it; a unit moved between two cells of one table that differ only in a column the base is not taken within counts as one placement. The answer cites a margin as `{{findings.<finding id>.margin}}`. Where the run has a second coding (`recode/coded/`), the recount also says whether each finding holds on the second coder's rows. A comparison naming a count the run does not have, or an operator it does not know, is listed and its finding given no margin. `report.json` lists under `findings`, `each`, every finding assessed with its `says`, `where`, whether it `holds`, its `margin` (or `margin_over` where none of that many units placed otherwise would end it, or neither where no placement could) its margin's units (`noun`) and how many units the counts it compares are out of, each once (`of`, where the recount works out which units each count's base holds), and under `second_coding`, `each`, the same on the second coder's rows; the report's annex sets them out, finding by finding, under "Sensitivity analysis", giving each margin as a fragility index out of those units.
+
+`recode/rulings.json`, where the check keeps one, records its ruling on each place the first and second coders differed (each value one placed in a document and the other did not, as `recode/disagreements.md` lists them): a list of `{{"step", "column", "document", "value", "ruled", "why"}}`, `ruled` being `first` where the first coder's placement stands, `second` where the second coder's is taken, or `open` where the definition does not settle it. The recount says whether every difference is ruled once and whether the rows as they stand carry each ruling out (`report.json`, `second_coding`).
+
 ## Cells and their ids
 
 A tabulation names each cell by its coordinates: the step's id, then the values of its `by` columns in square brackets, joined by commas, such as `t[income up,MNX]`. The id is the same whatever the cell's count or place in the table, so a citation survives a revision that reorders the table, and a recount refuses an answer citing a cell the table no longer holds. A value is written as it is, except that any character an answer, markdown or HTML would read as syntax (a comma, a full stop, brackets and braces, a quotation mark and the like) is written as its UTF-8 bytes in `%XX`, so `a, b` is `a%2C b`; `recount/tables.md` gives every cell's id to copy. Where a table is by more than one column, `<cell id>.within.<column>` states the same count out of the cases with that cell's value in that column. Beside its cells, a tabulation's `<step id>.of` is how many it counted over. A judge step's rule is `<step id>.<criterion id>`, the count tested against the level it met, with `.<verdict>` added for each level tested on cells of its own, and a stated number is `<step id>.<criterion id>` too; `.of` after either gives its base alone.
@@ -688,6 +696,8 @@ A run made before cells were named by coordinates has `positional` ids, by place
 {_table(("Path", "What it holds"), ((f"`{p}`" if "," not in p else p, m) for p, m in RECOUNT))}
 
 `report.json` holds `format`, this check of the workflow against the schema: the version and schema checked against, how many steps it read, and every place the workflow departs from it.
+
+Where the run has a second coding, `report.json` holds `second_coding`, which sets the codings side by side for each compared column of each code step the second coder coded. A place is one value in one document, and a coding applies it where one of its rows in that document carries the value; agreement is counted over the places either of two codings applies, as `{{"either", "both"}}`. `after` sets the rows as they stand beside the second coder's. Where `recode/first/` holds the first coder's rows as compared, `before` sets those beside the second coder's; `followed` counts, at the places the two coders differed, those the rows as they stand place as the first coder did and those they place as the second did, which the rows alone settle; and `changed_where_alike` counts the places the two coders placed alike that the rows as they stand apply or drop (`added`, `removed`), as where the check added a row both missed. Where `recode/rulings.json` is kept, `rulings` counts how the check ruled each place the two coders differed and lists, by step and column, document and value, each difference `not_ruled`, each ruling `not_carried_out` in the rows, and each ruling `on_no_difference`.
 
 ## The zip and its seal
 

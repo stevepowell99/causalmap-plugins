@@ -5,9 +5,10 @@
 Each folder holds a coding of the same workflow's steps, either recounted (`recount/steps/`, as `recount.py` leaves it)
 or run (`steps/`, as the engine's coders leave it): the first is the analyst's, the second the second coder's. For each
 code step and column, each document either holds a value (has a row coded with it) or does not, in each of the two
-codings: agreement is counted over every document and value, with the documents on which the two differ named. For
+codings: agreement is counted over the places either coding applies a value, as `{"either", "both"}`
+(`rubicon_open/second_coding.py`, which the report reads too), with the documents on which the two differ named. For
 each tabulation, the cells whose counts differ, by the same cell ids. Writes compare.json beside the second coding and
-prints it, and disagreements.md: each document and value one coder placed and the other did not, with the passages
+prints it, keeps the first coder's rows as compared in first/<step id>.json there, and writes disagreements.md: each document and value one coder placed and the other did not, with the passages
 each coder gave for that document, for a reviewer to rule on against the text, and last a line naming every column it
 compared (`procedure.COMPARED`), or saying that it compared none (`procedure.COMPARED_NOTHING`), as where every column
 the two codings share is free text: a record that lists no difference says by it whether it looked. A run made before 15 October 2026 also
@@ -23,6 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder, as recount.py does
 from rubicon_open import console  # noqa: E402
 from rubicon_open import isolation, legacy_weak
+from rubicon_open import second_coding as SC
 from rubicon_open.procedure import COMPARED, COMPARED_NOTHING, compared_by_rules
 from rubicon_open.workflow import value_key
 
@@ -47,21 +49,16 @@ def compare(a: Path, b: Path) -> dict:
         sid = s["id"]
         if s["kind"] == "code":
             ra, rb = load(sa / f"{sid}.json"), load(sb / f"{sid}.json")
-            docs = sorted(set(rb.get("documents") or []) | set(ra.get("documents") or [])
-                          | {r["document"] for r in ra["rows"] + rb["rows"]})
+            # the first coder's rows as compared, kept beside the second coding so that the run's zip can recount what
+            # the check made of each difference (`rubicon_open/second_coding.py`)
+            (b / SC.FIRST).mkdir(exist_ok=True)
+            (b / SC.FIRST / f"{sid}.json").write_text(json.dumps(ra["rows"], indent=1, ensure_ascii=False), encoding="utf-8",
+                                                     newline="\n")
             for c in s.get("columns") or []:
                 if not compared_by_rules(c):
                     continue
-                held = lambda rec: {(r["document"], value_key(r.get(c["name"]))) for r in rec["rows"]
-                                    if r.get(c["name"]) not in (None, "")}
-                ha, hb = held(ra), held(rb)
+                ha, hb = SC.held(ra["rows"], c["name"]), SC.held(rb["rows"], c["name"])
                 compared.append(f"{sid}.{c['name']}")
-                values = sorted({v for _, v in ha | hb})
-                cells = [(d, v) for d in docs for v in values]
-                both = sum((x in ha) and (x in hb) for x in cells)
-                agree = sum((x in ha) == (x in hb) for x in cells)
-                pa, pb = len(ha) / len(cells) if cells else 0, len(hb) / len(cells) if cells else 0
-                pe = pa * pb + (1 - pa) * (1 - pb)
                 for who, mine, theirs, rec, other in (("first coder", ha, hb, ra, rb), ("second coder", hb, ha, rb, ra)):
                     for d, v in sorted(mine - theirs):
                         quotes = [r["quote"] for r in rec["rows"] if r["document"] == d and value_key(r.get(c["name"])) == v]
@@ -81,9 +78,9 @@ def compare(a: Path, b: Path) -> dict:
                                          f"{'second' if (d, v) in fa else 'first'}.\n"
                                          f"    - The first coder's passages: {said(ra)}\n"
                                          f"    - The second coder's passages: {said(rb)}")
+                # agreement over the places either coding applies a value, as the report counts it (`second_coding`)
                 out["coding"][f"{sid}.{c['name']}"] = {
-                    "document_value_pairs": len(cells), "agree": agree, "held_by_first": len(ha), "held_by_second": len(hb),
-                    "held_by_both": both, "kappa": round((agree / len(cells) - pe) / (1 - pe), 2) if cells and pe < 1 else None,
+                    **SC.alike(ha, hb), "held_by_first": len(ha), "held_by_second": len(hb),
                     "first_only": sorted(f"{d}: {v}" for d, v in ha - hb), "second_only": sorted(f"{d}: {v}" for d, v in hb - ha),
                     # legacy_weak: only a run made before 15 October 2026 has rows marked weak
                     **({"firm_for_one_weak_for_other": [f"{d}: {v}" for d, v in strength]}

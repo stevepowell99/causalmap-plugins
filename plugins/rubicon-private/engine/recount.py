@@ -14,7 +14,9 @@ each level's descriptor, are the analyst's readings recorded in `judged/<judge s
 "against": [row ids that pull the other way], "why": a sentence}}, checked as a model's reading is checked. A claims
 step's claims, the answer's key claims that rest on no count, are the writer's, recorded in `judged/<claims step id>.json`
 as {claim id: {"says", "rows", "against", "found_by", "why"}} and checked the same way (`judge.evidence`); the answer
-cites one as [<claims step id>.<claim id>]. A group step's codebook, which the analyst draws from the open labels a
+cites one as [<claims step id>.<claim id>]. The answer's findings that rest on counts may be recorded in
+`judged/findings.json` as what each says of its counts, which code checks and gives a margin (`rubicon_open/findings.py`:
+the fewest units placed otherwise that would end it), cited as {findings.<id>.margin}. A group step's codebook, which the analyst draws from the open labels a
 code step coded, is recorded in `judged/<group step id>.json` in the hosted grouping model's format, each item naming the
 labels it gathers in `from_labels` (`steps.group_given`); code gives every row its item by its label, checks that every
 label is placed or left over, and where the step assigns, tables count by `item`; a later code step whose column's
@@ -46,7 +48,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # runs from any folder
 from rubicon_open import console  # noqa: E402
 from rubicon_open.corpus import load_corpus
 from rubicon_open import audits, earlier, legacy_weak, locator
+from rubicon_open import findings as F
 from rubicon_open import format as open_format
+from rubicon_open import second_coding as SC
 from rubicon_open import steps as S
 from rubicon_open import workflow as W
 from rubicon_open.guidance import NoModel
@@ -221,8 +225,78 @@ for sid, rec in run.out.items():
 tables = [f"## {sid}\n\n" + (f"{rec['description']}\n\n" if rec.get("description") else "")
           + (S._markdown(rec, sid) if rec["kind"] == "tabulate" else judge_markdown({**rec, "id": sid}, margins=True))
           for sid, rec in run.out.items() if rec["kind"] in ("tabulate", "judge")]
-(out / "tables.md").write_text("\n\n".join(tables) + "\n", encoding="utf-8", newline="\n")
 counts = S.counts_of(run, [sid for sid, rec in run.out.items() if rec["kind"] in ("tabulate", "judge")])
+
+
+def under_second_coding() -> dict | None:
+    """The findings as the second coder's rows count them, where a second coding was made (`recode/coded/`): the run's
+    own workflow as this recount ran it, its documents, readings and findings, with each code step the second coder
+    coded counted from that coder's rows instead, recounted by this script. It says whether each finding still holds
+    on a reading made apart from the first, which a rereading by the first coder cannot. None where there is none."""
+    import subprocess
+    import tempfile
+    theirs = sorted((folder / "recode" / "coded").glob("*.json")) if (folder / "recode" / "coded").is_dir() else []
+    if not theirs:
+        return None
+    with tempfile.TemporaryDirectory() as t:
+        b = Path(t)
+        # the workflow as this recount wrote it, which keeps a run made before the weak mark was retired counting as it
+        # was made, so both codings are counted alike however the folder came to be
+        there = json.loads((out / "workflow.json").read_text(encoding="utf-8"))
+        ours = found
+        if cell_ids == "positional":
+            # a cell named by its place in the table, which follows its count, may be another cell on another coding,
+            # so the findings are recounted there naming each cell by its coordinates, the same cell on both
+            coords = {c["id"]: S.cell_id(sid, rec["by"], c["values"]) for sid, rec in run.out.items()
+                      if rec.get("kind") == "tabulate" for c in rec["cells"] if "id" in c}
+
+            def named(x):
+                if not isinstance(x, str):
+                    return x
+                head, sep, tail = x.partition(".within.")
+                return coords.get(head, head) + sep + tail
+            there = {**there, "cell_ids": "coordinates"}
+            ours = {fid: {**f, "holds": [{**c, **{k: named(c[k]) for k in ("count", "than") if k in c}}
+                                         for c in f.get("holds") or [] if isinstance(c, dict)]}
+                    for fid, f in found.items() if isinstance(f, dict)}
+        (b / "workflow.json").write_text(json.dumps(there, ensure_ascii=False), encoding="utf-8")
+        for sub in ("corpus", "background", "coded", "judged", "earlier"):
+            if (folder / sub).is_dir():
+                shutil.copytree(folder / sub, b / sub)
+        (b / "judged" / F.FILE).write_text(json.dumps(ours, ensure_ascii=False), encoding="utf-8")
+        (b / "coded").mkdir(exist_ok=True)
+        for p in theirs:
+            shutil.copy2(p, b / "coded" / p.name)
+        done = subprocess.run([sys.executable, "-I", "-S", str(Path(__file__).resolve()), str(b)], capture_output=True,
+                              text=True, encoding="utf-8")
+        if done.returncode:
+            return {"steps": [p.stem for p in theirs], "error": (done.stderr.strip() or done.stdout.strip())[-300:]}
+        got = json.loads((b / "recount" / "report.json").read_text(encoding="utf-8")).get("findings") or {}
+    each = [{k: v for k, v in e.items() if k not in ("says", "where")} for e in got.get("each", [])]
+    there = {e["id"] for e in each}
+    return {"steps": [p.stem for p in theirs], "not_holding": got.get("not_holding", []), "margins": got.get("margins", {}),
+            "each": each,
+            # the findings assessed on the first coder's rows that could not be on the second's, by id
+            **({"not_assessed": [a["id"] for a in assessed if a["id"] not in there]}
+               if any(a["id"] not in there for a in assessed) else {})}
+
+
+# each finding recorded as what it says of its counts (`rubicon_open/findings.py`): whether it holds, and its margin,
+# on the rows as they stand and on the second coder's
+found, findings_faults = F.read(folder, wf.get("steps", []))
+if found is not None or findings_faults:
+    known = F.parts(run)
+    assessed, unread = F.assess(found or {}, known)
+    findings_faults += unread
+    second = under_second_coding() if assessed else None
+    tables.append(F.markdown(assessed, findings_faults, known, second))
+    counts.update(F.counts(assessed))
+    report["findings"] = {**F.report(found or {}, assessed, findings_faults), **({"second_coding": second} if second else {})}
+# the run's coding beside the second coder's, where there is one: how far the two agreed working apart, and what the
+# check made of each place they differed (`rubicon_open/second_coding.py`)
+if (coders := SC.accounted(folder, wf)) is not None:
+    report["second_coding"] = coders
+(out / "tables.md").write_text("\n\n".join(tables) + "\n", encoding="utf-8", newline="\n")
 (out / "counts.json").write_text(json.dumps(counts, indent=1, ensure_ascii=False), encoding="utf-8", newline="\n")
 
 if a.answer:
@@ -312,6 +386,12 @@ audit_lines = [x for x in audits.in_words(report["audit"]) if not x.endswith("fo
 if audit_lines:
     print("\nAUDIT WARNINGS, for you to weigh against the documents (none is a fault to clear; recount/report.json holds them in full):")
     print("\n".join(f"- {x}" for x in audit_lines))
+if report.get("findings", {}).get("not_holding") or report.get("findings", {}).get("not_read"):
+    f_ = report["findings"]
+    print("\nFINDINGS (judged/findings.json, recount/tables.md under Findings):"
+          + "".join(f"\n- {x}: a comparison it needs does not hold, so the finding says more than its counts; correct "
+                    "the finding or the rows" for x in f_.get("not_holding", []))
+          + "".join(f"\n- not read: {x}" for x in f_.get("not_read", [])))
 print(f"\nwritten: {out / 'tables.md'}, {out / 'rows.md'}, {out / 'counts.json'}" + (f", {out / 'answer.resolved.md'}" if a.answer else ""))
 if a.answer and report["answer"]["quotations_found_in_no_document"]:
     gaps = {s["quote"]: s for s in report["answer"]["quotations_held_otherwise"]}

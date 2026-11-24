@@ -138,6 +138,13 @@ def recounted_afresh(run):
         for sub in ("corpus", "background", "coded", "judged", "earlier"):
             if (run / sub).is_dir():
                 shutil.copytree(run / sub, fresh / sub)
+        # the second coder's rows, from which the recount says whether each recorded finding holds on that coding too,
+        # the first coder's rows as compared with them, and the check's rulings (`rubicon_open/second_coding.py`)
+        for sub in ("coded", "first"):
+            if (run / "recode" / sub).is_dir():
+                shutil.copytree(run / "recode" / sub, fresh / "recode" / sub)
+        if (run / "recode" / "rulings.json").is_file():
+            shutil.copy2(run / "recode" / "rulings.json", fresh / "recode" / "rulings.json")
         done = subprocess.run([sys.executable, "-I", "-S", str(ENGINE / "recount.py"), str(fresh), "--answer",
                                str(fresh / "answer.md")], capture_output=True, text=True, encoding="utf-8")
         if done.returncode:
@@ -212,10 +219,12 @@ def bundle(run, out, render):
         if p.is_file() and "__pycache__" not in p.parts:
             files["work/" + p.relative_to(run / "work").as_posix()] = p
     # The second reading: the check's record and the second coder's own rows, beside the run they checked
-    # and, where isolate.py opened the second reading, what the second coder was given and the log of its helpers
+    # and, where isolate.py opened the second reading, what the second coder was given and the log of its helpers; and
+    # the first coder's rows as compared with the second coder's, with the check's ruling on each place they differed
     for p in [run / "check.md"] + [run / "recode" / f for f in ("disagreements.md", "unclear.md", "readers.json", "given.json",
-                                                              "helpers.json", "joined.json", "brief.md")] \
-            + sorted((run / "recode" / "briefs").glob("*.md")) + sorted((run / "recode" / "coded").glob("*.json")):
+                                                              "helpers.json", "joined.json", "brief.md", "rulings.json")] \
+            + sorted((run / "recode" / "briefs").glob("*.md")) + sorted((run / "recode" / "coded").glob("*.json")) \
+            + sorted((run / "recode" / "first").glob("*.json")):
         if p.is_file():
             files["check/" + p.relative_to(run).as_posix().removeprefix("recode/")] = p
     entries = [(n, p.read_bytes()) for n, p in files.items()]
@@ -2121,6 +2130,7 @@ def annex(R, D, static=False, earlier=None, number=None):
     for d in R["index"]:
         gcounts[d.get(D["group"], "")] = gcounts.get(d.get(D["group"], ""), 0) + 1
     gutter = "" if static else '<div class="wf-gutter"></div>'
+    out.append(sensitivity(R))
     said = again(hashed("method", *(["cited"] if cited(R) else [])), "The method is the same as in")
     out.append(f'<div class="method" id="method"><h3>{STEP_BY_STEP}</h3>' + (said or f"<p>{(cited_intro if cited(R) else method_intro)(counts_from_facts(R, D))}</p>") + gutter)
     given = "given to the AI that wrote the answer" if cited(R) else "read in full"
@@ -2285,7 +2295,7 @@ def annex(R, D, static=False, earlier=None, number=None):
                        # who made it is said once, in the procedure in words (`procedure.readers_said`)
                        (f"{procedure.READER} read the answer against the passages it cites and the documents" if alone else
                         # what the check ruled on is counted, where at all, in its record shown below, never claimed here
-                        f"{procedure.READER} ruled on the places where the two codings differed, and read the answer "
+                        f"{procedure.READER} adjudicated the disagreements between the two codings, and read the answer "
                         "against the documents")
                        + ", correcting the coding and the answer where they were wrong.", "reader", {"second coded": not alone})
                      + claims.claim(procedure.changed_said(R), "reader", {"sentences changed": procedure.sentences_changed(R)})
@@ -2555,12 +2565,67 @@ def summary(R, a, nrows, D=None):
                                          + ("" if alone else ", after an AI coded the interviews a second time") + ".",
                                          "reader", {"second coded": not alone})
                    + claims.claim(procedure.changed_said(R), "reader", {"sentences changed": procedure.sentences_changed(R)}) + "</li>")
+    if said := coders_said(R):
+        out.append("<li>" + said + "</li>")
+    if said := sensitivity_line(R):
+        out.append("<li>" + said + click(f"Each finding is listed in the annex, under “{SENSITIVITY}”.") + "</li>")
     out.append(f'<li class="not-checked"{claims.plain()}>{NOT_CHECKED}</li>')
     return claims.refuse("".join(out), R, D)
 
 
 def _answer(R):
     return (R.get("report") or {}).get("answer") or {}
+
+
+def _coders(R, *path):
+    """A figure of the recount's `second_coding` (`rubicon_open/second_coding.py`), by its path; None where it has none."""
+    x = (R.get("report") or {}).get("second_coding")
+    for p in path:
+        x = x.get(p) if isinstance(x, dict) else None
+    return x
+
+
+def coders_said(R):
+    """The box's line on the two codings, from the recount's `second_coding`: of the places where either of two AI
+    coders working apart applied a code, how many both did; at the places they differed, whose reading the rows after
+    the check follow; where the check recorded its rulings, how it ruled and whether the rows carry each ruling out; and
+    how far the coding the answer rests on agrees with the second coder's after the check. Counted over the places either applied a value, never over every document
+    and value, which would count each value neither had reason to apply as agreement. None where there is no second
+    coding of a compared code."""
+    if not _coders(R, "after", "either"):
+        return None
+    e2, b2 = _coders(R, "after", "either"), _coders(R, "after", "both")
+    if _coders(R, "before") is None:
+        return claims.claim(
+            f"Inter-coder agreement after adjudication: of the <b>{e2}</b> code assignments (a code applied to an "
+            f"interview) made by either the final coding or a second AI coder coding independently, both made {b2}.", "count",
+            {"places either coding applied a code after the check": e2, "places both codings applied a code after the check": b2})
+    e1, b1 = _coders(R, "before", "either"), _coders(R, "before", "both")
+    figures = {"places either coder applied a code": e1, "places both coders applied a code": b1,
+               "places either coding applied a code after the check": e2, "places both codings applied a code after the check": b2}
+    said = (f"Inter-coder agreement: two AI coders coded the interviews independently, and of the <b>{e1}</b> code "
+            f"assignments (a code applied to an interview) made by either, both made {b1}.")
+    if e1 - b1:
+        f1, s1 = _coders(R, "followed", "first"), _coders(R, "followed", "second")
+        figures.update({"places the coders differed": e1 - b1, "differences the rows follow the first coder in": f1,
+                        "differences the rows follow the second coder in": s1})
+        said += (f" Of the {e1 - b1} disagreements, the final coding follows the first coder in {f1} and the second in "
+                 f"{s1}.")
+    if _coders(R, "rulings") is not None:
+        f, s, o = (_coders(R, "rulings", k) for k in ("first", "second", "open"))
+        nr, nco = len(_coders(R, "rulings", "not_ruled")), len(_coders(R, "rulings", "not_carried_out"))
+        figures.update({"differences ruled for the first coder": f, "differences ruled for the second coder": s,
+                        "differences left open": o, "differences not ruled": nr, "rulings not carried out in the rows": nco})
+        said += (f" The check's adjudication record decides {f} for the first coder and {s} for the second, and leaves "
+                 f"{o} unresolved"
+                 + (f"; it records no decision on {nr}" if nr else "")
+                 + (f"; the final coding does not apply {nco} of its decisions." if nco else "."))
+    a, r = _coders(R, "changed_where_alike", "added"), _coders(R, "changed_where_alike", "removed")
+    if a or r:
+        figures.update({"codes the check applied where the coders agreed": a, "codes the check removed where the coders agreed": r})
+        said += f" Where the coders agreed, the check added {a} code assignments and removed {r}."
+    return claims.claim(said + f" After adjudication, the final coding and the second coder's agree on {b2} of {e2} code "
+                        "assignments.", "count", figures)
 
 
 _RECOUNT = "the recount, recount/report.json"
@@ -2588,6 +2653,160 @@ for _measure, _source, _figure in [
 ]:
     claims.measure(_measure, "fixed rules", _source, _figure)
 del _measure, _source, _figure
+_CODERS = _RECOUNT + ", second_coding, from check/first/, check/coded/, coded/ and check/rulings.json"
+for _measure, _figure in [
+    ("places either coder applied a code", lambda R, D: _coders(R, "before", "either")),
+    ("places both coders applied a code", lambda R, D: _coders(R, "before", "both")),
+    ("places either coding applied a code after the check", lambda R, D: _coders(R, "after", "either")),
+    ("places both codings applied a code after the check", lambda R, D: _coders(R, "after", "both")),
+    ("places the coders differed", lambda R, D: (_coders(R, "before", "either") or 0) - (_coders(R, "before", "both") or 0)),
+    ("differences ruled for the first coder", lambda R, D: _coders(R, "rulings", "first")),
+    ("differences ruled for the second coder", lambda R, D: _coders(R, "rulings", "second")),
+    ("differences left open", lambda R, D: _coders(R, "rulings", "open")),
+    ("differences not ruled", lambda R, D: len(_coders(R, "rulings", "not_ruled") or [])),
+    ("rulings not carried out in the rows", lambda R, D: len(_coders(R, "rulings", "not_carried_out") or [])),
+    ("differences the rows follow the first coder in", lambda R, D: _coders(R, "followed", "first")),
+    ("differences the rows follow the second coder in", lambda R, D: _coders(R, "followed", "second")),
+    ("codes the check applied where the coders agreed", lambda R, D: _coders(R, "changed_where_alike", "added")),
+    ("codes the check removed where the coders agreed", lambda R, D: _coders(R, "changed_where_alike", "removed")),
+]:
+    claims.measure(_measure, "fixed rules", _CODERS, _figure)
+del _measure, _figure
+
+
+def _findings(R, *path):
+    """A figure of the recount's `findings` (`rubicon_open/findings.py`), by its path; None where it has none."""
+    x = (R.get("report") or {}).get("findings")
+    for p in path:
+        x = x.get(p) if isinstance(x, dict) else None
+    return x
+
+
+def _finding(R, fid, second=False):
+    """One finding as the recount assessed it, on the coding the answer rests on or on the second coder's; {} where it
+    was not assessed there."""
+    each = _findings(R, "second_coding", "each") if second else _findings(R, "each")
+    return next((e for e in each or [] if isinstance(e, dict) and e.get("id") == fid), {})
+
+
+#: The annex's sensitivity analysis: its heading, and its id
+SENSITIVITY, SENSITIVITY_ID = "Sensitivity analysis", "sensitivity"
+
+
+def _index_said(e, k):
+    """A fragility index of `k` with what it is out of, "1 of 18 households", where the recount worked out how many
+    units the finding's counts are out of (`of`); otherwise with the units alone, in brackets, since the unit is the
+    workflow's own word, in any language, and is not made to agree with k."""
+    noun = e.get("noun") or "units"
+    return count_said(k, e["of"], noun) if "of" in e else f"{k} ({noun})"
+
+
+def finding_said(R, fid, second=False):
+    """Whether a finding holds on one coding, and its fragility index there, as a claim: the fewest of the units
+    counted whose coding would have to change for the finding no longer to hold, each count's denominator fixed, out
+    of the units in the counts it compares (the margin of `rubicon_open/findings.py`, and its `of`)."""
+    on = " on the second coding" if second else ""
+    if second:
+        if "error" in (_findings(R, "second_coding") or {}):
+            return claims.claim("Not assessed: recounting the second coding failed.", "record",
+                                {"second coding of the findings failed": True})
+        if fid in (_findings(R, "second_coding", "not_assessed") or []):
+            return claims.claim("Not assessed: a count it relies on is absent from this coding.", "record",
+                                {f"finding not assessed on the second coding@{fid}": True})
+    e = _finding(R, fid, second)
+    if not e.get("holds"):
+        return claims.claim("Does not hold: the finding claims more than the counts show.", "count",
+                            {f"finding holds{on}@{fid}": False})
+    of = {f"finding margin out of{on}@{fid}": e["of"]} if "of" in e else {}
+    if "margin" in e:
+        return claims.claim(f"Holds; fragility index {_index_said(e, e['margin'])}.", "count",
+                            {f"finding holds{on}@{fid}": True, f"finding margin{on}@{fid}": e["margin"], **of})
+    if "margin_over" in e:
+        return claims.claim(f"Holds; fragility index above {_index_said(e, e['margin_over'])}.", "count",
+                            {f"finding holds{on}@{fid}": True, f"finding margin searched to{on}@{fid}": e["margin_over"], **of})
+    return claims.claim("Holds under any recoding.", "count", {f"finding holds{on}@{fid}": True})
+
+
+def sensitivity(R):
+    """The sensitivity analysis of the findings the check recorded as resting on counts (`judged/findings.json`): each
+    in the check's words, with the section it is set out in, whether it holds on the final coding and its fragility
+    index, worked out by fixed rules, and, where a second AI coder coded the documents independently, the same on that
+    coding. Nothing reads the findings' words. "" where no finding was assessed."""
+    each = [e for e in _findings(R, "each") or [] if isinstance(e, dict) and "id" in e]
+    if not each:
+        return ""
+    second = _findings(R, "second_coding")
+    intro = claims.said(
+        "The findings the check identified as based on counts, in the check's words. For each, fixed rules test whether "
+        "the counts support it and compute its fragility index: the fewest of the units counted whose coding would have "
+        "to change for the finding no longer to hold, with each count's denominator fixed, out of all the units in the "
+        "counts the finding compares. The index is adapted from the fragility index used for clinical trials; it counts "
+        "the coding decisions a finding depends on, and says nothing about how likely any of them is to be wrong."
+        + (" The last column repeats the analysis on the coding of a second AI coder, made independently. A finding that "
+           "holds on one coding and not on the other depends on interviews the two coders coded differently, which the "
+           "check adjudicated against the codebook." if second else ""))
+    head = "<tr><th>Finding</th><th>On the final coding</th>" + ("<th>On the second coder's coding</th>" if second else "") + "</tr>"
+    rows = "".join(
+        "<tr><td>" + esc(e.get("says") or e["id"]) + (f'<br><small>Section: {esc(e["where"])}</small>' if e.get("where") else "")
+        + f"</td><td>{finding_said(R, e['id'])}</td>" + (f"<td>{finding_said(R, e['id'], True)}</td>" if second else "") + "</tr>"
+        for e in each)
+    return claims.refuse(f'<h3 id="{SENSITIVITY_ID}">{SENSITIVITY}</h3><p class="small">{intro}</p>'
+                         f'<table class="md sensitivity"><thead>{head}</thead><tbody>{rows}</tbody></table>', R)
+
+
+def _lowest(each):
+    """The finding that holds with the lowest fragility index, and of those, the one whose counts are out of the most
+    units, the fewest placements among the most; None where none holds with an index."""
+    return min((e for e in each if e.get("holds") and "margin" in e), key=lambda e: (e["margin"], -(e.get("of") or 0)),
+               default=None)
+
+
+def sensitivity_line(R):
+    """The box's line on the sensitivity analysis: how many findings resting on counts the counts support, of how many
+    recorded, and the lowest fragility index among them, with what it is out of; with how many hold on the second
+    coding where there is one. None where no finding was assessed."""
+    each = [e for e in _findings(R, "each") or [] if isinstance(e, dict) and "id" in e]
+    if not each:
+        return None
+    n, h = len(each), sum(bool(e.get("holds")) for e in each)
+    figures = {"findings assessed": n, "findings their counts bear out": h}
+    said = f"Sensitivity analysis: the counts support <b>{h}</b> of the {n} findings the check identified as based on counts"
+    low = _lowest(each)
+    if low:
+        figures["smallest finding margin"] = low["margin"]
+        figures.update({"smallest finding margin out of": low["of"]} if "of" in low else {})
+        said += f", and the lowest fragility index is {_index_said(low, low['margin'])}"
+    if _findings(R, "second_coding", "each") is not None:
+        h2 = sum(bool(_finding(R, e["id"], True).get("holds")) for e in each)
+        figures["findings that hold on the second coding"] = h2
+        said += f". On the second AI coder's independent coding, the counts support {h2} of them"
+    return claims.claim(said + ".", "count", figures)
+
+
+_FINDINGS = _RECOUNT + ", findings, from judged/findings.json and the rows"
+for _measure, _figure in [
+    ("finding holds", lambda R, D, fid: _finding(R, fid).get("holds")),
+    ("finding margin", lambda R, D, fid: _finding(R, fid).get("margin")),
+    ("finding margin searched to", lambda R, D, fid: _finding(R, fid).get("margin_over")),
+    ("finding margin out of", lambda R, D, fid: _finding(R, fid).get("of")),
+    ("finding holds on the second coding", lambda R, D, fid: _finding(R, fid, True).get("holds")),
+    ("finding margin on the second coding", lambda R, D, fid: _finding(R, fid, True).get("margin")),
+    ("finding margin searched to on the second coding", lambda R, D, fid: _finding(R, fid, True).get("margin_over")),
+    ("finding margin out of on the second coding", lambda R, D, fid: _finding(R, fid, True).get("of")),
+    ("finding not assessed on the second coding", lambda R, D, fid: fid in (_findings(R, "second_coding", "not_assessed") or [])),
+]:
+    claims.measure(_measure, "fixed rules", _FINDINGS, _figure, takes=True)
+for _measure, _figure in [
+    ("second coding of the findings failed", lambda R, D: "error" in (_findings(R, "second_coding") or {})),
+    ("findings assessed", lambda R, D: len(_findings(R, "each") or [])),
+    ("findings their counts bear out", lambda R, D: sum(bool(e.get("holds")) for e in _findings(R, "each") or [])),
+    ("smallest finding margin", lambda R, D: (_lowest(_findings(R, "each") or []) or {}).get("margin")),
+    ("smallest finding margin out of", lambda R, D: (_lowest(_findings(R, "each") or []) or {}).get("of")),
+    ("findings that hold on the second coding",
+     lambda R, D: sum(bool(_finding(R, e["id"], True).get("holds")) for e in _findings(R, "each") or [])),
+]:
+    claims.measure(_measure, "fixed rules", _FINDINGS, _figure)
+del _measure, _figure
 
 
 #: The verification box's title, the line under it, and its last line, on what nothing checked

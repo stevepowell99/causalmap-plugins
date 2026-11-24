@@ -629,17 +629,28 @@ def units(run: Run, count: str, read, rows: list[dict], profiled: bool = False) 
     return held, unit_of
 
 
+def rows_read(run: Run, src: str) -> tuple[list[dict], object]:
+    """The rows a tabulation of `src` counts, before any filter, and the documents it read: the document list, one row
+    a document, for the documents or a sample; otherwise the input's rows and the documents its coding read, including
+    those that gave no row."""
+    if src == "documents" or run.out.get(src, {}).get("kind") == "sample":
+        docs = sorted(run.corpus.documents) if src == "documents" else run.out[src]["documents"]
+        return [{"row": d, "document": d} for d in docs], docs
+    rows, rec = run.table(src), run.out[src]
+    return rows, rec.get("documents") or run.out.get(rec.get("input"), {}).get("documents") or {r["document"] for r in rows}
+
+
+def unit_values(run: Run, docs, column: str) -> set:
+    """What a unit made of the documents `docs` is counted under in a column a base is taken within, so that it is in
+    the base of each: its documents for `document`, otherwise every value they take (`document_values`), "(blank)"
+    for none."""
+    return set(docs) if column == "document" else {"(blank)" if v is None else v for v in document_values(run, docs, column)}
+
+
 def tabulate(run: Run, s: dict) -> dict:
     s = resolve_step(s, "tabulate")
     src = s["inputs"][0]
-    if src == "documents" or run.out.get(src, {}).get("kind") == "sample":  # the document list, one row a document
-        docs = sorted(run.corpus.documents) if src == "documents" else run.out[src]["documents"]
-        rows = [{"row": d, "document": d} for d in docs]
-        read = docs
-    else:
-        rows = run.table(src)
-        rec = run.out[src]  # "of" is the documents the coding read, including those that gave no row
-        read = rec.get("documents") or run.out.get(rec.get("input"), {}).get("documents") or {r["document"] for r in rows}
+    rows, read = rows_read(run, src)
     profiled = run.out.get(src, {}).get("kind") == "profile"  # a profile's rows are its units, each built from passages
     coded_rows = rows  # every row the input coded, before any filter: the cases read are worked out from them
     if s.get("where"):  # only the rows the step names are counted; the cases read, and so every base, are all of them
@@ -681,11 +692,8 @@ def tabulate(run: Run, s: dict) -> dict:
     held, unit_of = units(run, count, read, [] if listing else coded_rows, profiled)
     unit_of.update({r["row"]: unit_of.get(r["row"], _unit_of_row(run, count, r, profiled)) for r in rows})
 
-    def of_unit(u, c):  # every value the unit's documents take, so it is in the base of each (`document_values`)
-        docs = held[u]
-        if c == "document":
-            return docs
-        return {"(blank)" if v is None else v for v in document_values(run, docs, c)}
+    def of_unit(u, c):
+        return unit_values(run, held[u], c)
 
     def matches(u, cmb, cols):
         return all(cmb[i] in of_unit(u, by[i]) for i in cols)

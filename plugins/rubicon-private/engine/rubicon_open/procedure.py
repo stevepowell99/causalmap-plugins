@@ -16,7 +16,7 @@ import re
 from . import claims, isolation, legacy_weak
 from . import text as T
 from .names import step_name
-from .steps import unit_of_table
+from .steps import PROFILE_KINDS, profile_kind, unit_of_table
 from .workflow import key_columns, links_ending
 
 #: Words internal to Rubicon or to its records, which the explanation never uses: a reader new to Rubicon would have to
@@ -177,17 +177,34 @@ def changed_said(R: dict) -> str:
 
 
 def _profiled(c: dict) -> str:
-    """What one column of a profile records, in words."""
-    if "holds" in c:
-        coded = _listed([f"{_label(k)} {' or '.join(_label(x) for x in (v if isinstance(v, list) else [v]))}"
-                         for k, v in (c.get("holds") or {}).items()])
-        return f"whether any passage was coded {coded}"
-    if "values" in c:
-        return f"every {_label(c['values'])} coded"
-    if "distinct" in c:
-        return f"how many different values of {_label(c['distinct'])} its passages carry"
-    k = "first" if "first" in c else "last"
-    return f"its {k} {_label(c.get(k))}" + (f" by {_label(c['order'])}" if c.get("order") else "")
+    """What one column of a profile records, in words, from its kind's entry in `PROFILE_WORDS`. A kind without words of
+    its own is refused, never told in another kind's words."""
+    k = profile_kind(c)
+    if k not in PROFILE_WORDS:
+        raise ValueError(f"the procedure has no words for a profile column of kind {k!r}")
+    return PROFILE_WORDS[k](c[k], f" by {_label(c['order'])}" if c.get("order") else "")
+
+
+def _measured(word: str):
+    return lambda v, by: f"the {word} of the {_label(v)} its passages state"
+
+
+#: What a profile column of each of `steps.PROFILE_KINDS` records, in words, given what it reads and its order clause;
+#: one entry for each kind, which `tests/test_procedure.py` holds level with the kinds.
+PROFILE_WORDS = {
+    "holds": lambda v, by: "whether any passage was coded " + _listed(
+        [f"{_label(k)} {' or '.join(_label(x) for x in (w if isinstance(w, list) else [w]))}" for k, w in (v or {}).items()]),
+    "values": lambda v, by: f"every {_label(v)} coded",
+    "distinct": lambda v, by: f"how many different values of {_label(v)} its passages carry",
+    "first": lambda v, by: f"its first {_label(v)}{by}",
+    "last": lambda v, by: f"its last {_label(v)}{by}",
+    "change": lambda v, by: f"whether its {_label(v)} rose, fell or stayed the same{by}",
+    "sum": _measured("sum"), "mean": _measured("mean"), "median": _measured("median"),
+    "min": _measured("lowest"), "max": _measured("highest"),
+    "difference": lambda v, by: f"its {_label(v[0])} less its {_label(v[1])}",
+    "ratio": lambda v, by: f"its {_label(v[0])} divided by its {_label(v[1])}",
+    "compare": lambda v, by: f"whether its {_label(v[0])} stands above, below or level with its {_label(v[1])}",
+}
 
 
 def earlier_said(R: dict, s: dict) -> str:
@@ -390,21 +407,21 @@ def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
             took = f", taking them as {ruled} disagreements" if ruled is not None and ruled != raised else ""
             # the places come from compare.py's comparison where the run keeps it, and from the check's own count where not
             kept = bool(R.get("disagreements"))
-            said = [(f"{lead}The two codings differed in {raised} places." if kept else
-                     f"{lead}The check's own record says the two codings differed in {raised} places.", "check",
+            said = [(f"{lead}The two codings disagreed on {raised} code assignments." if kept else
+                     f"{lead}The check's own record gives {raised} disagreements between the two codings.", "check",
                      {"kind": "count", "is": {"places the codings differed": raised}} if kept else
                      {"kind": "reader", "is": {"places the check's record says differed": raised}}),
                     # "each" only beside the record's count of its rulings; without one, what the record backs
-                    (f" {READER} ruled on each against the text{took}: {first} for the first coding, {other} for the second"
-                     + (f", and {unsettled} that the definitions as written did not settle" if unsettled else "") + "."
+                    (f" {READER} adjudicated each against the text{took}: {first} for the first coding, {other} for the second"
+                     + (f", and {unsettled} left unresolved by the definitions as written" if unsettled else "") + "."
                      if ruled is not None else
-                     f" {READER} ruled on the places where they differed, against the text, and fixed rules found no "
-                     "count of its rulings.", "check", {"kind": "reader", "is": ruling})]
+                     f" {READER} adjudicated the disagreements against the text, and fixed rules found no "
+                     "count of its decisions.", "check", {"kind": "reader", "is": ruling})]
         elif ruled:
             said = [(f"{lead}{READER} compared the two codings passage by passage"
                      + (", since fixed rules could not compare codes written as free text," if nothing else "")
-                     + f" and ruled on {ruled} places where they differed: {first} for the first coding, {other} for the second"
-                     + (f", and {unsettled} that the definitions as written did not settle" if unsettled else "") + ".", "check",
+                     + f" and adjudicated {ruled} disagreements: {first} for the first coding, {other} for the second"
+                     + (f", and {unsettled} left unresolved by the definitions as written" if unsettled else "") + ".", "check",
                      {"kind": "reader", "is": {**ruling, "comparison compared nothing": nothing}})]
         elif looked:
             said = [(lead + ("The two codings agreed on every document and code." if not free else
@@ -414,16 +431,16 @@ def told(R: dict, steps: list[dict], from_facts: bool = False) -> list[dict]:
         elif nothing:
             who = READER
             said = [(f"{lead}Fixed rules could not compare the two codings, whose codes are free text, and "
-                     + (f"{who[0].lower() + who[1:]} ruled on no place where they differed." if ruled == 0 else
-                        "found no count in the check's record of the places it ruled on."), "check",
+                     + (f"{who[0].lower() + who[1:]} adjudicated no disagreements." if ruled == 0 else
+                        "found no count of its decisions in the check's record."), "check",
                      {"kind": "reader", "is": {**ruling, "comparison compared nothing": True}})]
         else:
             # no comparison is kept with the run, so nothing is said of what it found, and without a count of the
             # check's rulings nothing is said of how many it made
-            said = [(f"{lead}{READER} ruled on "
-                     + ("no place where the two codings differed" if ruled == 0 else
-                        "the places where the two codings differed, against the text, and fixed rules found no count of its rulings")
-                     + "; the comparison it ruled from is not in the run's record.", "check",
+            said = [(f"{lead}{READER} adjudicated "
+                     + ("no disagreements between the two codings" if ruled == 0 else
+                        "the disagreements between the two codings against the text, and fixed rules found no count of its decisions")
+                     + "; the comparison it worked from is not in the run's record.", "check",
                      {"kind": "reader", "is": {**ruling, "comparison kept": False}})]
         tightened = MEASURES_OF_THE_CHECK["definitions tightened"](R)
         if tightened:
