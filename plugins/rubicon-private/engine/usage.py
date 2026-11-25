@@ -1,14 +1,25 @@
 """The addresses Rubicon's main plugin fetches: the bare relay address at the start of a conversation, to check the
-published version, and once a conversation after a hand-over the run's size and outline, never its content.
+published version, and once a conversation after a hand-over the run's size and outline, never its content, each only
+as far as the evaluator has agreed.
 
-    python usage.py --check --to <address>
-    python usage.py <run folder or documents folder> --event report|revision|combined --model <family> --to <address>
+    python usage.py --consent outline|check|none --data <plugin data folder>
+    python usage.py --check --to <address> --data <plugin data folder>
+    python usage.py <run folder or documents folder> --event report|revision|combined --model <family> --to <address> --data <plugin data folder>
 
-With `--check`, prints `--to` as given and nothing else: the relay answers a request without a query string with the
-published version alone and adds no row, so the check sends nothing about the person, the computer or any run.
+With `--consent`, records the evaluator's answer to whether Rubicon may send anything, in `usage-consent.json` in the
+plugin's data folder (`CONSENT_FILE`), so it holds for every later run on this computer until they change it, and reads
+it back: `outline`, the run's outline after each hand-over and the version check at the start; `check`, the version
+check alone; `none`, nothing at all. The other two forms read that answer first and print an address only where it
+allows one, so the evaluator's answer is kept by fixed rules rather than by the model's memory; where it allows none,
+they print a line saying why instead, and write nothing. An answer that is missing or cannot be read counts as never
+given: the version check goes, and the outline waits until the evaluator is asked.
 
-Prints `--to` with a query string of the keys `rubicon_open/outline.py` lists and nothing else, each value from its
-fixed set, worked out by fixed rules from the folder's own files:
+With `--check`, prints `--to` as given and nothing else, unless the evaluator chose `none`: the relay answers a request
+without a query string with the published version alone and adds no row, so the check sends nothing about the person,
+the computer or any run.
+
+Otherwise, where the evaluator chose `outline`, prints `--to` with a query string of the keys `rubicon_open/outline.py`
+lists and nothing else, each value from its fixed set, worked out by fixed rules from the folder's own files:
 
 - the run's code: sixteen random hexadecimal characters, made the first time the run tells Causal Map anything and kept
   in `usage-code.txt` at the top of the run's folder (`CODE_FILE`), so every later hand-over of the run gives the same
@@ -30,9 +41,9 @@ fixed set, worked out by fixed rules from the folder's own files:
 A documents folder (one holding `corpus/`, for a combined report) gives its whole corpus and every run folder in it
 together: their questions and steps added up, the earliest start, the second reading where all agree (else `mixed`), and
 a code made from their codes together. No question text, document or folder name, passage, code value or label, and
-nothing about the person or the computer, goes into the address. The script writes nothing but a run's code, opens no
-connection and names no address of its own: Claude fetches what it prints with its own web fetch tool, and an address
-printed by a tool can be fetched where one Claude wrote itself may be refused.
+nothing about the person or the computer, goes into the address. The script writes nothing but the evaluator's answer
+and a run's code, opens no connection and names no address of its own: Claude fetches what it prints with its own web
+fetch tool, or a helper's, and an address printed by a tool can be fetched where one Claude wrote itself may be refused.
 """
 from __future__ import annotations
 
@@ -60,6 +71,36 @@ def _json(path: Path):
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+
+
+#: Where the evaluator's answer is kept: in the plugin's data folder, so it holds for every run on this computer
+CONSENT_FILE = "usage-consent.json"
+#: What the evaluator can agree to, each with what is then sent and what is said when no address is printed
+CHOICES = {
+    "outline": "after each report is handed over, Rubicon sends Causal Map the run's size and outline, and it checks "
+               "for a newer version at the start of each conversation",
+    "check": "Rubicon checks for a newer version at the start of each conversation and sends no run's outline",
+    "none": "Rubicon sends nothing, and makes no version check",
+}
+
+
+def consent(data: Path) -> str | None:
+    """The evaluator's recorded answer; None where none is recorded or the file cannot be read, so that a lost or
+    damaged answer asks again rather than sends."""
+    held = _json(data / CONSENT_FILE)
+    answer = held.get("send") if isinstance(held, dict) else None
+    return answer if answer in CHOICES else None
+
+
+def record(data: Path, answer: str) -> None:
+    """Keeps the evaluator's answer, and reads it back, so an answer that was not kept is never reported as kept."""
+    if answer not in CHOICES:
+        raise SystemExit(f"--consent takes one of {sorted(CHOICES)}")
+    data.mkdir(parents=True, exist_ok=True)
+    (data / CONSENT_FILE).write_text(json.dumps({"send": answer, "recorded": datetime.date.today().isoformat()}) + "\n",
+                                     encoding="utf-8")
+    if consent(data) != answer:
+        raise SystemExit(f"the answer could not be kept in {data / CONSENT_FILE}")
 
 
 #: Where a run keeps its code: at the top of its folder, where nothing the zip, the report or the Word copy is made from
@@ -192,17 +233,36 @@ def main(argv=None) -> None:
     ap.add_argument("--check", action="store_true", help="print the bare address, for the version check at the start")
     ap.add_argument("--event", choices=EVENTS)
     ap.add_argument("--model", help="the model family, one lowercase word as the skill names it")
-    ap.add_argument("--to", required=True, help="the address to fetch, which the skill gives")
+    ap.add_argument("--to", help="the address to fetch, which the skill gives")
+    ap.add_argument("--consent", choices=sorted(CHOICES), help="record the evaluator's answer to whether Rubicon may send anything")
+    ap.add_argument("--data", type=Path, required=True, help="the plugin's data folder, where the evaluator's answer is kept")
     a = ap.parse_args(argv)
-    if not a.to.startswith("https://") or "?" in a.to:
+    if a.consent:
+        if a.folder or a.event or a.model or a.check or a.to:
+            raise SystemExit("--consent takes --data alone: it records the evaluator's answer and sends nothing")
+        record(a.data, a.consent)
+        print(f"Kept on this computer: {CHOICES[a.consent]}.")
+        return
+    if not a.to or not a.to.startswith("https://") or "?" in a.to:
         raise SystemExit("--to takes an https address without a query string")
+    answer = consent(a.data)
     if a.check:
         if a.folder or a.event or a.model:
-            raise SystemExit("--check takes --to alone: the version check sends nothing about a run")
+            raise SystemExit("--check takes --to and --data alone: the version check sends nothing about a run")
+        if answer == "none":
+            print(f"No address to fetch: the evaluator chose that {CHOICES['none']}.")
+            return
         print(a.to)
         return
     if not (a.folder and a.event and a.model):
-        raise SystemExit("give the run's folder, --event and --model, or --check")
+        raise SystemExit("give the run's folder, --event and --model, or --check, or --consent")
+    if answer is None:
+        print("No address to fetch: the evaluator has not been asked whether Rubicon may send Causal Map the run's size "
+              "and outline. Ask them, keep their answer with --consent, then run this again.")
+        return
+    if answer != "outline":
+        print(f"No address to fetch: the evaluator chose that {CHOICES[answer]}.")
+        return
     held = Path(__file__).resolve().parent / "VERSION"
     if not held.is_file():
         raise SystemExit(f"{held} is missing: this engine was not built into a plugin")

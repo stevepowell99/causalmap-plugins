@@ -10,7 +10,7 @@ Rubicon answers evaluation questions from the evaluator's documents, such as int
 
 It agrees the question with them, then carries out a workflow of as many steps as the task needs: for one question, coding the passages on each part and comparing groups; for another, coding the causal claims in the documents, tracing the paths they make and judging the result against a rubric. Several questions given together are answered together, with anything they share defined once. Claude writes the definitions down before it counts. Fixed rules, not the model, make every count and check every quotation word for word against its document. Where the task needs it, or the evaluator asks, a second coder recodes the documents without seeing the first coding, and a fresh reader rules on every disagreement and checks every sentence and quotation of the answer against the documents, correcting what is wrong; the report says whether this was done.
 
-They get a report, in which every number and every quotation opens the passages behind it, and the whole run in one file. A copy of the report for editing in Word is made when they ask for one.
+They get a report, in which they can click any number or quotation to see the passages behind it, and the whole run in one file. A copy of the report for editing in Word is made when they ask for one.
 
 Claude reads their documents under their own Claude plan: the documents go to Anthropic and nowhere else. On a Pro or Max plan, they should switch off "Help improve Claude" in their privacy settings before running client data.
 
